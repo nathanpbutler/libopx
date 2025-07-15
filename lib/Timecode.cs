@@ -264,7 +264,13 @@ public class Timecode
         Timebase = timebase;
     }
 
-    // FromBytes method (For SMPTE Timecode)
+    /// <summary>
+    /// Create a Timecode from SMPTE bytes
+    /// </summary>
+    /// <param name="bytes">4-byte array containing SMPTE timecode</param>
+    /// <param name="timebase">The timebase of the timecode</param>
+    /// <param name="dropFrame">Whether the timecode is a drop frame timecode</param>
+    /// <param name="field">The field component of the timecode</param>
     public static Timecode FromBytes(byte[] bytes, int timebase = 25, bool dropFrame = false, int field = 0)
     {
         return FromBytes(bytes.AsSpan(), timebase, dropFrame, field);

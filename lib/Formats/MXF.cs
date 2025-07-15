@@ -5,7 +5,8 @@ namespace nathanbutlerDEV.libopx.Formats;
 public class MXF : IDisposable
 {
     private const int KeySize = 16;
-    private const int SMPTETimecodeOffset = 41;
+    private const int SystemMetadataPackGC = 41;
+    private const int SystemMetadataSetGCOffset = 12;
     private const int SMPTETimecodeSize = 4;
     
     // Reusable buffers to reduce allocations
@@ -73,6 +74,48 @@ public class MXF : IDisposable
         return bytesRead == header.Length && header.SequenceEqual(Keys.FourCc);
     }
 
+    public void AddRequiredKey(KeyType keyType)
+    {
+        if (!RequiredKeys.Contains(keyType))
+        {
+            RequiredKeys.Add(keyType);
+        }
+    }
+
+    public void AddRequiredKey(string keyType)
+    {
+        if (Enum.TryParse<KeyType>(keyType, true, out var parsedKeyType))
+        {
+            AddRequiredKey(parsedKeyType);
+        }
+        else
+        {
+            throw new ArgumentException($"Invalid key type: {keyType}", nameof(keyType));
+        }
+    }
+
+    public void ClearRequiredKeys()
+    {
+        RequiredKeys.Clear();
+    }
+
+    public void RemoveRequiredKey(KeyType keyType)
+    {
+        RequiredKeys.Remove(keyType);
+    }
+
+    public void RemoveRequiredKey(string keyType)
+    {
+        if (Enum.TryParse<KeyType>(keyType, true, out var parsedKeyType))
+        {
+            RemoveRequiredKey(parsedKeyType);
+        }
+        else
+        {
+            throw new ArgumentException($"Invalid key type: {keyType}", nameof(keyType));
+        }
+    }
+
     /// <summary>
     /// Retrieves the start timecode from the MXF file.
     /// </summary>
@@ -131,14 +174,34 @@ public class MXF : IDisposable
             switch (keyType)
             {
                 case KeyType.System:
-                    ProcessSystemPacket(length);
+                    if (RequiredKeys.Contains(KeyType.System))
+                    {
+                        ProcessSystemPacket(length);
+                    }
+                    else
+                    {
+                        Input.Seek(length, SeekOrigin.Current);
+                    }
                     break;
 
                 case KeyType.Data:
-                    ProcessDataPacket(length);
+                    if (RequiredKeys.Contains(KeyType.Data))
+                        ProcessDataPacket(length);
+                    else
+                        Input.Seek(length, SeekOrigin.Current);
                     break;
                     
                 case KeyType.Video:
+                    if (RequiredKeys.Contains(KeyType.Video))
+                    {
+                        // Handle video packets if needed
+                        Input.Seek(length, SeekOrigin.Current);
+                    }
+                    else
+                    {
+                        Input.Seek(length, SeekOrigin.Current);
+                    }
+                    break;
                 default:
                     Input.Seek(length, SeekOrigin.Current);
                     break;
@@ -149,37 +212,48 @@ public class MXF : IDisposable
 
     private void ProcessSystemPacket(int length)
     {
-        if (length >= SMPTETimecodeOffset + SMPTETimecodeSize)
+        int offset = -1;
+        if (length >= SystemMetadataPackGC + SMPTETimecodeSize)
         {
-            Input.Seek(SMPTETimecodeOffset, SeekOrigin.Current);
-
-            var smpteRead = Input.Read(_smpteBuffer, 0, SMPTETimecodeSize);
-            if (smpteRead == SMPTETimecodeSize)
-            {
-                var smpte = Timecode.FromBytes(_smpteBuffer, StartTimecode.Timebase, StartTimecode.DropFrame);
-
-                if (CheckSequential && _lastTimecode != null)
-                {
-                    var expectedPrevious = smpte.GetPrevious();
-                    if (_lastTimecode != expectedPrevious)
-                    {
-                        throw new InvalidDataException($"SMPTE timecodes are not sequential: {_lastTimecode} != {expectedPrevious}");
-                    }
-                }
-                
-                SMPTETimecodes.Add(smpte);
-                _lastTimecode = smpte;
-            }
-
-            var remainingBytes = length - SMPTETimecodeOffset - SMPTETimecodeSize;
-            if (remainingBytes > 0)
-            {
-                Input.Seek(remainingBytes, SeekOrigin.Current);
-            }
+            offset = SystemMetadataPackGC;
         }
-        else
+        else if (length >= SystemMetadataSetGCOffset + SMPTETimecodeSize)
+        {
+            offset = SystemMetadataSetGCOffset;
+        }
+        if (offset < 0)
         {
             Input.Seek(length, SeekOrigin.Current);
+            return;
+        }
+        Input.Seek(offset, SeekOrigin.Current);
+
+        var smpteRead = Input.Read(_smpteBuffer, 0, SMPTETimecodeSize);
+        if (smpteRead == SMPTETimecodeSize)
+        {
+            var smpte = Timecode.FromBytes(_smpteBuffer, StartTimecode.Timebase, StartTimecode.DropFrame);
+
+            if (CheckSequential && _lastTimecode != null)
+            {
+                var expectedPrevious = smpte.GetPrevious();
+                if (_lastTimecode != expectedPrevious)
+                {
+                    throw new InvalidDataException($"SMPTE timecodes are not sequential: {_lastTimecode} != {expectedPrevious}");
+                }
+            }
+
+            SMPTETimecodes.Add(smpte);
+            _lastTimecode = smpte;
+        }
+
+        var remainingBytes = length - offset - SMPTETimecodeSize;
+        if (remainingBytes > 0)
+        {
+            Input.Seek(remainingBytes, SeekOrigin.Current);
+        }
+        else if (remainingBytes < 0)
+        {
+            throw new InvalidDataException("Invalid length for System Metadata Pack or Set.");
         }
     }
 
