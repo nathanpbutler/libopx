@@ -90,7 +90,6 @@ public class BIN : IDisposable
             }
             Packets.Add(packet);
         }
-        Console.WriteLine($"Packets: {Packets.Count}");
     }
 
     public void Dispose()
