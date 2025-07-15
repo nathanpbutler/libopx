@@ -264,38 +264,124 @@ public class Timecode
         var minutes = bytes[2];
         var seconds = bytes[1];
         var frames = bytes[0];
+        var extractedField = 0;
 
         // If Hours -band 0x80 = 128, then it is 50p and field is 1
         if ((hours & 0x80) == 0x80)
         {
+            extractedField = 1;
             hours -= 128;
         }
 
         // If Seconds -band 0x80 = 128, then it is 48p and field is 1
         if ((seconds & 0x80) == 0x80)
         {
+            extractedField = 1;
             seconds -= 128;
         }
 
-        // 
+        // Handle drop frame offset for 30p/60p
         if (timebase is 30 or 60)
         {
             frames -= 64;
         }
 
         // Convert BCD (Binary Coded Decimal) to integers efficiently
-        // Much faster than string conversion: hours.ToString("X2") -> Convert.ToInt32
+        var parsedFrames = BcdToInt(frames);
+        
+        // For progressive formats, multiply by 2 (inverse of the /2 in ToBytes) and add field
+        if (timebase is 48 or 50 or 60)
+        {
+            parsedFrames = parsedFrames * 2 + extractedField;
+        }
+
+        // Create the timecode with the adjusted frames value
         var smpte = new Timecode
         {
             Hours = BcdToInt(hours),
             Minutes = BcdToInt(minutes),
             Seconds = BcdToInt(seconds),
-            Frames = BcdToInt(frames),
+            Frames = parsedFrames,
             Timebase = timebase,
             DropFrame = dropFrame
         };
 
         return smpte;
+    }
+
+    /// <summary>
+    /// Convert the timecode to SMPTE bytes
+    /// </summary>
+    /// <returns>4-byte array containing SMPTE timecode</returns>
+    public byte[] ToBytes()
+    {
+        var bytes = new byte[4];
+        ToBytes(bytes.AsSpan());
+        return bytes;
+    }
+
+    /// <summary>
+    /// Convert the timecode to SMPTE bytes (more efficient span version)
+    /// </summary>
+    /// <param name="bytes">4-byte span to write SMPTE timecode to</param>
+    public void ToBytes(Span<byte> bytes)
+    {
+        if (bytes.Length != 4)
+            throw new ArgumentException("Byte span must be exactly 4 bytes long");
+
+        var hours = Hours;
+        var minutes = Minutes;
+        var seconds = Seconds;
+        var frames = Frames;
+        
+        // For progressive formats, divide frames by 2
+        if (Timebase is 48 or 50 or 60)
+        {
+            frames /= 2;
+        }
+
+        // Handle drop frame offset for 30p/60p BEFORE BCD conversion
+        if (Timebase is 30 or 60)
+        {
+            frames += 64;
+        }
+
+        // Convert integers to BCD (Binary Coded Decimal) format first
+        bytes[0] = IntToBcd(frames);  // Frames
+        bytes[1] = IntToBcd(seconds); // Seconds
+        bytes[2] = IntToBcd(minutes); // Minutes
+        bytes[3] = IntToBcd(hours);   // Hours
+
+        // AFTER BCD conversion, set the status bits for progressive formats
+        if (Timebase is 48 or 50 or 60)
+        {
+            if (Timebase == 50 && Field == 1)
+            {
+                bytes[3] |= 0x80; // Set 0x80 bit in hours byte for 50p field 1
+            }
+            else if (Timebase == 48 && Field == 1)
+            {
+                bytes[1] |= 0x80; // Set 0x80 bit in seconds byte for 48p field 1
+            }
+            else if (Timebase == 60 && Field == 1)
+            {
+                bytes[3] |= 0x80; // Set 0x80 bit in hours byte for 60p field 1
+            }
+        }
+    }
+
+    /// <summary>
+    /// Efficiently converts an integer to BCD (Binary Coded Decimal) byte
+    /// Inverse of BcdToInt method
+    /// </summary>
+    /// <param name="value">Integer value to convert (0-99)</param>
+    /// <returns>BCD byte representation</returns>
+    private static byte IntToBcd(int value)
+    {
+        if (value < 0 || value > 99)
+            throw new ArgumentOutOfRangeException(nameof(value), "Value must be between 0 and 99 for BCD conversion");
+        
+        return (byte)(((value / 10) << 4) | (value % 10));
     }
 
     /// <summary>
