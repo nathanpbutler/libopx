@@ -13,13 +13,17 @@ public class MXF : IDisposable
     private readonly byte[] _keyBuffer = new byte[KeySize];
     private readonly byte[] _smpteBuffer = new byte[SMPTETimecodeSize];
 
-    public required FileInfo File { get; set; }
+    public required FileInfo InputFile { get; set; }
+    public FileInfo? OutputFile { get; set; } = null; // If null, write to stdout
+    private Stream? _outputStream;
     public required Stream Input { get; set; }
+    public Stream Output => _outputStream ??= OutputFile == null ? Console.OpenStandardOutput() : OutputFile.Open(FileMode.Create, FileAccess.Write, FileShare.Read);
     public Timecode StartTimecode { get; set; } = new Timecode(0); // Start timecode of the MXF file
     public List<Timecode> SMPTETimecodes { get; set; } = []; // List of SMPTE timecodes per-frame in the MXF file
     public List<Packet> Packets { get; set; } = []; // List of packets parsed from the MXF data stream
     public List<KeyType> RequiredKeys { get; set; } = []; // List of required keys for parsing
     public bool CheckSequential { get; set; } = true; // Check if SMPTE timecodes are sequential
+    public bool Extract { get; set; } = false; // Extract required streams from the MXF file
     
     // Cache the previous timecode for sequential checking to avoid recalculation
     private Timecode? _lastTimecode;
@@ -27,14 +31,14 @@ public class MXF : IDisposable
     [SetsRequiredMembers]
     public MXF(string inputFile)
     {
-        File = new FileInfo(inputFile);
+        InputFile = new FileInfo(inputFile);
 
-        if (!File.Exists)
+        if (!InputFile.Exists)
         {
             throw new FileNotFoundException("The specified MXF file does not exist.", inputFile);
         }
 
-        Input = File.OpenRead();
+        Input = InputFile.OpenRead();
 
         if (!IsValidMXFFile())
         {
