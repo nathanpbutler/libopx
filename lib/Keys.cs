@@ -59,6 +59,39 @@ public class Keys
             throw new IOException("The file is not an MXF file.");
         }
 
+        // Fast path for most common keys - check specific bytes directly to avoid dictionary lookup
+        
+        // Check for System Stream first (most common during SMPTE parsing)
+        // 06 0E 2B 34 02 05 01 01 0D 01 03 01 04 01 01 00
+        if (key.Length >= 16 &&
+            key[4] == 0x02 && key[5] == 0x05 && key[6] == 0x01 && key[7] == 0x01 &&
+            key[8] == 0x0D && key[9] == 0x01 && key[10] == 0x03 && key[11] == 0x01 &&
+            key[12] == 0x04 && key[13] == 0x01 && key[14] == 0x01 && key[15] == 0x00)
+        {
+            return KeyType.System;
+        }
+        
+        // Check for Timecode Component
+        // 06 0E 2B 34 02 53 01 01 0D 01 01 01 01 01 14 00
+        if (key.Length >= 16 &&
+            key[4] == 0x02 && key[5] == 0x53 && key[6] == 0x01 && key[7] == 0x01 &&
+            key[8] == 0x0D && key[9] == 0x01 && key[10] == 0x01 && key[11] == 0x01 &&
+            key[12] == 0x01 && key[13] == 0x01 && key[14] == 0x14 && key[15] == 0x00)
+        {
+            return KeyType.TimecodeComponent;
+        }
+        
+        // Check for Data Stream (14 bytes)
+        // 06 0E 2B 34 01 02 01 01 0D 01 03 01 17 01
+        if (key.Length >= 14 &&
+            key[4] == 0x01 && key[5] == 0x02 && key[6] == 0x01 && key[7] == 0x01 &&
+            key[8] == 0x0D && key[9] == 0x01 && key[10] == 0x03 && key[11] == 0x01 &&
+            key[12] == 0x17 && key[13] == 0x01)
+        {
+            return KeyType.Data;
+        }
+        
+        // Fallback to dictionary lookup for less common keys
         foreach (var pattern in KeyPatterns)
         {
             if (key[..pattern.Key.Length].SequenceEqual(pattern.Key.Span))

@@ -18,19 +18,18 @@ public class MXFBasicPerformanceTest
         // Act - This exactly matches your original request
         stopwatch.Start();
         
-        var mxf = new MXF(TestMxfPath);
-        var smpteResult = mxf.ParseSMPTETimecodesAsync().Result;
+        using var mxf = new MXF(TestMxfPath);
+        var smpteResult = mxf.ParseSMPTETimecodes();
         
         stopwatch.Stop();
 
         // Assert
-        Assert.True(smpteResult > 0, "Should parse at least one SMPTE timecode");
+        Assert.True(smpteResult, "Should parse at least one SMPTE timecode");
         Assert.True(mxf.SMPTETimecodes.Count > 0, "SMPTETimecodes collection should not be empty");
-        Assert.Equal(smpteResult, mxf.SMPTETimecodes.Count);
 
         // Performance reporting - simplified for quick feedback
         var elapsedMs = stopwatch.ElapsedMilliseconds;
-        var timecodesPerSecond = smpteResult / (stopwatch.Elapsed.TotalSeconds > 0 ? stopwatch.Elapsed.TotalSeconds : 1);
+        var timecodesPerSecond = mxf.SMPTETimecodes.Count / (stopwatch.Elapsed.TotalSeconds > 0 ? stopwatch.Elapsed.TotalSeconds : 1);
 
         var output = $"""
             ===== Basic MXF Performance Test Results =====
