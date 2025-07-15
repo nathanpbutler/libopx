@@ -415,4 +415,7 @@ FodyWeavers.xsd
 *.msp
 
 *.vbi
+*.bin
 *.mxf
+
+.vscode/

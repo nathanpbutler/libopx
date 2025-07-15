@@ -267,8 +267,20 @@ public class Timecode
     // FromBytes method (For SMPTE Timecode)
     public static Timecode FromBytes(byte[] bytes, int timebase = 25, bool dropFrame = false, int field = 0)
     {
+        return FromBytes(bytes.AsSpan(), timebase, dropFrame, field);
+    }
+
+    /// <summary>
+    /// Create a Timecode from SMPTE bytes (more efficient span version)
+    /// </summary>
+    /// <param name="bytes">4-byte span containing SMPTE timecode</param>
+    /// <param name="timebase">The timebase of the timecode</param>
+    /// <param name="dropFrame">Whether the timecode is a drop frame timecode</param>
+    /// <param name="field">The field component of the timecode</param>
+    public static Timecode FromBytes(ReadOnlySpan<byte> bytes, int timebase = 25, bool dropFrame = false, int field = 0)
+    {
         if (bytes.Length != 4)
-            throw new ArgumentException("Byte array must be exactly 4 bytes long");
+            throw new ArgumentException("Byte span must be exactly 4 bytes long");
 
         var hours = bytes[3];
         var minutes = bytes[2];
@@ -295,18 +307,31 @@ public class Timecode
             frames -= 64;
         }
 
+        // Convert BCD (Binary Coded Decimal) to integers efficiently
+        // Much faster than string conversion: hours.ToString("X2") -> Convert.ToInt32
         var smpte = new Timecode
         {
-            Hours = Convert.ToInt32(hours.ToString("X2")),
-            Minutes = Convert.ToInt32(minutes.ToString("X2")),
-            Seconds = Convert.ToInt32(seconds.ToString("X2")),
-            Frames = Convert.ToInt32(frames.ToString("X2")),
+            Hours = BcdToInt(hours),
+            Minutes = BcdToInt(minutes),
+            Seconds = BcdToInt(seconds),
+            Frames = BcdToInt(frames),
             Field = field,
             Timebase = timebase,
             DropFrame = dropFrame
         };
 
         return smpte;
+    }
+
+    /// <summary>
+    /// Efficiently converts a BCD (Binary Coded Decimal) byte to integer
+    /// Much faster than string conversion approach
+    /// </summary>
+    /// <param name="bcd">BCD byte to convert</param>
+    /// <returns>Integer representation</returns>
+    private static int BcdToInt(byte bcd)
+    {
+        return ((bcd >> 4) * 10) + (bcd & 0x0F);
     }
 
     /// <summary>
@@ -365,8 +390,10 @@ public class Timecode
     /// <returns>A new Timecode object representing the next frame</returns>
     public Timecode GetNext()
     {
-        var next = new Timecode(Hours, Minutes, Seconds, Frames, Field, Timebase, DropFrame);
-        next.FrameNumber = (FrameNumber + 1) % MaxFrames;
+        var next = new Timecode(Hours, Minutes, Seconds, Frames, Field, Timebase, DropFrame)
+        {
+            FrameNumber = (FrameNumber + 1) % MaxFrames
+        };
         return next;
     }
 
@@ -399,6 +426,7 @@ public class Timecode
     // ++ Operator
     public static Timecode operator ++(Timecode timecode)
     {
+        ArgumentNullException.ThrowIfNull(timecode);
         timecode.FrameNumber++;
         return timecode;
     }
@@ -406,6 +434,7 @@ public class Timecode
     // -- Operator
     public static Timecode operator --(Timecode timecode)
     {
+        ArgumentNullException.ThrowIfNull(timecode);
         timecode.FrameNumber--;
         return timecode;
     }
@@ -413,75 +442,97 @@ public class Timecode
     // + Operator
     public static Timecode operator +(Timecode timecode, int frames)
     {
-        var result = new Timecode(timecode.Hours, timecode.Minutes, timecode.Seconds, timecode.Frames, timecode.Field, timecode.Timebase, timecode.DropFrame);
-        result.FrameNumber = timecode.FrameNumber + frames;
+        ArgumentNullException.ThrowIfNull(timecode);
+        
+        var result = new Timecode(timecode.Hours, timecode.Minutes, timecode.Seconds, timecode.Frames, timecode.Field, timecode.Timebase, timecode.DropFrame)
+        {
+            FrameNumber = timecode.FrameNumber + frames
+        };
         return result;
     }
 
     // - Operator
     public static Timecode operator -(Timecode timecode, int frames)
     {
-        var result = new Timecode(timecode.Hours, timecode.Minutes, timecode.Seconds, timecode.Frames, timecode.Field, timecode.Timebase, timecode.DropFrame);
-        result.FrameNumber = timecode.FrameNumber - frames;
+        ArgumentNullException.ThrowIfNull(timecode);
+        
+        var result = new Timecode(timecode.Hours, timecode.Minutes, timecode.Seconds, timecode.Frames, timecode.Field, timecode.Timebase, timecode.DropFrame)
+        {
+            FrameNumber = timecode.FrameNumber - frames
+        };
         return result;
     }
 
     // + Operator for two timecodes
     public static Timecode operator +(Timecode left, Timecode right)
     {
+        ArgumentNullException.ThrowIfNull(left);
+        ArgumentNullException.ThrowIfNull(right);
+        
         if (left.Timebase != right.Timebase || left.DropFrame != right.DropFrame)
             throw new ArgumentException("Cannot add timecodes with different timebases or drop frame settings");
 
-        var result = new Timecode(left.Hours, left.Minutes, left.Seconds, left.Frames, left.Field, left.Timebase, left.DropFrame);
-        result.FrameNumber = left.FrameNumber + right.FrameNumber;
+        var result = new Timecode(left.Hours, left.Minutes, left.Seconds, left.Frames, left.Field, left.Timebase, left.DropFrame)
+        {
+            FrameNumber = left.FrameNumber + right.FrameNumber
+        };
         return result;
     }
 
     // - Operator for two timecodes
     public static Timecode operator -(Timecode left, Timecode right)
     {
+        ArgumentNullException.ThrowIfNull(left);
+        ArgumentNullException.ThrowIfNull(right);
+        
         if (left.Timebase != right.Timebase || left.DropFrame != right.DropFrame)
             throw new ArgumentException("Cannot subtract timecodes with different timebases or drop frame settings");
 
-        var result = new Timecode(left.Hours, left.Minutes, left.Seconds, left.Frames, left.Field, left.Timebase, left.DropFrame);
-        result.FrameNumber = left.FrameNumber - right.FrameNumber;
+        var result = new Timecode(left.Hours, left.Minutes, left.Seconds, left.Frames, left.Field, left.Timebase, left.DropFrame)
+        {
+            FrameNumber = left.FrameNumber - right.FrameNumber
+        };
         return result;
     }
 
     // Equality operators
-    public static bool operator ==(Timecode left, Timecode right)
+    public static bool operator ==(Timecode? left, Timecode? right)
     {
         if (ReferenceEquals(left, right)) return true;
         if (left is null || right is null) return false;
         return left.FrameNumber == right.FrameNumber && left.Timebase == right.Timebase && left.DropFrame == right.DropFrame;
     }
 
-    public static bool operator !=(Timecode left, Timecode right)
+    public static bool operator !=(Timecode? left, Timecode? right)
     {
         return !(left == right);
     }
 
     // Comparison operators
-    public static bool operator <(Timecode left, Timecode right)
+    public static bool operator <(Timecode? left, Timecode? right)
     {
+        if (left is null || right is null)
+            throw new ArgumentNullException(left is null ? nameof(left) : nameof(right));
         if (left.Timebase != right.Timebase || left.DropFrame != right.DropFrame)
             throw new ArgumentException("Cannot compare timecodes with different timebases or drop frame settings");
         return left.FrameNumber < right.FrameNumber;
     }
 
-    public static bool operator >(Timecode left, Timecode right)
+    public static bool operator >(Timecode? left, Timecode? right)
     {
+        if (left is null || right is null)
+            throw new ArgumentNullException(left is null ? nameof(left) : nameof(right));
         if (left.Timebase != right.Timebase || left.DropFrame != right.DropFrame)
             throw new ArgumentException("Cannot compare timecodes with different timebases or drop frame settings");
         return left.FrameNumber > right.FrameNumber;
     }
 
-    public static bool operator <=(Timecode left, Timecode right)
+    public static bool operator <=(Timecode? left, Timecode? right)
     {
         return left < right || left == right;
     }
 
-    public static bool operator >=(Timecode left, Timecode right)
+    public static bool operator >=(Timecode? left, Timecode? right)
     {
         return left > right || left == right;
     }
