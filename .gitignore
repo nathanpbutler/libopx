@@ -419,3 +419,4 @@ FodyWeavers.xsd
 *.mxf
 
 .vscode/
+.DS_Store
