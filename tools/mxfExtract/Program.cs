@@ -1,4 +1,7 @@
 ﻿using nathanbutlerDEV.libopx;
+using nathanbutlerDEV.libopx.SMPTE;
+using System.Reflection;
+using System.CommandLine;
 
 namespace mxfExtract;
 
@@ -24,9 +27,15 @@ class Program
 
         string inputFilePath = args[0];
         string outputBasePath = Path.ChangeExtension(inputFilePath, null);
+        bool demuxMode = false;
+        bool klvMode = false;
+        bool useNames = false;
 
         var keys = new List<KeyType>();
         var outputStreams = new Dictionary<KeyType, FileStream>();
+        var demuxStreams = new Dictionary<string, FileStream>();
+        var berLengthBuffer = new List<byte>();
+        var foundKeys = new HashSet<string>();
 
         for (int i = 1; i < args.Length; i++)
         {
@@ -57,6 +66,19 @@ class Program
                         return 1;
                     }
                     break;
+                case "-d":
+                case "--demux":
+                    demuxMode = true;
+                    Console.WriteLine("Demux mode enabled - all keys will be extracted with hex key names.");
+                    break;
+                case "--klv":
+                    klvMode = true;
+                    Console.WriteLine("KLV mode enabled - key and length bytes will be included in output files.");
+                    break;
+                case "-n":
+                    useNames = true;
+                    Console.WriteLine("Name mode enabled - using Key/Essence names instead of hex keys.");
+                    break;
                 default:
                     Console.WriteLine($"Unknown option: {args[i]}");
                     return 1;
@@ -84,11 +106,46 @@ class Program
                     var keyType = Keys.GetKeyType(_keyBuffer.AsSpan(0, KeySize));
 
                     // Read the next BER length
-                    int length = ReadBerLength(reader);
+                    int length = ReadBerLength(reader, berLengthBuffer);
                     if (length < 0) throw new EndOfStreamException("Unexpected end of stream while reading length.");
 
-                    // Check for system metadata keys
-                    if (keys.Contains(keyType))
+                    if (demuxMode)
+                    {
+                        // In demux mode, extract all keys
+                        var keyIdentifier = useNames ? GetKeyName(_keyBuffer) : BytesToHexString(_keyBuffer);
+                        
+                        // Only output "Found key" message once per unique key
+                        if (!foundKeys.Contains(keyIdentifier))
+                        {
+                            Console.WriteLine($"Found key: {keyIdentifier}, length: {length}");
+                            foundKeys.Add(keyIdentifier);
+                        }
+                        
+                        // Create output stream if it doesn't exist
+                        if (!demuxStreams.TryGetValue(keyIdentifier, out FileStream? value1))
+                        {
+                            var outputPath = $"{outputBasePath}_{keyIdentifier}.bin";
+                            value1 = new FileStream(outputPath, FileMode.Create, FileAccess.Write);
+                            demuxStreams[keyIdentifier] = value1;
+                            // Console.WriteLine($"Created output file: {outputPath}");
+                        }
+                        
+                        // Write KLV data if requested
+                        if (klvMode)
+                        {
+                            // Write the key bytes
+                            value1.Write(_keyBuffer, 0, KeySize);
+                            // Write the length bytes
+                            value1.Write(berLengthBuffer.ToArray(), 0, berLengthBuffer.Count);
+                        }
+                        
+                        // Read and write the data
+                        var value = new byte[length];
+                        var bytesRead = reader.Read(value, 0, length);
+                        if (bytesRead != length) throw new EndOfStreamException("Unexpected end of stream while reading value.");
+                        value1.Write(value, 0, length);
+                    }
+                    else if (keys.Contains(keyType))
                     {
                         Console.WriteLine($"Found required key: {keyType}, length: {length}");
                         
@@ -99,7 +156,7 @@ class Program
                             {
                                 var outputPath = outputBasePath + extension;
                                 outputStreams[keyType] = new FileStream(outputPath, FileMode.Create, FileAccess.Write);
-                                Console.WriteLine($"Created output file: {outputPath}");
+                                //Console.WriteLine($"Created output file: {outputPath}");
                             }
                         }
                         
@@ -128,6 +185,12 @@ class Program
                 {
                     stream?.Dispose();
                 }
+                
+                // Dispose all demux streams
+                foreach (var stream in demuxStreams.Values)
+                {
+                    stream?.Dispose();
+                }
             }
         }
         catch (Exception ex)
@@ -145,8 +208,14 @@ class Program
         Console.WriteLine("  -h, --help            Show this help message");
         Console.WriteLine("  -v, --version         Show version information");
         Console.WriteLine("  -o, --output <base>   Specify output base path - files will be created as <base>_d.bin, <base>_v.bin, etc");
-        Console.WriteLine("  -k, --key <string[]>  Specify keys to extract (d,v,s,t,a - comma-separated)\n");
-        Console.WriteLine("Example: mxfExtract input.mxf -o output -k d,v,s\n");
+        Console.WriteLine("  -k, --key <string[]>  Specify keys to extract (d,v,s,t,a - comma-separated)");
+        Console.WriteLine("  -d, --demux           Extract all keys found, output as <base>_<hexkey>.bin");
+        Console.WriteLine("  -n                    Use Key/Essence names instead of hex keys (use with -d)");
+        Console.WriteLine("      --klv             Include key and length bytes in output files (use with -d)\n");
+        Console.WriteLine("Example: mxfExtract input.mxf -o output -k d,v,s");
+        Console.WriteLine("Example: mxfExtract input.mxf -o output -d");
+        Console.WriteLine("Example: mxfExtract input.mxf -o output -d -n");
+        Console.WriteLine("Example: mxfExtract input.mxf -o output -d --klv\n");
         Console.WriteLine("Keys:");
         Console.WriteLine("  d - Data");
         Console.WriteLine("  v - Video");
@@ -204,10 +273,63 @@ class Program
         return keys;
     }
 
-    private static int ReadBerLength(Stream input)
+    private static string BytesToHexString(byte[] bytes)
     {
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    private static string GetKeyName(byte[] keyBytes)
+    {
+        // Search Essence first (more specific 16-byte keys), then Keys (more generic patterns)
+        Type[] typesToSearch = { typeof(Essence), typeof(Keys) };
+        
+        foreach (var type in typesToSearch)
+        {
+            var fields = type.GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.NonPublic);
+            
+            foreach (var field in fields)
+            {
+                if (field.FieldType == typeof(byte[]))
+                {
+                    var fieldValue = (byte[])field.GetValue(null)!;
+                    
+                    // Skip FourCc as it's the universal prefix for all MXF keys
+                    if (field.Name == "FourCc")
+                        continue;
+                    
+                    // Handle variable-length keys - check if the key starts with the field value
+                    // or if they match exactly
+                    if (fieldValue.Length <= keyBytes.Length)
+                    {
+                        var keyPrefix = keyBytes.Take(fieldValue.Length).ToArray();
+                        if (keyPrefix.SequenceEqual(fieldValue))
+                        {
+                            // Return the field name without underscores for better readability
+                            return field.Name.TrimStart('_');
+                        }
+                    }
+                }
+            }
+        }
+        
+        // If not found in either class, try to get KeyType
+        var keyType = Keys.GetKeyType(keyBytes.AsSpan());
+        if (keyType != KeyType.Unknown)
+        {
+            return keyType.ToString();
+        }
+        
+        // For unknown keys, return the hex representation
+        return BytesToHexString(keyBytes);
+    }
+
+    private static int ReadBerLength(Stream input, List<byte> lengthBuffer)
+    {
+        lengthBuffer.Clear();
         var firstByte = input.ReadByte();
         if (firstByte == -1) return -1;
+        
+        lengthBuffer.Add((byte)firstByte);
 
         if ((firstByte & 0x80) == 0)
         {
@@ -223,6 +345,7 @@ class Program
             {
                 var b = input.ReadByte();
                 if (b == -1) return -1;
+                lengthBuffer.Add((byte)b);
                 length = (length << 8) | b;
             }
 

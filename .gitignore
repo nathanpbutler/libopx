@@ -420,3 +420,5 @@ FodyWeavers.xsd
 
 .vscode/
 .DS_Store
+
+temp/
