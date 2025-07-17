@@ -417,6 +417,7 @@ FodyWeavers.xsd
 *.vbi
 *.bin
 *.mxf
+*.klv
 
 .vscode/
 .DS_Store
