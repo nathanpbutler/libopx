@@ -11,4 +11,8 @@
     <ProjectReference Include="../../lib/libopx.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" Version="2.0.0-beta6.25358.103" />
+  </ItemGroup>
+
 </Project>
