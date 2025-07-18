@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using nathanbutlerDEV.libopx.SMPTE;
 
 namespace nathanbutlerDEV.libopx.Formats;
 
@@ -24,9 +25,27 @@ public class MXF : IDisposable
     public List<KeyType> RequiredKeys { get; set; } = []; // List of required keys for parsing
     public bool CheckSequential { get; set; } = true; // Check if SMPTE timecodes are sequential
     public bool Extract { get; set; } = false; // Extract required streams from the MXF file
+    public bool DemuxMode { get; set; } = false; // Extract all keys found, output as separate files
+    public bool UseKeyNames { get; set; } = false; // Use Key/Essence names instead of hex keys (use with DemuxMode)
+    public bool KlvMode { get; set; } = false; // Include key and length bytes in output files
+    public string? OutputBasePath { get; set; } // Base path for extracted files
+    private readonly Dictionary<KeyType, string> _keyTypeToExtension = new()
+    {
+        { KeyType.Data, "_d.raw" },
+        { KeyType.Video, "_v.raw" },
+        { KeyType.System, "_s.raw" },
+        { KeyType.TimecodeComponent, "_t.raw" },
+        { KeyType.Audio, "_a.raw" }
+    };
     
     // Cache the previous timecode for sequential checking to avoid recalculation
     private Timecode? _lastTimecode;
+    
+    // Extraction-related fields
+    private readonly Dictionary<KeyType, FileStream> _outputStreams = new();
+    private readonly Dictionary<string, FileStream> _demuxStreams = new();
+    private readonly List<byte> _berLengthBuffer = new();
+    private readonly HashSet<string> _foundKeys = new();
 
     [SetsRequiredMembers]
     public MXF(string inputFile)
@@ -56,8 +75,10 @@ public class MXF : IDisposable
     public void Dispose()
     {
         GC.SuppressFinalize(this);
+        CloseExtractionStreams();
         Input?.Close();
         Input?.Dispose();
+        _outputStream?.Dispose();
     }
 
     /// <summary>
@@ -166,52 +187,72 @@ public class MXF : IDisposable
         Input.Seek(0, SeekOrigin.Begin);
         _lastTimecode = null; // Reset sequential checking
 
-        while (true)
+        try
         {
-            var keyBytesRead = Input.Read(_keyBuffer, 0, KeySize);
-            if (keyBytesRead != KeySize) break;
-
-            var keyType = Keys.GetKeyType(_keyBuffer.AsSpan(0, KeySize));
-            var length = ReadBerLength(Input);
-            if (length < 0) break;
-
-            switch (keyType)
+            while (true)
             {
-                case KeyType.System:
-                    if (RequiredKeys.Contains(KeyType.System))
-                    {
-                        ProcessSystemPacket(length);
-                    }
-                    else
-                    {
-                        Input.Seek(length, SeekOrigin.Current);
-                    }
-                    break;
+                var keyBytesRead = Input.Read(_keyBuffer, 0, KeySize);
+                if (keyBytesRead != KeySize) break;
 
-                case KeyType.Data:
-                    if (RequiredKeys.Contains(KeyType.Data))
-                        ProcessDataPacket(length);
-                    else
-                        Input.Seek(length, SeekOrigin.Current);
-                    break;
-                    
-                case KeyType.Video:
-                    if (RequiredKeys.Contains(KeyType.Video))
+                var keyType = Keys.GetKeyType(_keyBuffer.AsSpan(0, KeySize));
+                var length = ReadBerLength(Input, _berLengthBuffer);
+                if (length < 0) break;
+
+                // Determine if we should extract this key
+                bool shouldExtract = Extract && (DemuxMode || RequiredKeys.Contains(keyType));
+                
+                if (shouldExtract)
+                {
+                    ExtractPacket(keyType, length);
+                }
+                else
+                {
+                    switch (keyType)
                     {
-                        // Handle video packets if needed
-                        Input.Seek(length, SeekOrigin.Current);
+                        case KeyType.System:
+                            if (RequiredKeys.Contains(KeyType.System))
+                            {
+                                ProcessSystemPacket(length);
+                            }
+                            else
+                            {
+                                Input.Seek(length, SeekOrigin.Current);
+                            }
+                            break;
+
+                        case KeyType.Data:
+                            if (RequiredKeys.Contains(KeyType.Data))
+                                ProcessDataPacket(length);
+                            else
+                                Input.Seek(length, SeekOrigin.Current);
+                            break;
+                            
+                        case KeyType.Video:
+                        case KeyType.Audio:
+                        case KeyType.TimecodeComponent:
+                            if (RequiredKeys.Contains(keyType))
+                            {
+                                // For now, just skip these packets
+                                Input.Seek(length, SeekOrigin.Current);
+                            }
+                            else
+                            {
+                                Input.Seek(length, SeekOrigin.Current);
+                            }
+                            break;
+                        default:
+                            Input.Seek(length, SeekOrigin.Current);
+                            break;
                     }
-                    else
-                    {
-                        Input.Seek(length, SeekOrigin.Current);
-                    }
-                    break;
-                default:
-                    Input.Seek(length, SeekOrigin.Current);
-                    break;
+                }
             }
         }
-        Input.Seek(0, SeekOrigin.Begin);
+        finally
+        {
+            // Close any open extraction streams
+            CloseExtractionStreams();
+            Input.Seek(0, SeekOrigin.Begin);
+        }
     }
 
     private void ProcessSystemPacket(int length)
@@ -305,10 +346,13 @@ public class MXF : IDisposable
         return SMPTETimecodes.Count > 0;
     }
 
-    private static int ReadBerLength(Stream input)
+    private static int ReadBerLength(Stream input, List<byte>? lengthBuffer = null)
     {
+        lengthBuffer?.Clear();
         var firstByte = input.ReadByte();
         if (firstByte == -1) return -1;
+        
+        lengthBuffer?.Add((byte)firstByte);
 
         if ((firstByte & 0x80) == 0)
         {
@@ -324,10 +368,160 @@ public class MXF : IDisposable
             {
                 var b = input.ReadByte();
                 if (b == -1) return -1;
+                lengthBuffer?.Add((byte)b);
                 length = (length << 8) | b;
             }
 
             return length;
         }
+    }
+    
+    private void ExtractPacket(KeyType keyType, int length)
+    {
+        FileStream outputStream;
+        
+        if (DemuxMode)
+        {
+            // Demux mode: create unique file for each key
+            var keyIdentifier = UseKeyNames ? GetKeyName(_keyBuffer) : BytesToHexString(_keyBuffer);
+            
+            if (!_foundKeys.Contains(keyIdentifier))
+            {
+                Console.WriteLine($"Found key: {keyIdentifier}, length: {length}");
+                _foundKeys.Add(keyIdentifier);
+            }
+            
+            if (!_demuxStreams.TryGetValue(keyIdentifier, out outputStream!))
+            {
+                var fileExtension = KlvMode ? ".klv" : ".raw";
+                var outputPath = $"{OutputBasePath ?? Path.ChangeExtension(InputFile.FullName, null)}_{keyIdentifier}{fileExtension}";
+                outputStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write);
+                _demuxStreams[keyIdentifier] = outputStream;
+            }
+        }
+        else
+        {
+            // Normal extraction mode
+            if (!_outputStreams.TryGetValue(keyType, out outputStream!))
+            {
+                if (_keyTypeToExtension.TryGetValue(keyType, out var extension))
+                {
+                    if (KlvMode)
+                    {
+                        extension = extension.Replace(".raw", ".klv");
+                    }
+                    var outputPath = (OutputBasePath ?? Path.ChangeExtension(InputFile.FullName, null)) + extension;
+                    outputStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write);
+                    _outputStreams[keyType] = outputStream;
+                }
+                else
+                {
+                    // Skip if no extension mapping
+                    Input.Seek(length, SeekOrigin.Current);
+                    return;
+                }
+            }
+        }
+        
+        // Write KLV header if requested
+        if (KlvMode)
+        {
+            outputStream.Write(_keyBuffer, 0, KeySize);
+            outputStream.Write(_berLengthBuffer.ToArray(), 0, _berLengthBuffer.Count);
+        }
+        
+        // Write essence data
+        var essenceData = new byte[length];
+        var bytesRead = Input.Read(essenceData, 0, length);
+        if (bytesRead != length) throw new EndOfStreamException("Unexpected end of stream while reading value.");
+        outputStream.Write(essenceData, 0, length);
+    }
+    
+    private void CloseExtractionStreams()
+    {
+        foreach (var stream in _outputStreams.Values)
+        {
+            stream?.Dispose();
+        }
+        _outputStreams.Clear();
+        
+        foreach (var stream in _demuxStreams.Values)
+        {
+            stream?.Dispose();
+        }
+        _demuxStreams.Clear();
+    }
+    
+    private static string BytesToHexString(byte[] bytes)
+    {
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+    
+    private string GetKeyName(byte[] keyBytes)
+    {
+        Type[] typesToSearch = { typeof(Essence), typeof(Keys) };
+        
+        foreach (var type in typesToSearch)
+        {
+            var fields = type.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            
+            foreach (var field in fields)
+            {
+                if (field.FieldType == typeof(byte[]))
+                {
+                    var fieldValue = (byte[])field.GetValue(null)!;
+                    
+                    if (field.Name == "FourCc")
+                        continue;
+                    
+                    if (fieldValue.Length <= keyBytes.Length)
+                    {
+                        var keyPrefix = keyBytes.Take(fieldValue.Length).ToArray();
+                        if (keyPrefix.SequenceEqual(fieldValue))
+                        {
+                            return field.Name.TrimStart('_');
+                        }
+                    }
+                }
+            }
+        }
+        
+        var keyType = Keys.GetKeyType(keyBytes.AsSpan());
+        if (keyType != KeyType.Unknown)
+        {
+            return keyType.ToString();
+        }
+        
+        return BytesToHexString(keyBytes);
+    }
+    
+    /// <summary>
+    /// Extract essence elements from the MXF file based on the configured extraction settings.
+    /// </summary>
+    /// <param name="outputBasePath">Optional output base path for extracted files</param>
+    /// <param name="demuxMode">Extract all keys found to separate files</param>
+    /// <param name="useKeyNames">Use Key/Essence names instead of hex keys</param>
+    /// <param name="klvMode">Include key and length bytes in output files</param>
+    public void ExtractEssence(string? outputBasePath = null, bool? demuxMode = null, bool? useKeyNames = null, bool? klvMode = null)
+    {
+        // Apply extraction settings
+        OutputBasePath = outputBasePath ?? OutputBasePath;
+        DemuxMode = demuxMode ?? DemuxMode;
+        UseKeyNames = useKeyNames ?? UseKeyNames;
+        KlvMode = klvMode ?? KlvMode;
+        Extract = true;
+        
+        // If no specific keys are required and not in demux mode, default to extracting all
+        if (!DemuxMode && RequiredKeys.Count == 0)
+        {
+            RequiredKeys.Add(KeyType.Data);
+            RequiredKeys.Add(KeyType.Video);
+            RequiredKeys.Add(KeyType.Audio);
+            RequiredKeys.Add(KeyType.System);
+            RequiredKeys.Add(KeyType.TimecodeComponent);
+        }
+        
+        // Run the parse method which will handle extraction
+        Parse();
     }
 }
