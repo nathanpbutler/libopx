@@ -1,4 +1,6 @@
 using System;
+using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 using nathanbutlerDEV.libopx.Enums;
 
 namespace nathanbutlerDEV.libopx.Formats;
@@ -11,9 +13,74 @@ public class VBI
     public required Stream Input { get; set; }
     public Stream Output => _outputStream ??= OutputFile == null ? Console.OpenStandardOutput() : OutputFile.Open(FileMode.Create, FileAccess.Write, FileShare.Read);
     public LineFormat InputFormat { get; set; } = LineFormat.VBI; // Default input format is VBI
+    public LineFormat? OutputFormat { get; set; } = LineFormat.T42; // Default output format is T42
     public int LineLength => InputFormat == LineFormat.VBI_DOUBLE ? Constants.VBI_DOUBLE_LINE_SIZE : Constants.VBI_LINE_SIZE; // Length of the line based on input format
     public static readonly LineFormat[] ValidOutputs = [LineFormat.VBI, LineFormat.VBI_DOUBLE, LineFormat.T42];
-    public Function Function { get; set; } = Function.Extract; // Default function is Extract
+    public Function Function { get; set; } = Function.Filter; // Default function is Filter
+
+    /// <summary>
+    /// Constructor for VBI format from file
+    /// </summary>
+    /// <param name="inputFile"></param>
+    /// <param name="vbiType"></param>
+    /// <exception cref="FileNotFoundException"></exception>
+    [SetsRequiredMembers]
+    public VBI(string inputFile, LineFormat? vbiType = LineFormat.VBI)
+    {
+        InputFile = new FileInfo(inputFile);
+
+        if (!InputFile.Exists)
+        {
+            throw new FileNotFoundException("The specified VBI file does not exist.", inputFile);
+        }
+        // If vbiType is not specified, default determine from file extension
+        InputFormat = vbiType ?? (InputFile.Extension.ToLower() switch
+        {
+            ".vbi" => LineFormat.VBI,
+            ".vbid" => LineFormat.VBI_DOUBLE,
+            _ => LineFormat.VBI // Default to VBI if unknown
+        });
+
+        Input = InputFile.OpenRead();
+        Input.Seek(0, SeekOrigin.Begin); // Reset stream position to the beginning
+    }
+
+    /// <summary>
+    /// Constructor for BIN format from stdin
+    /// </summary>
+    [SetsRequiredMembers]
+    public VBI()
+    {
+        InputFile = null;
+        Input = Console.OpenStandardInput();
+    }
+
+    public IEnumerable<Line> Parse(int? magazine = 8, int[]? rows = null)
+    {
+        // Use default rows if not specified
+        rows ??= Constants.DEFAULT_ROWS;
+
+        // If OutputFormat is not set, use the provided outputFormat
+        var outputFormat = OutputFormat ?? LineFormat.T42;
+
+        int lineNumber = 0;
+
+        var timecode = new Timecode(0); // Default timecode, can be modified later
+
+        var vbiBuffer = new byte[LineLength];
+
+        while (Input.Read(vbiBuffer, 0, LineLength) == LineLength)
+        {
+            var line = new Line(vbiBuffer)
+            {
+                LineNumber = lineNumber
+            };
+            
+            yield return line;
+
+            lineNumber++;
+        }
+    }
 
     // ToT42 method
     public static byte[] ToT42(byte[] lineData, bool debug = false)

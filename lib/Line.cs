@@ -244,11 +244,9 @@ public class Line : IDisposable
 
         if (data.Length >= Constants.T42_PLUS_CRIFC && data.Length < Constants.VBI_LINE_SIZE)
         {
-            // Console.WriteLine("Checking for T42 line format...");
             var crifc = Functions.GetCrifc(data);
             if (crifc >= 0)
             {
-                // Console.WriteLine("Found T42 line format.");
                 // If the CRIFC is valid, we can set the type to T42
                 _cachedType = LineFormat.T42;
 
@@ -256,19 +254,14 @@ public class Line : IDisposable
                 var remainingBytes = data.Length - (crifc + 3);
                 if (remainingBytes >= Constants.T42_LINE_SIZE)
                 {
-                    // Console.WriteLine("Cropping data to T42 line size...");
                     Data = [.. data.Skip(crifc + 3).Take(Constants.T42_LINE_SIZE)];
-                    // Console.WriteLine("Getting magazine");
                     Magazine = T42.GetMagazine(Data[0]);
-                    // Console.WriteLine("Getting row");
                     Row = T42.GetRow([.. Data.Take(2)]);
-                    // Console.WriteLine("Getting text");
                     Text = T42.GetText([.. Data.Skip(2)]);
                 }
                 else
                 {
                     // Not enough data for a complete T42 line
-                    // Console.WriteLine($"Not enough data after CRIFC. Need {Constants.T42_LINE_SIZE}, have {remainingBytes}");
                     Data = data; // Store the data as is
                     Magazine = -1; // Unknown magazine
                     Row = -1; // Unknown row
@@ -289,36 +282,44 @@ public class Line : IDisposable
         {
             _cachedType = GetLineFormat(data); // Use the static method to determine the type
             Data = [.. data.Take(Length)];
+            
+            // Convert VBI to T42 if requested
+            if (outputFormat == LineFormat.T42 && (_cachedType == LineFormat.VBI || _cachedType == LineFormat.VBI_DOUBLE))
+            {
+                try
+                {
+                    // Convert VBI data to T42
+                    var t42Data = VBI.ToT42(Data);
+                    
+                    // Update line properties for T42
+                    Data = t42Data;
+                    _cachedType = LineFormat.T42;
+                    SampleCoding = 0x31; // T42 sample coding
+                    SampleCount = t42Data.Length;
+                    
+                    // Extract T42 metadata
+                    if (t42Data.Length >= Constants.T42_LINE_SIZE)
+                    {
+                        Magazine = T42.GetMagazine(Data[0]);
+                        Row = T42.GetRow([.. Data.Take(2)]);
+                        Text = T42.GetText([.. Data.Skip(2)]);
+                    }
+                    else
+                    {
+                        Magazine = -1;
+                        Row = -1;
+                        Text = Constants.T42_BLANK_LINE;
+                    }
+                }
+                catch
+                {
+                    // If conversion fails, keep original data
+                    Magazine = -1;
+                    Row = -1;
+                    Text = Constants.T42_BLANK_LINE;
+                }
+            }
         }
-    }
-
-    /// <summary>
-    /// Parses the line data from a byte array.
-    /// </summary>
-    /// <param name="data">The byte array containing the line data</param>
-    public void ParseLine(byte[] data)
-    {
-        ParseLine(data.AsSpan());
-    }
-
-    /// <summary>
-    /// Parses the line data from a span (most efficient version).
-    /// </summary>
-    /// <param name="data">The span containing the line data</param>
-    public void ParseLine(ReadOnlySpan<byte> data)
-    {
-        if (Length <= 0)
-        {
-            throw new InvalidDataException("Line length is invalid.");
-        }
-
-        if (data.Length < Length)
-        {
-            throw new InvalidDataException($"Not enough data to read the line. Expected {Length}, got {data.Length}.");
-        }
-
-        Data = new byte[Length];
-        data[..Length].CopyTo(Data);
     }
 
     // ToString override
