@@ -5,7 +5,7 @@ using nathanbutlerDEV.libopx.Enums;
 
 namespace nathanbutlerDEV.libopx.Formats;
 
-public class VBI
+public class VBI : IDisposable
 {
     public FileInfo? InputFile { get; set; } = null; // If null, read from stdin
     public FileInfo? OutputFile { get; set; } = null; // If null, write to stdout
@@ -17,6 +17,7 @@ public class VBI
     public int LineLength => InputFormat == LineFormat.VBI_DOUBLE ? Constants.VBI_DOUBLE_LINE_SIZE : Constants.VBI_LINE_SIZE; // Length of the line based on input format
     public static readonly LineFormat[] ValidOutputs = [LineFormat.VBI, LineFormat.VBI_DOUBLE, LineFormat.T42];
     public Function Function { get; set; } = Function.Filter; // Default function is Filter
+    public int LineCount { get; set; } = 2; // For Timecode incementation, default is 2 lines
 
     /// <summary>
     /// Constructor for VBI format from file
@@ -46,13 +47,35 @@ public class VBI
     }
 
     /// <summary>
-    /// Constructor for BIN format from stdin
+    /// Constructor for VBI format from stdin
     /// </summary>
     [SetsRequiredMembers]
     public VBI()
     {
         InputFile = null;
         Input = Console.OpenStandardInput();
+    }
+    
+    /// <summary>
+    /// Constructor for VBI format with custom stream
+    /// </summary>
+    /// <param name="inputStream">The input stream to read from</param>
+    /// <param name="vbiType">The VBI format type</param>
+    [SetsRequiredMembers]
+    public VBI(Stream inputStream, LineFormat? vbiType = LineFormat.VBI)
+    {
+        InputFile = null;
+        Input = inputStream ?? throw new ArgumentNullException(nameof(inputStream));
+        InputFormat = vbiType ?? LineFormat.VBI;
+    }
+    
+    /// <summary>
+    /// Sets the output file for writing
+    /// </summary>
+    /// <param name="outputFile">Path to the output file</param>
+    public void SetOutput(string outputFile)
+    {
+        OutputFile = new FileInfo(outputFile);
     }
 
     public IEnumerable<Line> Parse(int? magazine = 8, int[]? rows = null)
@@ -64,21 +87,102 @@ public class VBI
         var outputFormat = OutputFormat ?? LineFormat.T42;
 
         int lineNumber = 0;
-
-        var timecode = new Timecode(0); // Default timecode, can be modified later
-
+        var timecode = new Timecode(0);
         var vbiBuffer = new byte[LineLength];
+
+        Input.Seek(0, SeekOrigin.Begin);
 
         while (Input.Read(vbiBuffer, 0, LineLength) == LineLength)
         {
-            var line = new Line(vbiBuffer)
+            // Increment timecode if LineCount is reached
+            if (lineNumber % LineCount == 0)
             {
-                LineNumber = lineNumber
-            };
-            
-            yield return line;
+                timecode = timecode.GetNext();
+            }
 
+            // Create a basic Line object for VBI data
+            var line = new Line()
+            {
+                LineNumber = lineNumber,
+                Data = [.. vbiBuffer],
+                Length = LineLength,
+                SampleCoding = InputFormat == LineFormat.VBI_DOUBLE ? 0x32 : 0x31,
+                SampleCount = LineLength,
+                LineTimecode = timecode,
+            };
+
+            // Process the VBI data based on output format
+            if (outputFormat == LineFormat.T42)
+            {
+                try
+                {
+                    // Convert VBI to T42
+                    var t42Data = ToT42(vbiBuffer);
+
+                    // Update line properties for T42
+                    line.Data = t42Data;
+                    line.Length = t42Data.Length;
+                    line.SampleCoding = 0x31; // T42 sample coding
+                    line.SampleCount = t42Data.Length;
+
+                    // Extract T42 metadata if conversion successful
+                    if (t42Data.Length >= Constants.T42_LINE_SIZE && t42Data.Any(b => b != 0))
+                    {
+                        line.Magazine = T42.GetMagazine(t42Data[0]);
+                        line.Row = T42.GetRow([.. t42Data.Take(2)]);
+                        line.Text = T42.GetText([.. t42Data.Skip(2)]);
+                    }
+                    else
+                    {
+                        // Conversion resulted in blank data, skip this line
+                        lineNumber++;
+                        continue;
+                    }
+                }
+                catch
+                {
+                    // If conversion fails, skip this line
+                    lineNumber++;
+                    continue;
+                }
+            }
+            else
+            {
+                // For VBI output, keep original data
+                line.Magazine = -1;
+                line.Row = -1;
+                line.Text = Constants.T42_BLANK_LINE;
+            }
+
+            // Apply filtering if specified and conversion was successful
+            if (magazine.HasValue && line.Magazine != magazine.Value)
+            {
+                lineNumber++;
+                continue;
+            }
+
+            if (rows != null && !rows.Contains(line.Row))
+            {
+                lineNumber++;
+                continue;
+            }
+
+            yield return line;
             lineNumber++;
+        }
+    }
+
+    public void Dispose()
+    {
+        GC.SuppressFinalize(this);
+        // Only dispose streams we created (not stdin/stdout)
+        if (InputFile != null)
+        {
+            Input?.Dispose();
+        }
+        if (OutputFile != null)
+        {
+            _outputStream?.Dispose();
         }
     }
 
