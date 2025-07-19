@@ -79,8 +79,6 @@ public class BIN : IDisposable
         
         int lineNumber = 0;
 
-        Input.Seek(0, SeekOrigin.Begin);
-
         var timecode = new Timecode(0); // Default timecode, can be modified later
 
         while (Input.Read(_packetHeader, 0, Constants.PACKET_HEADER_SIZE) == Constants.PACKET_HEADER_SIZE)

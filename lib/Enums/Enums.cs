@@ -14,6 +14,8 @@ public enum LineFormat
     VBI_DOUBLE,
     /// T42
     T42,
+    /// BIN (MXF data)
+    BIN,
     /// RCWT (Raw Caption With Timing)
     RCWT,
     /// TODO: mp4, ts, mpeg, etc...
