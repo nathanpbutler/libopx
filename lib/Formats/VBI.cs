@@ -90,8 +90,6 @@ public class VBI : IDisposable
         var timecode = new Timecode(0);
         var vbiBuffer = new byte[LineLength];
 
-        Input.Seek(0, SeekOrigin.Begin);
-
         while (Input.Read(vbiBuffer, 0, LineLength) == LineLength)
         {
             // Increment timecode if LineCount is reached

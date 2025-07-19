@@ -84,8 +84,6 @@ public class T42 : IDisposable
         var timecode = new Timecode(0);
         var t42Buffer = new byte[LineLength];
 
-        Input.Seek(0, SeekOrigin.Begin);
-
         while (Input.Read(t42Buffer, 0, LineLength) == LineLength)
         {
             // Increment timecode if LineCount is reached
