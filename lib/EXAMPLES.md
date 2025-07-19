@@ -27,8 +27,7 @@ Console.WriteLine($"{mxf.Packets.Count} packets found.");
 using nathanbutlerDEV.libopx.Formats;
 
 // Open the BIN file
-// Ensure the file path is correct and the file exists
-var bin = new BIN(@"samples\test.bin");
+var bin = new BIN("temp/rick.bin");
 
 // Parse the BIN file
 bin.Parse();
@@ -36,15 +35,10 @@ bin.Parse();
 // Display the results
 Console.WriteLine($"{bin.Packets.Count} packets found.");
 
+// Iterate through the packets and display their contents
 foreach (var packet in bin.Packets)
 {
     Console.WriteLine(packet);
-}
-
-foreach (var packet in bin.Packets)
-{
-    
-    var output = packet.ToString(8, )
 }
 ```
 
@@ -54,12 +48,27 @@ foreach (var packet in bin.Packets)
 using nathanbutlerDEV.libopx.Formats;
 
 // Open the BIN file
-// Ensure the file path is correct and the file exists
-var bin = new BIN(@"samples\test.bin");
+var bin = new BIN("temp/rick.bin");
 
-foreach (var packet in bin.Parse())
+// Parse the BIN file using the new method with specified parameters
+foreach (var packet in bin.Parse(8, Constants.CAPTION_ROWS))
 {
     // Process each packet as needed
     Console.WriteLine(packet);
 }
 ```
+
+## VBI
+
+```csharp
+using nathanbutlerDEV.libopx.Formats;
+
+// Open the VBI file
+var vbi = new VBI("temp/input.vbi"); // VBI type is determined by the file extension (vbi/vbid) if not specified.
+
+// Parse the VBI file using the new method with specified parameters
+foreach (var line in vbi.Parse(8, Constants.CAPTION_ROWS))
+{
+    // Process each line as needed
+    Console.WriteLine(line);
+}
