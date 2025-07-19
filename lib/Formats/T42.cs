@@ -13,6 +13,11 @@ public class T42 : IDisposable
     private Stream? _outputStream;
     public required Stream Input { get; set; }
     public Stream Output => _outputStream ??= OutputFile == null ? Console.OpenStandardOutput() : OutputFile.Open(FileMode.Create, FileAccess.Write, FileShare.Read);
+    public LineFormat InputFormat { get; set; } = LineFormat.T42; // Default input format is T42
+    public LineFormat? OutputFormat { get; set; } = LineFormat.T42; // Default output format is T42
+    public int LineLength => Constants.T42_LINE_SIZE; // Length of the T42 line
+    public Function Function { get; set; } = Function.Filter; // Default function is Filter
+    public int LineCount { get; set; } = 2; // For Timecode incementation, default is 2 lines
 
     /// <summary>
     /// Valid outputs: t42/vbi/vbi_double
@@ -65,6 +70,98 @@ public class T42 : IDisposable
     public void SetOutput(string outputFile)
     {
         OutputFile = new FileInfo(outputFile);
+    }
+
+    public IEnumerable<Line> Parse(int? magazine = 8, int[]? rows = null)
+    {
+        // Use default rows if not specified
+        rows ??= Constants.DEFAULT_ROWS;
+
+        // If OutputFormat is not set, use the provided outputFormat
+        var outputFormat = OutputFormat ?? LineFormat.T42;
+
+        int lineNumber = 0;
+        var timecode = new Timecode(0);
+        var t42Buffer = new byte[LineLength];
+
+        Input.Seek(0, SeekOrigin.Begin);
+
+        while (Input.Read(t42Buffer, 0, LineLength) == LineLength)
+        {
+            // Increment timecode if LineCount is reached
+            if (lineNumber % LineCount == 0)
+            {
+                timecode = timecode.GetNext();
+            }
+
+            // Create a basic Line object for T42 data
+            var line = new Line()
+            {
+                LineNumber = lineNumber,
+                Data = [.. t42Buffer],
+                Length = LineLength,
+                SampleCoding = 0x31, // T42 sample coding
+                SampleCount = LineLength,
+                LineTimecode = timecode,
+            };
+
+            // Extract T42 metadata
+            if (t42Buffer.Length >= Constants.T42_LINE_SIZE && t42Buffer.Any(b => b != 0))
+            {
+                line.Magazine = GetMagazine(t42Buffer[0]);
+                line.Row = GetRow([.. t42Buffer.Take(2)]);
+                line.Text = GetText([.. t42Buffer.Skip(2)]);
+            }
+            else
+            {
+                // Empty data, skip this line
+                lineNumber++;
+                continue;
+            }
+
+            // Process the T42 data based on output format
+            if (outputFormat == LineFormat.VBI || outputFormat == LineFormat.VBI_DOUBLE)
+            {
+                try
+                {
+                    // Convert T42 to VBI
+                    var vbiData = ToVBI(t42Buffer, outputFormat);
+
+                    // Update line properties for VBI
+                    line.Data = vbiData;
+                    line.Length = vbiData.Length;
+                    line.SampleCoding = outputFormat == LineFormat.VBI_DOUBLE ? 0x32 : 0x31;
+                    line.SampleCount = vbiData.Length;
+
+                    // For VBI output, clear T42-specific metadata
+                    line.Magazine = -1;
+                    line.Row = -1;
+                    line.Text = Constants.T42_BLANK_LINE;
+                }
+                catch
+                {
+                    // If conversion fails, skip this line
+                    lineNumber++;
+                    continue;
+                }
+            }
+
+            // Apply filtering if specified
+            if (magazine.HasValue && line.Magazine != magazine.Value && outputFormat == LineFormat.T42)
+            {
+                lineNumber++;
+                continue;
+            }
+
+            if (rows != null && !rows.Contains(line.Row) && outputFormat == LineFormat.T42)
+            {
+                lineNumber++;
+                continue;
+            }
+
+            yield return line;
+            lineNumber++;
+        }
     }
 
     public void Dispose()
