@@ -1,4 +1,8 @@
 using System;
+using System.Collections;
+using System.Text;
+using nathanbutlerDEV.libopx.Enums;
+using nathanbutlerDEV.libopx.Formats;
 
 namespace nathanbutlerDEV.libopx;
 
@@ -8,8 +12,6 @@ namespace nathanbutlerDEV.libopx;
 /// </summary>
 public class Line : IDisposable
 {
-    public const int HeaderSize = 14; // Size of the line header in bytes
-
     /// <summary>
     /// Header of the line.
     /// The header is a byte array that contains the first 14 bytes of the line.
@@ -58,31 +60,48 @@ public class Line : IDisposable
     /// The Data is stored after the header.
     /// </summary>
     public byte[] Data { get; set; } = [];
+    public Timecode LineTimecode { get; set; } = new Timecode(); // Optional timecode for Filtering lines
+    public int LineNumber { get; set; } // Optional line number/timecode for Filtering lines
+    public int Magazine { get; set; } = -1;
+    public int Row { get; set; } = -1;
+    public string Text { get; set; } = Constants.T42_BLANK_LINE; // Default text for T42 lines
 
     // Cache the type calculation to avoid repeated computation
-    private LineType? _cachedType;
+    private LineFormat? _cachedType;
 
     /// <summary>
     /// Type of the line. Determined by either the length or if there is a CRIFC
     /// </summary>
-    public LineType Type
+    public LineFormat Type
     {
         get
         {
             if (_cachedType.HasValue)
                 return _cachedType.Value;
 
-            if (Length == 720)
+            if (Length == Constants.VBI_LINE_SIZE)
             {
-                _cachedType = LineType.VBI; // VBI lines have no data
+                _cachedType = LineFormat.VBI; // VBI lines have no data
             }
-            else if (Header.Length > 0 && Header[^1] == 0x01)
+            else if (Length == Constants.VBI_DOUBLE_LINE_SIZE)
             {
-                _cachedType = LineType.T42; // T42 lines end with 0x01
+                _cachedType = LineFormat.VBI_DOUBLE; // Double VBI lines
+            }
+            else if (Data.Length >= Constants.T42_LINE_SIZE && Data.Length < Constants.VBI_LINE_SIZE)
+            {
+                var crifc = Functions.GetCrifc(Data);
+                if (crifc >= 0)
+                {
+                    _cachedType = LineFormat.T42; // T42 lines have a CRIFC
+                }
+                else
+                {
+                    _cachedType = LineFormat.Unknown; // Unknown line type
+                }
             }
             else
             {
-                _cachedType = LineType.Unknown; // Unknown line type
+                _cachedType = LineFormat.Unknown; // Unknown line type
             }
 
             return _cachedType.Value;
@@ -104,8 +123,8 @@ public class Line : IDisposable
     public Line(byte[] header)
     {
         // If the header is 14 bytes, then we are parsing an MXFData line
-        if (header.Length != HeaderSize)
-            throw new ArgumentException($"Header must be exactly {HeaderSize} bytes", nameof(header));
+        if (header.Length != Constants.LINE_HEADER_SIZE)
+            throw new ArgumentException($"Header must be exactly {Constants.LINE_HEADER_SIZE} bytes", nameof(header));
 
         Header = header;
 
@@ -134,8 +153,8 @@ public class Line : IDisposable
     /// <exception cref="ArgumentException">Thrown when the length is not between 0 and 10000</exception>
     public Line(ReadOnlySpan<byte> headerSpan)
     {
-        if (headerSpan.Length != HeaderSize)
-            throw new ArgumentException($"Header must be exactly {HeaderSize} bytes");
+        if (headerSpan.Length != Constants.LINE_HEADER_SIZE)
+            throw new ArgumentException($"Header must be exactly {Constants.LINE_HEADER_SIZE} bytes");
 
         Header = headerSpan.ToArray();
 
@@ -160,8 +179,6 @@ public class Line : IDisposable
     public void Dispose()
     {
         GC.SuppressFinalize(this);
-        // No need to explicitly clear arrays - GC will handle it
-        // Array.Clear is actually slower in this case
     }
 
     /// <summary>
@@ -169,19 +186,19 @@ public class Line : IDisposable
     /// </summary>
     /// <param name="data">The data to check</param>
     /// <returns>The type of the line</returns>
-    public static LineType GetLineType(byte[] data)
+    public static LineFormat GetLineFormat(byte[] data)
     {
         if (data.Length == 720)
-            return LineType.VBI;
+            return LineFormat.VBI;
 
         if (data.Length >= 45 && data.Length < 720)
         {
             var crifc = Functions.GetCrifc(data);
             if (crifc >= 0)
-                return LineType.T42;
+                return LineFormat.T42;
         }
 
-        return LineType.Unknown;
+        return LineFormat.Unknown;
     }
 
     /// <summary>
@@ -190,37 +207,88 @@ public class Line : IDisposable
     /// </summary>
     /// <param name="data">The data to check</param>
     /// <returns>The type of the line</returns>
-    public static LineType GetLineType(ReadOnlySpan<byte> data)
+    public static LineFormat GetLineFormat(ReadOnlySpan<byte> data)
     {
         if (data.Length == 720)
-            return LineType.VBI;
+            return LineFormat.VBI;
 
         if (data.Length >= 45 && data.Length < 720)
         {
-            var crifc = Functions.GetCrifc(data.ToArray()); // TODO: Update Functions.GetCrifc to accept spans
+            var crifc = Functions.GetCrifc(data);
             if (crifc >= 0)
-                return LineType.T42;
+                return LineFormat.T42;
         }
 
-        return LineType.Unknown;
+        return LineFormat.Unknown;
     }
 
     /// <summary>
     /// Parses the line data from a stream.
     /// </summary>
     /// <param name="input">The input stream</param>
-    public void ParseLine(Stream input)
+    public void ParseLine(Stream input, LineFormat outputFormat = LineFormat.Unknown)
     {
         if (Length <= 0)
         {
             throw new InvalidDataException("Line length is invalid.");
         }
 
+        var data = new byte[Length];
+
         // Read the data into the line
-        var bytesRead = input.Read(Data, 0, Length);
+        var bytesRead = input.Read(data, 0, Length);
         if (bytesRead < Length)
         {
             throw new InvalidDataException($"Not enough data to read the line. Expected {Length}, got {bytesRead}.");
+        }
+
+        if (data.Length >= Constants.T42_PLUS_CRIFC && data.Length < Constants.VBI_LINE_SIZE)
+        {
+            // Console.WriteLine("Checking for T42 line format...");
+            var crifc = Functions.GetCrifc(data);
+            if (crifc >= 0)
+            {
+                // Console.WriteLine("Found T42 line format.");
+                // If the CRIFC is valid, we can set the type to T42
+                _cachedType = LineFormat.T42;
+
+                // Ensure we have enough data after CRIFC for a full T42 line
+                var remainingBytes = data.Length - (crifc + 3);
+                if (remainingBytes >= Constants.T42_LINE_SIZE)
+                {
+                    // Console.WriteLine("Cropping data to T42 line size...");
+                    Data = [.. data.Skip(crifc + 3).Take(Constants.T42_LINE_SIZE)];
+                    // Console.WriteLine("Getting magazine");
+                    Magazine = T42.GetMagazine(Data[0]);
+                    // Console.WriteLine("Getting row");
+                    Row = T42.GetRow([.. Data.Take(2)]);
+                    // Console.WriteLine("Getting text");
+                    Text = T42.GetText([.. Data.Skip(2)]);
+                }
+                else
+                {
+                    // Not enough data for a complete T42 line
+                    // Console.WriteLine($"Not enough data after CRIFC. Need {Constants.T42_LINE_SIZE}, have {remainingBytes}");
+                    Data = data; // Store the data as is
+                    Magazine = -1; // Unknown magazine
+                    Row = -1; // Unknown row
+                    Text = Constants.T42_BLANK_LINE; // Default text for T42 lines
+                    _cachedType = LineFormat.Unknown;
+                }
+            }
+            else
+            {
+                _cachedType = LineFormat.Unknown; // Unknown line type
+                Data = [.. data.Take(Length)]; // Store the data as is
+                Magazine = -1; // Unknown magazine
+                Row = -1; // Unknown row
+                Text = Constants.T42_BLANK_LINE; // Default text for T42 lines
+            }
+        }
+        else
+        {
+            _cachedType = GetLineFormat(data); // Use the static method to determine the type
+            Data = [.. data.Take(Length)];
         }
     }
 
@@ -252,22 +320,14 @@ public class Line : IDisposable
         Data = new byte[Length];
         data[..Length].CopyTo(Data);
     }
-}
 
-public enum LineType
-{
-    /// <summary>
-    /// VBI line type
-    /// </summary>
-    VBI,
+    // ToString override
+    public override string ToString()
+    {
+        var sb = new StringBuilder();
+        
+        sb.Append($"{LineNumber.ToString().PadLeft(8)} {Magazine} {Row:D2} {Text}");
 
-    /// <summary>
-    /// T42 line type
-    /// </summary>
-    T42,
-
-    /// <summary>
-    /// Unknown line type
-    /// </summary>
-    Unknown
+        return sb.ToString().TrimEnd();
+    }
 }
