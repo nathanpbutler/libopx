@@ -60,7 +60,7 @@ public class Line : IDisposable
     /// The Data is stored after the header.
     /// </summary>
     public byte[] Data { get; set; } = [];
-    public Timecode LineTimecode { get; set; } = new Timecode(); // Optional timecode for Filtering lines
+    public Timecode? LineTimecode { get; set; } // Optional timecode for Filtering lines
     public int LineNumber { get; set; } // Optional line number/timecode for Filtering lines
     public int Magazine { get; set; } = -1;
     public int Row { get; set; } = -1;
@@ -326,8 +326,15 @@ public class Line : IDisposable
     public override string ToString()
     {
         var sb = new StringBuilder();
-        
-        sb.Append($"{LineNumber.ToString().PadLeft(8)} {Magazine} {Row:D2} {Text}");
+
+        if (LineTimecode != null)
+        {
+            sb.Append($"{LineTimecode} {Magazine} {Row:D2} {Text}");
+        }
+        else
+        {
+            sb.Append($"{LineNumber.ToString().PadLeft(11)} {Magazine} {Row:D2} {Text}");
+        }
 
         return sb.ToString().TrimEnd();
     }
