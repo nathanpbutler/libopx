@@ -4,22 +4,7 @@ namespace nathanbutlerDEV.libopx;
 
 public class Functions
 {
-    #region Constants
-
-    public const byte T42_CLOCK_BYTE = 0x55; // Clock byte
-    public const byte T42_FRAMING_CODE = 0x27; // Framing code
-    public const float VBI_DEFAULT_THRESHOLD = 0.40f; // Default threshold
-    public const int VBI_PARITY_FLIP_MASK = 0x80; // Parity flip mask
-    public const int VBI_MAX_OFFSET_RANGE = 100; // Maximum offset range
-    public const int VBI_MAX_OFFSET_SEARCH = 100; // Maximum offset search
-    public const int VBI_CLOCK_OFFSET_1 = 8; // Clock offset 1
-    public const int VBI_FRAMING_OFFSET_1 = 39; // Framing offset 1
-    public const int VBI_FRAMING_OFFSET_2 = 40; // Framing offset 2
-
-    #endregion
-    
     #region VBI
-
     /// <summary>
     /// Double the length of a byte array
     /// </summary>
@@ -93,7 +78,7 @@ public class Functions
     /// <param name="normalised">The normalised byte array to get the bits from.</param>
     /// <param name="threshold">The threshold for bit detection (default 0.40f)</param>
     /// <returns>The bits from the normalised byte array.</returns>
-    public static BitArray GetBits(float[] normalised, float threshold = VBI_DEFAULT_THRESHOLD)
+    public static BitArray GetBits(float[] normalised, float threshold = Constants.VBI_DEFAULT_THRESHOLD)
     {
         // Create a new BitArray with the same length as the normalised line
         BitArray bits = new(normalised.Length + 16);
@@ -167,7 +152,7 @@ public class Functions
         // If the parity is even, flip the MSB to ensure odd parity
         if (dataBits && !HasOddParity(byteArr[0]))
         {
-            byteArr[0] ^= VBI_PARITY_FLIP_MASK; // XOR with 0x80 to flip the MSB
+            byteArr[0] ^= Constants.VBI_PARITY_FLIP_MASK; // XOR with 0x80 to flip the MSB
         }
 
         // Return the modified byte
@@ -183,7 +168,24 @@ public class Functions
     {
         for (var i = 0; i < bytes.Length - 2; i++)
         {
-            if (bytes[i] == T42_CLOCK_BYTE && bytes[i + 1] == T42_CLOCK_BYTE && bytes[i + 2] == T42_FRAMING_CODE)
+            if (bytes[i] == Constants.T42_CLOCK_BYTE && bytes[i + 1] == Constants.T42_CLOCK_BYTE && bytes[i + 2] == Constants.T42_FRAMING_CODE)
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// Find the clock run-in and framing code from a span of bytes.
+    /// </summary>
+    /// <param name="bytes">The span of bytes to search.</param>
+    /// <returns>The offset of the clock run-in and framing code. If not found, returns -1.</returns>
+    public static int GetCrifc(ReadOnlySpan<byte> bytes)
+    {
+        for (var i = 0; i < bytes.Length - 2; i++)
+        {
+            if (bytes[i] == Constants.T42_CLOCK_BYTE && bytes[i + 1] == Constants.T42_CLOCK_BYTE && bytes[i + 2] == Constants.T42_FRAMING_CODE)
             {
                 return i;
             }
@@ -203,29 +205,29 @@ public class Functions
         // Create byte array to store bytes
         var byteArray = new byte[4];
         // For each offset from 0 to MAX_OFFSET_SEARCH...
-        for (var o = 0; o < VBI_MAX_OFFSET_SEARCH; o++)
+        for (var o = 0; o < Constants.VBI_MAX_OFFSET_SEARCH; o++)
         {
             // Look for clock (0x55) and framing code (0x27) at specific offsets
             // Clock:
             byteArray[0] = GetByte(bits, o, false);
-            byteArray[1] = GetByte(bits, o + VBI_CLOCK_OFFSET_1, false);
+            byteArray[1] = GetByte(bits, o + Constants.VBI_CLOCK_OFFSET_1, false);
             // Framing Code:
-            byteArray[2] = GetByte(bits, o + VBI_FRAMING_OFFSET_1, false);
-            byteArray[3] = GetByte(bits, o + VBI_FRAMING_OFFSET_2, false);
+            byteArray[2] = GetByte(bits, o + Constants.VBI_FRAMING_OFFSET_1, false);
+            byteArray[3] = GetByte(bits, o + Constants.VBI_FRAMING_OFFSET_2, false);
 
             // If clock is 0x55 and framing code is 0x27, continue
-            if (byteArray[0] != T42_CLOCK_BYTE || byteArray[1] != T42_CLOCK_BYTE || (byteArray[2] != T42_FRAMING_CODE && byteArray[3] != T42_FRAMING_CODE)) continue;
+            if (byteArray[0] != Constants.T42_CLOCK_BYTE || byteArray[1] != Constants.T42_CLOCK_BYTE || (byteArray[2] != Constants.T42_FRAMING_CODE && byteArray[3] != Constants.T42_FRAMING_CODE)) continue;
 
             // If framing code found at offset 39, return offset + 39
-            if (byteArray[2] == T42_FRAMING_CODE)
+            if (byteArray[2] == Constants.T42_FRAMING_CODE)
             {
-                lineOffset = o + VBI_FRAMING_OFFSET_1;
+                lineOffset = o + Constants.VBI_FRAMING_OFFSET_1;
             }
 
             // Otherwise if framing code found at offset 40, return offset + 40
-            else if (byteArray[3] == T42_FRAMING_CODE)
+            else if (byteArray[3] == Constants.T42_FRAMING_CODE)
             {
-                lineOffset = o + VBI_FRAMING_OFFSET_2;
+                lineOffset = o + Constants.VBI_FRAMING_OFFSET_2;
             }
         }
 

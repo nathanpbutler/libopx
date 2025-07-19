@@ -5,15 +5,9 @@ namespace nathanbutlerDEV.libopx.Formats;
 
 public class MXF : IDisposable
 {
-    private const int KeySize = 16;
-    private const int SystemMetadataPackGC = 41;
-    private const int SystemMetadataSetGCOffset = 12;
-    private const int SMPTETimecodeSize = 4;
-    
     // Reusable buffers to reduce allocations
-    private readonly byte[] _keyBuffer = new byte[KeySize];
-    private readonly byte[] _smpteBuffer = new byte[SMPTETimecodeSize];
-
+    private readonly byte[] _keyBuffer = new byte[Constants.KLV_KEY_SIZE];
+    private readonly byte[] _smpteBuffer = new byte[Constants.SMPTE_TIMECODE_SIZE];
     public required FileInfo InputFile { get; set; }
     public FileInfo? OutputFile { get; set; } = null; // If null, write to stdout
     private Stream? _outputStream;
@@ -151,10 +145,10 @@ public class MXF : IDisposable
 
         while (Input.Position < 128000)
         {
-            var keyBytesRead = Input.Read(_keyBuffer, 0, KeySize);
-            if (keyBytesRead != KeySize) break;
+            var keyBytesRead = Input.Read(_keyBuffer, 0, Constants.KLV_KEY_SIZE);
+            if (keyBytesRead != Constants.KLV_KEY_SIZE) break;
 
-            var keyType = Keys.GetKeyType(_keyBuffer.AsSpan(0, KeySize));
+            var keyType = Keys.GetKeyType(_keyBuffer.AsSpan(0, Constants.KLV_KEY_SIZE));
 
             var length = ReadBerLength(Input);
             if (length < 0) break;
@@ -191,10 +185,10 @@ public class MXF : IDisposable
         {
             while (true)
             {
-                var keyBytesRead = Input.Read(_keyBuffer, 0, KeySize);
-                if (keyBytesRead != KeySize) break;
+                var keyBytesRead = Input.Read(_keyBuffer, 0, Constants.KLV_KEY_SIZE);
+                if (keyBytesRead != Constants.KLV_KEY_SIZE) break;
 
-                var keyType = Keys.GetKeyType(_keyBuffer.AsSpan(0, KeySize));
+                var keyType = Keys.GetKeyType(_keyBuffer.AsSpan(0, Constants.KLV_KEY_SIZE));
                 var length = ReadBerLength(Input, _berLengthBuffer);
                 if (length < 0) break;
 
@@ -258,13 +252,13 @@ public class MXF : IDisposable
     private void ProcessSystemPacket(int length)
     {
         int offset = -1;
-        if (length >= SystemMetadataPackGC + SMPTETimecodeSize)
+        if (length >= Constants.SYSTEM_METADATA_PACK_GC + Constants.SMPTE_TIMECODE_SIZE)
         {
-            offset = SystemMetadataPackGC;
+            offset = Constants.SYSTEM_METADATA_PACK_GC;
         }
-        else if (length >= SystemMetadataSetGCOffset + SMPTETimecodeSize)
+        else if (length >= Constants.SYSTEM_METADATA_SET_GC_OFFSET + Constants.SMPTE_TIMECODE_SIZE)
         {
-            offset = SystemMetadataSetGCOffset;
+            offset = Constants.SYSTEM_METADATA_SET_GC_OFFSET;
         }
         if (offset < 0)
         {
@@ -273,8 +267,8 @@ public class MXF : IDisposable
         }
         Input.Seek(offset, SeekOrigin.Current);
 
-        var smpteRead = Input.Read(_smpteBuffer, 0, SMPTETimecodeSize);
-        if (smpteRead == SMPTETimecodeSize)
+        var smpteRead = Input.Read(_smpteBuffer, 0, Constants.SMPTE_TIMECODE_SIZE);
+        if (smpteRead == Constants.SMPTE_TIMECODE_SIZE)
         {
             var smpte = Timecode.FromBytes(_smpteBuffer, StartTimecode.Timebase, StartTimecode.DropFrame);
 
@@ -291,7 +285,7 @@ public class MXF : IDisposable
             _lastTimecode = smpte;
         }
 
-        var remainingBytes = length - offset - SMPTETimecodeSize;
+        var remainingBytes = length - offset - Constants.SMPTE_TIMECODE_SIZE;
         if (remainingBytes > 0)
         {
             Input.Seek(remainingBytes, SeekOrigin.Current);
@@ -304,12 +298,12 @@ public class MXF : IDisposable
 
     private void ProcessDataPacket(int length)
     {
-        Span<byte> header = stackalloc byte[Packet.HeaderSize];
-        if (Input.Read(header) != Packet.HeaderSize) 
+        Span<byte> header = stackalloc byte[Constants.PACKET_HEADER_SIZE];
+        if (Input.Read(header) != Constants.PACKET_HEADER_SIZE)
             throw new InvalidOperationException("Failed to read packet header.");
-            
-        var data = new byte[length - Packet.HeaderSize];
-        if (Input.Read(data, 0, data.Length) != data.Length) 
+
+        var data = new byte[length - Constants.PACKET_HEADER_SIZE];
+        if (Input.Read(data, 0, data.Length) != data.Length)
             throw new InvalidOperationException("Failed to read data for Data key.");
 
         var packet = new Packet(header.ToArray());
@@ -325,10 +319,10 @@ public class MXF : IDisposable
 
         while (true)
         {
-            var keyBytesRead = Input.Read(_keyBuffer, 0, KeySize);
-            if (keyBytesRead != KeySize) break;
+            var keyBytesRead = Input.Read(_keyBuffer, 0, Constants.KLV_KEY_SIZE);
+            if (keyBytesRead != Constants.KLV_KEY_SIZE) break;
 
-            var keyType = Keys.GetKeyType(_keyBuffer.AsSpan(0, KeySize));
+            var keyType = Keys.GetKeyType(_keyBuffer.AsSpan(0, Constants.KLV_KEY_SIZE));
             var length = ReadBerLength(Input);
             if (length < 0) break;
 
@@ -426,8 +420,8 @@ public class MXF : IDisposable
         // Write KLV header if requested
         if (KlvMode)
         {
-            outputStream.Write(_keyBuffer, 0, KeySize);
-            outputStream.Write(_berLengthBuffer.ToArray(), 0, _berLengthBuffer.Count);
+            outputStream.Write(_keyBuffer, 0, Constants.KLV_KEY_SIZE);
+            outputStream.Write([.. _berLengthBuffer], 0, _berLengthBuffer.Count);
         }
         
         // Write essence data
