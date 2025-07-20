@@ -1,9 +1,108 @@
 using System.Collections;
+using nathanbutlerDEV.libopx.Enums;
+using nathanbutlerDEV.libopx.Formats;
 
 namespace nathanbutlerDEV.libopx;
 
 public class Functions
 {
+    #region General Functions
+
+    /// <summary>
+    /// Filter function to process input files based on specified parameters.
+    /// </summary>
+    /// <param name="inputFile">The input file to process, or null to read from stdin.</param>
+    /// <param name="magazine">The magazine number to filter by.</param>
+    /// <param name="rows">The number of rows to filter by.</param>
+    /// <param name="lineCount">The number of lines per frame for timecode incrementation.</param>
+    /// <param name="inputFormat">The input format to use (e.g., BIN, VBI, T42).</param>
+    /// <param name="verbose">Whether to enable verbose output.</param>
+    /// <returns>An integer indicating the result of the filtering operation.</returns>
+    /// <remarks>
+    /// This function reads the specified input file or stdin, processes it according to the provided parameters,
+    /// and outputs the filtered lines to stdout. The input format determines how the data is parsed and processed.
+    /// Supported formats include BIN, VBI, VBI_DOUBLE, and T42.
+    /// </remarks>
+    /// <exception cref="ArgumentException">Thrown if an unsupported input format is specified.</exception>
+    /// <exception cref="FileNotFoundException">Thrown if the specified input file does not exist.</exception>
+    /// <exception cref="IOException">Thrown if there is an error reading the input file or stdin.</exception>
+    public static int Filter(FileInfo? input, int magazine, int[] rows, int lineCount, LineFormat inputFormat, bool verbose)
+    {
+        try
+        {
+            if (verbose)
+            {
+                if (input != null && input.Exists)
+                    Console.WriteLine($"  Input file: {input.FullName}");
+                else
+                    Console.WriteLine("Reading from stdin");
+                Console.WriteLine($"    Magazine: {magazine}");
+                Console.WriteLine($"        Rows: [{string.Join(", ", rows)}]");
+                Console.WriteLine($"Input format: {inputFormat}");
+                Console.WriteLine($"  Line count: {lineCount}");
+            }
+
+            switch (inputFormat)
+            {
+                case LineFormat.BIN:
+                    var bin = input is FileInfo inputBIN && inputBIN.Exists
+                        ? new BIN(inputBIN.FullName)
+                        : new BIN(Console.OpenStandardInput());
+                    foreach (var line in bin.Parse(magazine, rows))
+                    {
+                        Console.WriteLine(line);
+                    }
+                    return 0; // Implement BIN processing logic here
+                case LineFormat.VBI:
+                case LineFormat.VBI_DOUBLE:
+                    var vbi = input is FileInfo inputVBI && inputVBI.Exists
+                        ? new VBI(inputVBI.FullName)
+                        : new VBI(Console.OpenStandardInput());
+                    vbi.LineCount = lineCount;
+                    foreach (var line in vbi.Parse(magazine, rows))
+                    {
+                        Console.WriteLine(line);
+                    }
+                    return 0;
+                case LineFormat.T42:
+                    var t42 = input is FileInfo inputT42 && inputT42.Exists
+                        ? new T42(inputT42.FullName)
+                        : new T42(Console.OpenStandardInput());
+                    t42.LineCount = lineCount;
+                    foreach (var line in t42.Parse(magazine, rows))
+                    {
+                        Console.WriteLine(line);
+                    }
+                    return 0;
+                default:
+                    Console.WriteLine($"Unsupported input format: {inputFormat}");
+                    return 1;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+    }
+
+    public static LineFormat ParseInputFormat(string format)
+    {
+        return format.TrimStart('.').ToLowerInvariant() switch
+        {
+            "bin" => LineFormat.BIN,
+            "vbi" => LineFormat.VBI,
+            "vbid" => LineFormat.VBI_DOUBLE,
+            "t42" => LineFormat.T42,
+            _ => LineFormat.VBI // Default to VBI if unknown format
+        };
+    }
+
+    /// <summary>
+    /// Extracts
+
+    #endregion
+
     #region VBI
     /// <summary>
     /// Double the length of a byte array
