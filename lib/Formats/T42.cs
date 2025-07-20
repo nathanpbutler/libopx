@@ -87,11 +87,11 @@ public class T42 : IDisposable
         while (Input.Read(t42Buffer, 0, LineLength) == LineLength)
         {
             // Increment timecode if LineCount is reached
-            if (lineNumber % LineCount == 0)
+            if (lineNumber % LineCount == 0 && lineNumber != 0)
             {
                 timecode = timecode.GetNext();
             }
-
+            
             // Create a basic Line object for T42 data
             var line = new Line()
             {

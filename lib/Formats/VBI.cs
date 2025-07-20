@@ -92,12 +92,13 @@ public class VBI : IDisposable
 
         while (Input.Read(vbiBuffer, 0, LineLength) == LineLength)
         {
+
             // Increment timecode if LineCount is reached
-            if (lineNumber % LineCount == 0)
+            if (lineNumber % LineCount == 0 && lineNumber != 0)
             {
                 timecode = timecode.GetNext();
             }
-
+            
             // Create a basic Line object for VBI data
             var line = new Line()
             {
