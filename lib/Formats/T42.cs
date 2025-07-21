@@ -13,8 +13,8 @@ public class T42 : IDisposable
     private Stream? _outputStream;
     public required Stream Input { get; set; }
     public Stream Output => _outputStream ??= OutputFile == null ? Console.OpenStandardOutput() : OutputFile.Open(FileMode.Create, FileAccess.Write, FileShare.Read);
-    public LineFormat InputFormat { get; set; } = LineFormat.T42; // Default input format is T42
-    public LineFormat? OutputFormat { get; set; } = LineFormat.T42; // Default output format is T42
+    public Format InputFormat { get; set; } = Format.T42; // Default input format is T42
+    public Format? OutputFormat { get; set; } = Format.T42; // Default output format is T42
     public int LineLength => Constants.T42_LINE_SIZE; // Length of the T42 line
     public Function Function { get; set; } = Function.Filter; // Default function is Filter
     public int LineCount { get; set; } = 2; // For Timecode incementation, default is 2 lines
@@ -22,7 +22,7 @@ public class T42 : IDisposable
     /// <summary>
     /// Valid outputs: t42/vbi/vbi_double
     /// </summary>
-    public static readonly LineFormat[] ValidOutputs = [LineFormat.T42, LineFormat.VBI, LineFormat.VBI_DOUBLE];
+    public static readonly Format[] ValidOutputs = [Format.T42, Format.VBI, Format.VBI_DOUBLE];
 
     /// <summary>
     /// Constructor for T42 format from file
@@ -78,7 +78,7 @@ public class T42 : IDisposable
         rows ??= Constants.DEFAULT_ROWS;
 
         // If OutputFormat is not set, use the provided outputFormat
-        var outputFormat = OutputFormat ?? LineFormat.T42;
+        var outputFormat = OutputFormat ?? Format.T42;
 
         int lineNumber = 0;
         var timecode = new Timecode(0);
@@ -118,7 +118,7 @@ public class T42 : IDisposable
             }
 
             // Process the T42 data based on output format
-            if (outputFormat == LineFormat.VBI || outputFormat == LineFormat.VBI_DOUBLE)
+            if (outputFormat == Format.VBI || outputFormat == Format.VBI_DOUBLE)
             {
                 try
                 {
@@ -128,7 +128,7 @@ public class T42 : IDisposable
                     // Update line properties for VBI
                     line.Data = vbiData;
                     line.Length = vbiData.Length;
-                    line.SampleCoding = outputFormat == LineFormat.VBI_DOUBLE ? 0x32 : 0x31;
+                    line.SampleCoding = outputFormat == Format.VBI_DOUBLE ? 0x32 : 0x31;
                     line.SampleCount = vbiData.Length;
 
                     // For VBI output, clear T42-specific metadata
@@ -145,13 +145,13 @@ public class T42 : IDisposable
             }
 
             // Apply filtering if specified
-            if (magazine.HasValue && line.Magazine != magazine.Value && outputFormat == LineFormat.T42)
+            if (magazine.HasValue && line.Magazine != magazine.Value && outputFormat == Format.T42)
             {
                 lineNumber++;
                 continue;
             }
 
-            if (rows != null && !rows.Contains(line.Row) && outputFormat == LineFormat.T42)
+            if (rows != null && !rows.Contains(line.Row) && outputFormat == Format.T42)
             {
                 lineNumber++;
                 continue;
@@ -175,7 +175,7 @@ public class T42 : IDisposable
     /// <param name="bytes">The bytes to convert to VBI.</param>
     /// <param name="outputFormat">The format of the output data.</param>
     /// <returns>The VBI data.</returns>
-    public static byte[] ToVBI(byte[] bytes, LineFormat outputFormat = LineFormat.VBI)
+    public static byte[] ToVBI(byte[] bytes, Format outputFormat = Format.VBI)
     {
         // Pad the byte array with VBI_PADDING_SIZE bytes of VBI_LOW_VALUE
         byte[] pad = Enumerable.Repeat(Constants.VBI_LOW_VALUE, Constants.VBI_PADDING_SIZE).ToArray();
@@ -222,7 +222,7 @@ public class T42 : IDisposable
         var final = pad.Take(Constants.VBI_PAD_START).Concat(resized).Concat(pad).Take(Constants.VBI_LINE_SIZE).ToArray();
 
         // If the output format is VBI_DOUBLE...
-        if (outputFormat == LineFormat.VBI_DOUBLE)
+        if (outputFormat == Format.VBI_DOUBLE)
         {
             // Double the byte array
             final = Functions.Double(final);

@@ -26,7 +26,7 @@ public class Functions
     /// <exception cref="ArgumentException">Thrown if an unsupported input format is specified.</exception>
     /// <exception cref="FileNotFoundException">Thrown if the specified input file does not exist.</exception>
     /// <exception cref="IOException">Thrown if there is an error reading the input file or stdin.</exception>
-    public static int Filter(FileInfo? input, int magazine, int[] rows, int lineCount, LineFormat inputFormat, bool verbose)
+    public static int Filter(FileInfo? input, int magazine, int[] rows, int lineCount, Format inputFormat, bool verbose)
     {
         try
         {
@@ -44,7 +44,7 @@ public class Functions
 
             switch (inputFormat)
             {
-                case LineFormat.BIN:
+                case Format.BIN:
                     var bin = input is FileInfo inputBIN && inputBIN.Exists
                         ? new BIN(inputBIN.FullName)
                         : new BIN(Console.OpenStandardInput());
@@ -52,9 +52,9 @@ public class Functions
                     {
                         Console.WriteLine(line);
                     }
-                    return 0; // Implement BIN processing logic here
-                case LineFormat.VBI:
-                case LineFormat.VBI_DOUBLE:
+                    return 0;
+                case Format.VBI:
+                case Format.VBI_DOUBLE:
                     var vbi = input is FileInfo inputVBI && inputVBI.Exists
                         ? new VBI(inputVBI.FullName)
                         : new VBI(Console.OpenStandardInput());
@@ -64,7 +64,7 @@ public class Functions
                         Console.WriteLine(line);
                     }
                     return 0;
-                case LineFormat.T42:
+                case Format.T42:
                     var t42 = input is FileInfo inputT42 && inputT42.Exists
                         ? new T42(inputT42.FullName)
                         : new T42(Console.OpenStandardInput());
@@ -72,6 +72,29 @@ public class Functions
                     foreach (var line in t42.Parse(magazine, rows))
                     {
                         Console.WriteLine(line);
+                    }
+                    return 0;
+                case Format.MXF:
+                // Only Filter if file exists, otherwise return 1
+                    if (input is FileInfo inputMXF && inputMXF.Exists)
+                    {
+                        // Implement MXF processing logic
+                        var mxf = new MXF(inputMXF.FullName)
+                        {
+                            Function = Function.Filter, // Set function to Filter
+                            Verbose = verbose
+                        };
+                        mxf.AddRequiredKey(KeyType.Data); // Add Data key to process data packets
+                        foreach (var packet in mxf.Parse(magazine, rows))
+                        {
+                            if (verbose) Console.WriteLine($"Debug: Found packet with {packet.Lines.Count} lines");
+                            Console.WriteLine(packet);
+                        }
+                    }
+                    else
+                    {
+                        Console.Error.WriteLine("Error: Input file does not exist or is not specified for MXF format.");
+                        return 1;
                     }
                     return 0;
                 default:
@@ -86,20 +109,140 @@ public class Functions
         }
     }
 
-    public static LineFormat ParseInputFormat(string format)
+    public static Format ParseInputFormat(string format)
     {
         return format.TrimStart('.').ToLowerInvariant() switch
         {
-            "bin" => LineFormat.BIN,
-            "vbi" => LineFormat.VBI,
-            "vbid" => LineFormat.VBI_DOUBLE,
-            "t42" => LineFormat.T42,
-            _ => LineFormat.VBI // Default to VBI if unknown format
+            "bin" => Format.BIN,
+            "vbi" => Format.VBI,
+            "vbid" => Format.VBI_DOUBLE,
+            "t42" => Format.T42,
+            "mxf" => Format.MXF,
+            "rcwt" => Format.RCWT,
+            _ => Format.VBI // Default to VBI if unknown format
         };
     }
-
+    
     /// <summary>
-    /// Extracts
+    /// Extracts essence from an MXF file based on specified parameters.
+    /// </summary>
+    /// <param name="inputFile">The MXF file to extract essence from.</param>
+    /// <param name="outputBasePath">The base path for output files. If null, defaults to the input file's path without extension.</param>
+    /// <param name="keyString">A string of keys to filter the essence. If null or empty, defaults to extracting all essence.</param>
+    /// <param name="demuxMode">If true, extracts all keys in demux mode. If false, extracts only specified keys.</param>
+    /// <param name="useNames">If true, uses key names instead of hex keys for output files.</param>
+    /// <param name="klvMode">If true, includes key and length bytes in output files.</param>
+    /// <param name="verbose">If true, enables verbose output during processing.</param>
+    /// <returns>An integer indicating the result of the extraction operation (0 for success, 1 for failure).</returns>
+    public static int Extract(FileInfo inputFile, string? outputBasePath, string? keyString, bool demuxMode, bool useNames, bool klvMode, bool verbose)
+    {
+        outputBasePath ??= Path.ChangeExtension(inputFile.FullName, null);
+
+        if (!string.IsNullOrEmpty(outputBasePath))
+        {
+            Console.WriteLine($"Output base path specified: {outputBasePath}");
+        }
+
+        try
+        {
+            using var mxf = new MXF(inputFile.FullName);
+
+            // Configure extraction settings
+            mxf.OutputBasePath = outputBasePath;
+            mxf.DemuxMode = demuxMode;
+            mxf.UseKeyNames = useNames && demuxMode; // Only use names in demux mode
+            mxf.KlvMode = klvMode;
+
+            // Parse keys if specified
+            if (!demuxMode && !string.IsNullOrEmpty(keyString))
+            {
+                var targetKeys = ParseKeys(keyString, verbose);
+                if (targetKeys.Count > 0)
+                {
+                    mxf.ClearRequiredKeys();
+                    foreach (var key in targetKeys)
+                    {
+                        mxf.AddRequiredKey(key);
+                    }
+                }
+            }
+            else if (!demuxMode)
+            {
+                // Default to Data if no keys specified
+                Console.WriteLine("No keys specified, defaulting to Data.");
+                mxf.ClearRequiredKeys();
+                mxf.AddRequiredKey(KeyType.Data);
+            }
+
+            // Print active modes
+            if (klvMode)
+            {
+                Console.WriteLine("KLV mode enabled - key and length bytes will be included in output files.");
+            }
+
+            if (demuxMode)
+            {
+                Console.WriteLine("Demux mode enabled - all keys will be extracted.");
+                if (mxf.UseKeyNames)
+                {
+                    Console.WriteLine("Name mode enabled - using Key/Essence names instead of hex keys.");
+                }
+                else
+                {
+                    Console.WriteLine("Using hex key names for output files.");
+                }
+            }
+
+            Console.WriteLine($"Processing MXF file: {inputFile.FullName}");
+
+            // Extract the essence
+            mxf.ExtractEssence();
+
+            Console.WriteLine($"Finished processing MXF file: {inputFile.FullName}");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error processing file: {ex.Message}");
+            return 1;
+        }
+    }
+
+    private static List<KeyType> ParseKeys(string arg, bool verbose = false)
+    {
+        var keys = new List<KeyType>();
+        var keyStrings = arg.Split(',').Select(k => k.Trim().ToLowerInvariant());
+        foreach (var keyString in keyStrings)
+        {
+            switch (keyString)
+            {
+                case "d":
+                    keys.Add(KeyType.Data);
+                    if (verbose) Console.WriteLine("Data key specified.");
+                    break;
+                case "v":
+                    keys.Add(KeyType.Video);
+                    if (verbose) Console.WriteLine("Video key specified.");
+                    break;
+                case "s":
+                    keys.Add(KeyType.System);
+                    if (verbose) Console.WriteLine("System key specified.");
+                    break;
+                case "t":
+                    keys.Add(KeyType.TimecodeComponent);
+                    if (verbose) Console.WriteLine("TimecodeComponent key specified.");
+                    break;
+                case "a":
+                    keys.Add(KeyType.Audio);
+                    if (verbose) Console.WriteLine("Audio key specified.");
+                    break;
+                default:
+                    Console.WriteLine($"Unknown key type: {keyString}");
+                    break;
+            }
+        }
+        return keys;
+    }
 
     #endregion
 

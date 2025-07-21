@@ -12,10 +12,10 @@ public class VBI : IDisposable
     private Stream? _outputStream;
     public required Stream Input { get; set; }
     public Stream Output => _outputStream ??= OutputFile == null ? Console.OpenStandardOutput() : OutputFile.Open(FileMode.Create, FileAccess.Write, FileShare.Read);
-    public LineFormat InputFormat { get; set; } = LineFormat.VBI; // Default input format is VBI
-    public LineFormat? OutputFormat { get; set; } = LineFormat.T42; // Default output format is T42
-    public int LineLength => InputFormat == LineFormat.VBI_DOUBLE ? Constants.VBI_DOUBLE_LINE_SIZE : Constants.VBI_LINE_SIZE; // Length of the line based on input format
-    public static readonly LineFormat[] ValidOutputs = [LineFormat.VBI, LineFormat.VBI_DOUBLE, LineFormat.T42];
+    public Format InputFormat { get; set; } = Format.VBI; // Default input format is VBI
+    public Format? OutputFormat { get; set; } = Format.T42; // Default output format is T42
+    public int LineLength => InputFormat == Format.VBI_DOUBLE ? Constants.VBI_DOUBLE_LINE_SIZE : Constants.VBI_LINE_SIZE; // Length of the line based on input format
+    public static readonly Format[] ValidOutputs = [Format.VBI, Format.VBI_DOUBLE, Format.T42];
     public Function Function { get; set; } = Function.Filter; // Default function is Filter
     public int LineCount { get; set; } = 2; // For Timecode incementation, default is 2 lines
 
@@ -26,7 +26,7 @@ public class VBI : IDisposable
     /// <param name="vbiType"></param>
     /// <exception cref="FileNotFoundException"></exception>
     [SetsRequiredMembers]
-    public VBI(string inputFile, LineFormat? vbiType = LineFormat.VBI)
+    public VBI(string inputFile, Format? vbiType = Format.VBI)
     {
         InputFile = new FileInfo(inputFile);
 
@@ -37,9 +37,9 @@ public class VBI : IDisposable
         // If vbiType is not specified, default determine from file extension
         InputFormat = vbiType ?? (InputFile.Extension.ToLower() switch
         {
-            ".vbi" => LineFormat.VBI,
-            ".vbid" => LineFormat.VBI_DOUBLE,
-            _ => LineFormat.VBI // Default to VBI if unknown
+            ".vbi" => Format.VBI,
+            ".vbid" => Format.VBI_DOUBLE,
+            _ => Format.VBI // Default to VBI if unknown
         });
 
         Input = InputFile.OpenRead();
@@ -62,11 +62,11 @@ public class VBI : IDisposable
     /// <param name="inputStream">The input stream to read from</param>
     /// <param name="vbiType">The VBI format type</param>
     [SetsRequiredMembers]
-    public VBI(Stream inputStream, LineFormat? vbiType = LineFormat.VBI)
+    public VBI(Stream inputStream, Format? vbiType = Format.VBI)
     {
         InputFile = null;
         Input = inputStream ?? throw new ArgumentNullException(nameof(inputStream));
-        InputFormat = vbiType ?? LineFormat.VBI;
+        InputFormat = vbiType ?? Format.VBI;
     }
     
     /// <summary>
@@ -84,7 +84,7 @@ public class VBI : IDisposable
         rows ??= Constants.DEFAULT_ROWS;
 
         // If OutputFormat is not set, use the provided outputFormat
-        var outputFormat = OutputFormat ?? LineFormat.T42;
+        var outputFormat = OutputFormat ?? Format.T42;
 
         int lineNumber = 0;
         var timecode = new Timecode(0);
@@ -105,13 +105,13 @@ public class VBI : IDisposable
                 LineNumber = lineNumber,
                 Data = [.. vbiBuffer],
                 Length = LineLength,
-                SampleCoding = InputFormat == LineFormat.VBI_DOUBLE ? 0x32 : 0x31,
+                SampleCoding = InputFormat == Format.VBI_DOUBLE ? 0x32 : 0x31,
                 SampleCount = LineLength,
                 LineTimecode = timecode,
             };
 
             // Process the VBI data based on output format
-            if (outputFormat == LineFormat.T42)
+            if (outputFormat == Format.T42)
             {
                 try
                 {
@@ -229,7 +229,7 @@ public class VBI : IDisposable
     /// <param name="rows">The rows to process.</param>
     /// <param name="debug">Whether to print debug information.</param>
     /// <returns>The exit code of the operation.</returns>
-    public static async Task<int> Process(Stream input, Stream output, LineFormat inputFormat, LineFormat outputFormat, int magazine, int[] rows, bool debug = false)
+    public static async Task<int> Process(Stream input, Stream output, Format inputFormat, Format outputFormat, int magazine, int[] rows, bool debug = false)
     {
         // Validate output format
         if (!ValidOutputs.Contains(outputFormat))
@@ -238,7 +238,7 @@ public class VBI : IDisposable
         }
 
         // Read chunks of up to VBI_LINE_SIZE (or VBI_DOUBLE_LINE_SIZE if VBI_DOUBLE) bytes from input until EOF
-        byte[] buffer = inputFormat == LineFormat.VBI_DOUBLE ? new byte[Constants.VBI_DOUBLE_LINE_SIZE] : new byte[Constants.VBI_LINE_SIZE];
+        byte[] buffer = inputFormat == Format.VBI_DOUBLE ? new byte[Constants.VBI_DOUBLE_LINE_SIZE] : new byte[Constants.VBI_LINE_SIZE];
         int bytesRead;
         while ((bytesRead = await input.ReadAsync(buffer)) > 0)
         {
@@ -260,24 +260,24 @@ public class VBI : IDisposable
     /// <param name="rows">The rows to process.</param>
     /// <param name="debug">Whether to print debug information.</param>
     /// <returns>The processed line data.</returns>
-    public static async Task<int> Line(byte[] lineData, Stream output, LineFormat inputFormat, LineFormat outputFormat, int magazine, int[] rows, bool debug = false)
+    public static async Task<int> Line(byte[] lineData, Stream output, Format inputFormat, Format outputFormat, int magazine, int[] rows, bool debug = false)
     {
-        // If outputFormat == LineFormat.VBI, pass through the data
-        if (outputFormat == LineFormat.VBI)
+        // If outputFormat == Format.VBI, pass through the data
+        if (outputFormat == Format.VBI)
         {
             await output.WriteAsync(lineData);
         }
-        // If outputFormat == LineFormat.VBI_DOUBLE, double the data if needed and pass through
-        else if (outputFormat == LineFormat.VBI_DOUBLE)
+        // If outputFormat == Format.VBI_DOUBLE, double the data if needed and pass through
+        else if (outputFormat == Format.VBI_DOUBLE)
         {
-            var doubledData = inputFormat == LineFormat.VBI_DOUBLE ? lineData : Functions.Double(lineData);
+            var doubledData = inputFormat == Format.VBI_DOUBLE ? lineData : Functions.Double(lineData);
             await output.WriteAsync(doubledData);
         }
-        // If outputFormat == LineFormat.T42, decode the data
-        else if (outputFormat is LineFormat.T42 or LineFormat.RCWT)
+        // If outputFormat == Format.T42, decode the data
+        else if (outputFormat is Format.T42 or Format.RCWT)
         {
             // Double the line data
-            var newLine = inputFormat == LineFormat.VBI_DOUBLE ? lineData : Functions.Double(lineData);
+            var newLine = inputFormat == Format.VBI_DOUBLE ? lineData : Functions.Double(lineData);
 
             // Normalise the line data
             var normalised = Functions.Normalise(newLine);
@@ -301,11 +301,11 @@ public class VBI : IDisposable
             if (T42.Check(t42, magazine, rows))
             {
                 // Return the T42 bytes or send to RCWT.Process()
-                if (outputFormat == LineFormat.T42)
+                if (outputFormat == Format.T42)
                 {
                     await output.WriteAsync(t42);
                 }
-                else if (outputFormat == LineFormat.RCWT)
+                else if (outputFormat == Format.RCWT)
                 {
                     // TODO: Implement RCWT processing
                     // await RCWT.Process(t42, output);

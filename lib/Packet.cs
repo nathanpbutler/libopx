@@ -20,7 +20,8 @@ public class Packet : IDisposable
     public int[] Row { get; set; } = Constants.DEFAULT_ROWS; // Default rows for T42
     public List<Line> Lines { get; set; } = []; // 0 or more lines
 
-    [SetsRequiredMembers]
+    public Packet() {} // Default constructor
+
     public Packet(byte[] header)
     {
         if (header.Length != Constants.PACKET_HEADER_SIZE)
@@ -42,7 +43,7 @@ public class Packet : IDisposable
         Lines.Clear();
     }
 
-    public static List<Line> ParseLines(byte[] data, LineFormat outputFormat = LineFormat.Unknown)
+    public static List<Line> ParseLines(byte[] data)
     {
         var lines = new List<Line>();
         var dataSpan = data.AsSpan();
