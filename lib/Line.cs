@@ -67,12 +67,12 @@ public class Line : IDisposable
     public string Text { get; set; } = Constants.T42_BLANK_LINE; // Default text for T42 lines
 
     // Cache the type calculation to avoid repeated computation
-    private LineFormat? _cachedType;
+    private Format? _cachedType;
 
     /// <summary>
     /// Type of the line. Determined by either the length or if there is a CRIFC
     /// </summary>
-    public LineFormat Type
+    public Format Type
     {
         get
         {
@@ -81,27 +81,27 @@ public class Line : IDisposable
 
             if (Length == Constants.VBI_LINE_SIZE)
             {
-                _cachedType = LineFormat.VBI; // VBI lines have no data
+                _cachedType = Format.VBI; // VBI lines have no data
             }
             else if (Length == Constants.VBI_DOUBLE_LINE_SIZE)
             {
-                _cachedType = LineFormat.VBI_DOUBLE; // Double VBI lines
+                _cachedType = Format.VBI_DOUBLE; // Double VBI lines
             }
             else if (Data.Length >= Constants.T42_LINE_SIZE && Data.Length < Constants.VBI_LINE_SIZE)
             {
                 var crifc = Functions.GetCrifc(Data);
                 if (crifc >= 0)
                 {
-                    _cachedType = LineFormat.T42; // T42 lines have a CRIFC
+                    _cachedType = Format.T42; // T42 lines have a CRIFC
                 }
                 else
                 {
-                    _cachedType = LineFormat.Unknown; // Unknown line type
+                    _cachedType = Format.Unknown; // Unknown line type
                 }
             }
             else
             {
-                _cachedType = LineFormat.Unknown; // Unknown line type
+                _cachedType = Format.Unknown; // Unknown line type
             }
 
             return _cachedType.Value;
@@ -186,19 +186,19 @@ public class Line : IDisposable
     /// </summary>
     /// <param name="data">The data to check</param>
     /// <returns>The type of the line</returns>
-    public static LineFormat GetLineFormat(byte[] data)
+    public static Format GetFormat(byte[] data)
     {
         if (data.Length == 720)
-            return LineFormat.VBI;
+            return Format.VBI;
 
         if (data.Length >= 45 && data.Length < 720)
         {
             var crifc = Functions.GetCrifc(data);
             if (crifc >= 0)
-                return LineFormat.T42;
+                return Format.T42;
         }
 
-        return LineFormat.Unknown;
+        return Format.Unknown;
     }
 
     /// <summary>
@@ -207,26 +207,26 @@ public class Line : IDisposable
     /// </summary>
     /// <param name="data">The data to check</param>
     /// <returns>The type of the line</returns>
-    public static LineFormat GetLineFormat(ReadOnlySpan<byte> data)
+    public static Format GetFormat(ReadOnlySpan<byte> data)
     {
         if (data.Length == 720)
-            return LineFormat.VBI;
+            return Format.VBI;
 
         if (data.Length >= 45 && data.Length < 720)
         {
             var crifc = Functions.GetCrifc(data);
             if (crifc >= 0)
-                return LineFormat.T42;
+                return Format.T42;
         }
 
-        return LineFormat.Unknown;
+        return Format.Unknown;
     }
 
     /// <summary>
     /// Parses the line data from a stream.
     /// </summary>
     /// <param name="input">The input stream</param>
-    public void ParseLine(Stream input, LineFormat outputFormat = LineFormat.Unknown)
+    public void ParseLine(Stream input, Format outputFormat = Format.Unknown)
     {
         if (Length <= 0)
         {
@@ -248,7 +248,7 @@ public class Line : IDisposable
             if (crifc >= 0)
             {
                 // If the CRIFC is valid, we can set the type to T42
-                _cachedType = LineFormat.T42;
+                _cachedType = Format.T42;
 
                 // Ensure we have enough data after CRIFC for a full T42 line
                 var remainingBytes = data.Length - (crifc + 3);
@@ -266,12 +266,12 @@ public class Line : IDisposable
                     Magazine = -1; // Unknown magazine
                     Row = -1; // Unknown row
                     Text = Constants.T42_BLANK_LINE; // Default text for T42 lines
-                    _cachedType = LineFormat.Unknown;
+                    _cachedType = Format.Unknown;
                 }
             }
             else
             {
-                _cachedType = LineFormat.Unknown; // Unknown line type
+                _cachedType = Format.Unknown; // Unknown line type
                 Data = [.. data.Take(Length)]; // Store the data as is
                 Magazine = -1; // Unknown magazine
                 Row = -1; // Unknown row
@@ -280,11 +280,11 @@ public class Line : IDisposable
         }
         else
         {
-            _cachedType = GetLineFormat(data); // Use the static method to determine the type
+            _cachedType = GetFormat(data); // Use the static method to determine the type
             Data = [.. data.Take(Length)];
             
             // Convert VBI to T42 if requested
-            if (outputFormat == LineFormat.T42 && (_cachedType == LineFormat.VBI || _cachedType == LineFormat.VBI_DOUBLE))
+            if (outputFormat == Format.T42 && (_cachedType == Format.VBI || _cachedType == Format.VBI_DOUBLE))
             {
                 try
                 {
@@ -293,7 +293,7 @@ public class Line : IDisposable
                     
                     // Update line properties for T42
                     Data = t42Data;
-                    _cachedType = LineFormat.T42;
+                    _cachedType = Format.T42;
                     SampleCoding = 0x31; // T42 sample coding
                     SampleCount = t42Data.Length;
                     

@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using nathanbutlerDEV.libopx.Enums;
 using nathanbutlerDEV.libopx.SMPTE;
 
 namespace nathanbutlerDEV.libopx.Formats;
@@ -18,11 +19,12 @@ public class MXF : IDisposable
     public List<Packet> Packets { get; set; } = []; // List of packets parsed from the MXF data stream
     public List<KeyType> RequiredKeys { get; set; } = []; // List of required keys for parsing
     public bool CheckSequential { get; set; } = true; // Check if SMPTE timecodes are sequential
-    public bool Extract { get; set; } = false; // Extract required streams from the MXF file
+    public Function Function { get; set; } = Function.Filter; // Default function is Filter (outputting to console)
     public bool DemuxMode { get; set; } = false; // Extract all keys found, output as separate files
     public bool UseKeyNames { get; set; } = false; // Use Key/Essence names instead of hex keys (use with DemuxMode)
     public bool KlvMode { get; set; } = false; // Include key and length bytes in output files
     public string? OutputBasePath { get; set; } // Base path for extracted files
+    public bool Verbose { get; set; } = false; // Verbose output for debugging
     private readonly Dictionary<KeyType, string> _keyTypeToExtension = new()
     {
         { KeyType.Data, "_d.raw" },
@@ -36,10 +38,10 @@ public class MXF : IDisposable
     private Timecode? _lastTimecode;
     
     // Extraction-related fields
-    private readonly Dictionary<KeyType, FileStream> _outputStreams = new();
-    private readonly Dictionary<string, FileStream> _demuxStreams = new();
-    private readonly List<byte> _berLengthBuffer = new();
-    private readonly HashSet<string> _foundKeys = new();
+    private readonly Dictionary<KeyType, FileStream> _outputStreams = [];
+    private readonly Dictionary<string, FileStream> _demuxStreams = [];
+    private readonly List<byte> _berLengthBuffer = [];
+    private readonly HashSet<string> _foundKeys = [];
 
     [SetsRequiredMembers]
     public MXF(string inputFile)
@@ -176,10 +178,13 @@ public class MXF : IDisposable
     }
 
     // General Parse method which parses all types of streams in the MXF file
-    public void Parse()
+    public IEnumerable<Packet> Parse(int? magazine = 8, int[]? rows = null, Timecode? startTimecode = null)
     {
         Input.Seek(0, SeekOrigin.Begin);
         _lastTimecode = null; // Reset sequential checking
+        var timecode = startTimecode ?? StartTimecode;
+        
+        int lineNumber = 0;
 
         try
         {
@@ -193,8 +198,8 @@ public class MXF : IDisposable
                 if (length < 0) break;
 
                 // Determine if we should extract this key
-                bool shouldExtract = Extract && (DemuxMode || RequiredKeys.Contains(keyType));
-                
+                bool shouldExtract = Function == Function.Extract && (DemuxMode || RequiredKeys.Contains(keyType));
+
                 if (shouldExtract)
                 {
                     ExtractPacket(keyType, length);
@@ -215,12 +220,30 @@ public class MXF : IDisposable
                             break;
 
                         case KeyType.Data:
-                            if (RequiredKeys.Contains(KeyType.Data))
-                                ProcessDataPacket(length);
+                            if (Function == Function.Filter)
+                            {
+                                var packet = FilterDataPacket(magazine, rows, timecode, lineNumber);
+                                if (Verbose) Console.WriteLine($"Packet found at timecode {timecode}");
+                                // Only yield packets that have at least one line after filtering
+                                if (packet.Lines.Count > 0)
+                                {
+                                    yield return packet;
+                                }
+                                timecode = timecode.GetNext(); // Increment timecode for the next packet
+                            }
                             else
-                                Input.Seek(length, SeekOrigin.Current);
+                            {
+                                if (RequiredKeys.Contains(KeyType.Data))
+                                {
+                                    ProcessDataPacket(length);
+                                }
+                                else
+                                {
+                                    Input.Seek(length, SeekOrigin.Current);
+                                }
+                            }
                             break;
-                            
+
                         case KeyType.Video:
                         case KeyType.Audio:
                         case KeyType.TimecodeComponent:
@@ -310,6 +333,52 @@ public class MXF : IDisposable
         var lines = Packet.ParseLines(data);
         packet.Lines.AddRange(lines);
         Packets.Add(packet);
+    }
+
+    private Packet FilterDataPacket(int? magazine, int[]? rows, Timecode startTimecode, int lineNumber = 0)
+    {
+        Span<byte> header = stackalloc byte[Constants.PACKET_HEADER_SIZE];
+        Span<byte> lineHeader = stackalloc byte[Constants.LINE_HEADER_SIZE];
+        if (Input.Read(header) != Constants.PACKET_HEADER_SIZE)
+            throw new InvalidOperationException("Failed to read packet header for Data key.");
+        var packet = new Packet(header.ToArray())
+        {
+            Timecode = startTimecode
+        };
+        for (var l = 0; l < packet.LineCount; l++)
+        {
+            if (Input.Read(lineHeader) != Constants.LINE_HEADER_SIZE)
+                throw new InvalidOperationException("Failed to read line header for Data key.");
+            var line = new Line(lineHeader)
+            {
+                LineNumber = lineNumber // Increment line number for each line
+            };
+
+            if (line.Length <= 0)
+            {
+                throw new InvalidDataException("Line length is invalid.");
+            }
+
+            // Use the more efficient ParseLine method
+            line.ParseLine(Input, Format.T42);
+
+            // Apply filtering if specified
+            if (magazine.HasValue && line.Magazine != magazine.Value)
+            {
+                lineNumber++;
+                continue; // Skip lines that don't match the magazine filter
+            }
+
+            if (rows != null && !rows.Contains(line.Row))
+            {
+                lineNumber++;
+                continue; // Skip lines that don't match the row filter
+            }
+
+            packet.Lines.Add(line);
+            lineNumber++; // Increment line number for each line processed
+        }
+        return packet;
     }
 
     public bool ParseSMPTETimecodes()
@@ -451,9 +520,9 @@ public class MXF : IDisposable
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
     
-    private string GetKeyName(byte[] keyBytes)
+    private static string GetKeyName(byte[] keyBytes)
     {
-        Type[] typesToSearch = { typeof(Essence), typeof(Keys) };
+        Type[] typesToSearch = [typeof(Essence), typeof(Keys)];
         
         foreach (var type in typesToSearch)
         {
@@ -503,7 +572,7 @@ public class MXF : IDisposable
         DemuxMode = demuxMode ?? DemuxMode;
         UseKeyNames = useKeyNames ?? UseKeyNames;
         KlvMode = klvMode ?? KlvMode;
-        Extract = true;
+        Function = Function.Extract; // Set function to Extract
         
         // If no specific keys are required and not in demux mode, default to extracting all
         if (!DemuxMode && RequiredKeys.Count == 0)

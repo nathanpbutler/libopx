@@ -16,7 +16,7 @@ public class BIN : IDisposable
     // TODO: Change Parse() to output Packets instead of storing them in the BIN object
     [Obsolete("Use Parse() method which returns IEnumerable<Packet> instead")]
     public List<Packet> Packets { get; set; } = []; // List of packets in the BIN file
-    public LineFormat? OutputFormat { get; set; } = LineFormat.T42; // Default output format
+    public Format? OutputFormat { get; set; } = Format.T42; // Default output format
     // TODO: Implement Extract and Filter functions
     public Function Function { get; set; } = Function.Filter; // Default function is Filter (outputting to console)
 
@@ -69,17 +69,17 @@ public class BIN : IDisposable
         OutputFile = new FileInfo(outputFile);
     }
 
-    public IEnumerable<Packet> Parse(int? magazine = 8, int[]? rows = null)
+    public IEnumerable<Packet> Parse(int? magazine = 8, int[]? rows = null, Timecode? startTimecode = null)
     {
         // Use default rows if not specified
         rows ??= Constants.DEFAULT_ROWS;
 
         // If OutputFormat is not set, use the provided outputFormat
-        var outputFormat = OutputFormat ?? LineFormat.T42;
+        var outputFormat = OutputFormat ?? Format.T42;
         
         int lineNumber = 0;
 
-        var timecode = new Timecode(0); // Default timecode, can be modified later
+        var timecode = startTimecode ?? new Timecode(0); // Default timecode, can be modified later
 
         while (Input.Read(_packetHeader, 0, Constants.PACKET_HEADER_SIZE) == Constants.PACKET_HEADER_SIZE)
         {
