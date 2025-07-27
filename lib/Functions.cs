@@ -244,6 +244,50 @@ public class Functions
         return keys;
     }
 
+    /// <summary>
+    /// Restripes an MXF file with a new start timecode.
+    /// </summary>
+    /// <param name="inputFile">The input MXF file to restripe.</param>
+    /// <param name="timecodeString">The new start timecode in HH:MM:SS:FF format.</param>
+    /// <param name="fps">The frame rate (25 or 50).</param>
+    /// <param name="outputPath">The output file path. If null, defaults to input_restriped.mxf.</param>
+    /// <param name="verbose">If true, enables verbose output during processing.</param>
+    /// <returns>An integer indicating the result of the restripe operation (0 for success, 1 for failure).</returns>
+    public static int Restripe(FileInfo inputFile, string timecodeString, bool verbose)
+    {
+        try
+        {
+            
+            if (verbose)
+            {
+                Console.WriteLine($".       Input file: {inputFile.FullName}");
+                Console.WriteLine($"New start timecode: {timecodeString}");
+            }
+
+            // Create MXF instance and configure for restriping
+            using var mxf = new MXF(inputFile.FullName)
+            {
+                Function = Function.Restripe,
+                Verbose = verbose
+            };
+
+            // Run the parse method which will handle restriping
+            var packets = mxf.Parse(startTimecode: timecodeString);
+            foreach (var _ in packets)
+            {
+                // The Parse method handles all the restriping internally
+                // We just need to iterate through to execute it
+            }
+
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error restriping file: {ex.Message}");
+            return 1;
+        }
+    }
+
     #endregion
 
     #region VBI

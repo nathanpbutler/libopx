@@ -55,5 +55,7 @@ public enum Function
     /// Extract
     Extract,
     /// Filter (outputs OP-42/OP-47 teletext data to console)
-    Filter
+    Filter,
+    /// Restripe (rewrites MXF with new timecodes)
+    Restripe
 }
