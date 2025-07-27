@@ -260,7 +260,7 @@ public class Functions
             
             if (verbose)
             {
-                Console.WriteLine($".       Input file: {inputFile.FullName}");
+                Console.WriteLine($"        Input file: {inputFile.FullName}");
                 Console.WriteLine($"New start timecode: {timecodeString}");
             }
 

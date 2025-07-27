@@ -209,71 +209,70 @@ public class MXF : IDisposable
                 if (shouldExtract)
                 {
                     ExtractPacket(keyType, length);
+                    continue; // Skip to next iteration after extraction
                 }
-                else
+                
+                // Handle non-extraction processing
+                switch (keyType)
                 {
-                    switch (keyType)
-                    {
-
-                        case KeyType.TimecodeComponent:
-                            if (Function == Function.Restripe)
-                            {
-                                //RestripePacket(keyType, length, timecodeComponent);
-                                RestripeTimecodeComponent(length, timecodeComponent);
-                            }
-                            else
-                            {
-                                SkipPacket(length);
-                            }
-                            break;
-                        case KeyType.System:
-                            if (Function == Function.Restripe)
-                            {
-                                //RestripePacket(keyType, length, smpteTimecode);
-                                RestripeSystemPacket(length, smpteTimecode);
-                                smpteTimecode = smpteTimecode.GetNext(); // Increment timecode for the next packet
-                            }
-                            else if (ShouldProcessKey(KeyType.System))
-                            {
-                                ProcessSystemPacket(length);
-                            }
-                            else
-                            {
-                                SkipPacket(length);
-                            }
-                            break;
-
-                        case KeyType.Data:
-                            if (Function == Function.Filter)
-                            {
-                                var packet = FilterDataPacket(magazine, rows, timecode, lineNumber);
-                                if (Verbose) Console.WriteLine($"Packet found at timecode {timecode}");
-                                // Only yield packets that have at least one line after filtering
-                                if (packet.Lines.Count > 0)
-                                {
-                                    yield return packet;
-                                }
-                                timecode = timecode.GetNext(); // Increment timecode for the next packet
-                            }
-                            else
-                            {
-                                if (ShouldProcessKey(KeyType.Data))
-                                {
-                                    ProcessDataPacket(length);
-                                }
-                                else
-                                {
-                                    SkipPacket(length);
-                                }
-                            }
-                            break;
-
-                        case KeyType.Video:
-                        case KeyType.Audio:
-                        default:
+                    case KeyType.TimecodeComponent:
+                        if (Function == Function.Restripe)
+                        {
+                            //RestripePacket(keyType, length, timecodeComponent);
+                            RestripeTimecodeComponent(length, timecodeComponent);
+                        }
+                        else
+                        {
                             SkipPacket(length);
-                            break;
-                    }
+                        }
+                        break;
+                    case KeyType.System:
+                        if (Function == Function.Restripe)
+                        {
+                            //RestripePacket(keyType, length, smpteTimecode);
+                            RestripeSystemPacket(length, smpteTimecode);
+                            smpteTimecode = smpteTimecode.GetNext(); // Increment timecode for the next packet
+                        }
+                        else if (ShouldProcessKey(KeyType.System))
+                        {
+                            ProcessSystemPacket(length);
+                        }
+                        else
+                        {
+                            SkipPacket(length);
+                        }
+                        break;
+
+                    case KeyType.Data:
+                        if (Function == Function.Filter)
+                        {
+                            var packet = FilterDataPacket(magazine, rows, timecode, lineNumber);
+                            if (Verbose) Console.WriteLine($"Packet found at timecode {timecode}");
+                            // Only yield packets that have at least one line after filtering
+                            if (packet.Lines.Count > 0)
+                            {
+                                yield return packet;
+                            }
+                            timecode = timecode.GetNext(); // Increment timecode for the next packet
+                        }
+                        else
+                        {
+                            if (ShouldProcessKey(KeyType.Data))
+                            {
+                                ProcessDataPacket(length);
+                            }
+                            else
+                            {
+                                SkipPacket(length);
+                            }
+                        }
+                        break;
+
+                    case KeyType.Video:
+                    case KeyType.Audio:
+                    default:
+                        SkipPacket(length);
+                        break;
                 }
             }
         }
@@ -293,6 +292,28 @@ public class MXF : IDisposable
             SkipPacket(length);
             return;
         }
+
+        #region Myriadbits MXFInspect code
+        Input.Seek(1, SeekOrigin.Current); // Skip the first byte
+        int timebase = StartTimecode.Timebase;
+        bool dropFrame = StartTimecode.DropFrame;
+        var rate = Input.ReadByte();
+        int rateIndex = (rate & 0x1E) >> 1;
+        int[] rates = [0, 24, 25, 30, 48, 50, 60, 72, 75, 90, 96, 100, 120, 0, 0, 0];
+        if (rateIndex < 16)
+			timebase = rates[rateIndex];
+        if ((rate & 0x01) == 0x01) // 1.001 divider active?
+            dropFrame = true;
+        Input.Seek(-2, SeekOrigin.Current); // Go back to the start of the timecode
+
+        // If StartTimecode.Timebase and StartTimecode.DropFrame do not match what we have found, BREAK
+        if (StartTimecode.Timebase != timebase || StartTimecode.DropFrame != dropFrame)
+        {
+            throw new InvalidOperationException($"Material Package timecode {StartTimecode} does not match existing timebase {timebase} and drop frame {dropFrame}.");
+        }
+
+        #endregion
+
         SkipPacket(offset);
 
         var smpteRead = Input.Read(_smpteBuffer, 0, Constants.SMPTE_TIMECODE_SIZE);
@@ -591,17 +612,37 @@ public class MXF : IDisposable
             SkipPacket(length);
             return;
         }
-        
+
+        #region Myriadbits MXFInspect code
+        Input.Seek(1, SeekOrigin.Current); // Skip the first byte
+        int timebase = StartTimecode.Timebase;
+        bool dropFrame = StartTimecode.DropFrame;
+        var rate = Input.ReadByte();
+        int rateIndex = (rate & 0x1E) >> 1;
+        int[] rates = [0, 24, 25, 30, 48, 50, 60, 72, 75, 90, 96, 100, 120, 0, 0, 0];
+        if (rateIndex < 16)
+			timebase = rates[rateIndex];
+        if ((rate & 0x01) == 0x01) // 1.001 divider active?
+            dropFrame = true;
+        Input.Seek(-2, SeekOrigin.Current); // Go back to the start of the timecode
+
+        // If newTimecode.Timebase and newTimecode.DropFrame do not match what we have found, BREAK
+        if (newTimecode.Timebase != timebase || newTimecode.DropFrame != dropFrame)
+        {
+            throw new InvalidOperationException($"New timecode {newTimecode} does not match existing timebase {timebase} and drop frame {dropFrame}.");
+        }
+
+        #endregion
+
         SkipPacket(offset);
         var timecodePosition = Input.Position;
 
         var smpteRead = Input.Read(_smpteBuffer, 0, Constants.SMPTE_TIMECODE_SIZE);
         if (smpteRead == Constants.SMPTE_TIMECODE_SIZE)
         {
-            var currentTimecode = Timecode.FromBytes(_smpteBuffer, StartTimecode.Timebase, StartTimecode.DropFrame);
-
             if (Verbose)
             {
+                var currentTimecode = Timecode.FromBytes(_smpteBuffer, timebase, dropFrame);
                 Console.WriteLine($"Restriping System timecode at offset {offset}: {currentTimecode} -> {newTimecode}");
             }
 
@@ -646,7 +687,12 @@ public class MXF : IDisposable
         }
         
         // Run the parse method which will handle extraction
-        Parse();
+        var packets = Parse();
+        foreach (var _ in packets)
+        {
+            // The Parse method handles all the extraction internally
+            // We just need to iterate through to execute it
+        }
     }
     
     private bool TryReadKlvHeader(out KeyType keyType, out int length)
@@ -700,7 +746,7 @@ public class MXF : IDisposable
         }
     }
     
-    private int GetSystemMetadataOffset(int length)
+    private static int GetSystemMetadataOffset(int length)
     {
         if (length >= Constants.SYSTEM_METADATA_PACK_GC + Constants.SMPTE_TIMECODE_SIZE)
         {
