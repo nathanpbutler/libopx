@@ -242,7 +242,6 @@ public class Timecode
     /// <param name="bytes">4-byte array containing SMPTE timecode</param>
     /// <param name="timebase">The timebase of the timecode</param>
     /// <param name="dropFrame">Whether the timecode is a drop frame timecode</param>
-    /// <param name="field">The field component of the timecode</param>
     public static Timecode FromBytes(byte[] bytes, int timebase = 25, bool dropFrame = false)
     {
         return FromBytes(bytes.AsSpan(), timebase, dropFrame);
@@ -254,7 +253,6 @@ public class Timecode
     /// <param name="bytes">4-byte span containing SMPTE timecode</param>
     /// <param name="timebase">The timebase of the timecode</param>
     /// <param name="dropFrame">Whether the timecode is a drop frame timecode</param>
-    /// <param name="field">The field component of the timecode</param>
     public static Timecode FromBytes(ReadOnlySpan<byte> bytes, int timebase = 25, bool dropFrame = false)
     {
         if (bytes.Length != 4)
@@ -280,8 +278,8 @@ public class Timecode
             seconds -= 128;
         }
 
-        // Handle drop frame offset for 30p/60p
-        if (timebase is 30 or 60)
+        // Handle drop frame offset for 30/60
+        if (dropFrame && (timebase is 30 or 60))
         {
             frames -= 64;
         }
@@ -333,17 +331,11 @@ public class Timecode
         var minutes = Minutes;
         var seconds = Seconds;
         var frames = Frames;
-        
+
         // For progressive formats, divide frames by 2
         if (Timebase is 48 or 50 or 60)
         {
             frames /= 2;
-        }
-
-        // Handle drop frame offset for 30p/60p BEFORE BCD conversion
-        if (Timebase is 30 or 60)
-        {
-            frames += 64;
         }
 
         // Convert integers to BCD (Binary Coded Decimal) format first
@@ -367,6 +359,12 @@ public class Timecode
             {
                 bytes[3] |= 0x80; // Set 0x80 bit in hours byte for 60p field 1
             }
+        }
+
+        // Handle drop frame offset for 30/60
+        if (DropFrame && (Timebase == 30 || Timebase == 60))
+        {
+            bytes[0] += 64; // Adjust frames for drop frame
         }
     }
 
