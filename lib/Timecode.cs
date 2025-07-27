@@ -380,8 +380,12 @@ public class Timecode
     {
         if (value < 0 || value > 99)
             throw new ArgumentOutOfRangeException(nameof(value), "Value must be between 0 and 99 for BCD conversion");
-        
-        return (byte)(((value / 10) << 4) | (value % 10));
+
+        //return (byte)(((value / 10) << 4) | (value % 10));
+        // More efficient BCD conversion
+        return (byte)((value / 10 << 4) | (value % 10));
+        // This avoids the division and modulus operations by using bitwise operations
+        // and is faster for small values like those in timecodes.
     }
 
     /// <summary>

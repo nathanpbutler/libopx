@@ -215,4 +215,58 @@ public class Commands
 
         return await Task.FromResult(extractCommand);
     }
+
+    public static async Task<Command> CreateRestripeCommand()
+    {
+        var restripeCommand = new Command("restripe", "Restripe MXF file with new start timecode");
+
+        var inputOption = new Argument<FileInfo>("input")
+        {
+            Description = "Input MXF file path"
+        };
+
+        var timecodeOption = new Option<string>("-t")
+        {
+            Aliases = { "--timecode" },
+            Description = "New start timecode (HH:MM:SS:FF)",
+            Required = true
+        };
+
+        var verboseOption = new Option<bool>("-V")
+        {
+            Aliases = { "--verbose" },
+            Description = "Enable verbose output",
+            Required = false,
+            DefaultValueFactory = _ => false
+        };
+
+        restripeCommand.Arguments.Add(inputOption);
+        restripeCommand.Options.Add(timecodeOption);
+        restripeCommand.Options.Add(verboseOption);
+
+        restripeCommand.SetAction(async (parseResult) =>
+        {
+            FileInfo? inputFile = parseResult.GetValue(inputOption);
+            string? timecodeString = parseResult.GetValue(timecodeOption);
+            bool verbose = parseResult.GetValue(verboseOption);
+
+            if (inputFile == null || !inputFile.Exists)
+            {
+                Console.Error.WriteLine($"Error: Input file '{inputFile?.FullName ?? "null"}' does not exist.");
+                await Task.FromResult(1);
+                return;
+            }
+
+            if (string.IsNullOrEmpty(timecodeString))
+            {
+                Console.Error.WriteLine("Error: Timecode is required.");
+                await Task.FromResult(1);
+                return;
+            }
+
+            await Task.FromResult(Functions.Restripe(inputFile, timecodeString, verbose));
+        });
+
+        return await Task.FromResult(restripeCommand);
+    }
 }

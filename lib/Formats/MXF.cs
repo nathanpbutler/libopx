@@ -178,27 +178,33 @@ public class MXF : IDisposable
     }
 
     // General Parse method which parses all types of streams in the MXF file
-    public IEnumerable<Packet> Parse(int? magazine = 8, int[]? rows = null, Timecode? startTimecode = null)
+    public IEnumerable<Packet> Parse(int? magazine = 8, int[]? rows = null, string? startTimecode = null)
     {
         Input.Seek(0, SeekOrigin.Begin);
         _lastTimecode = null; // Reset sequential checking
-        var timecode = startTimecode ?? StartTimecode;
-        
+        // Increment after each Data packet found
+        var timecode = startTimecode == null
+            ? StartTimecode
+            : new Timecode(startTimecode, StartTimecode.Timebase, StartTimecode.DropFrame);
+        // Increment after each System packet found
+        var smpteTimecode = startTimecode == null
+            ? StartTimecode
+            : new Timecode(startTimecode, StartTimecode.Timebase, StartTimecode.DropFrame);
+        // Used for TimecodeComponent packets
+        var timecodeComponent = startTimecode == null
+            ? StartTimecode
+            : new Timecode(startTimecode, StartTimecode.Timebase, StartTimecode.DropFrame);
+
         int lineNumber = 0;
 
         try
         {
-            while (true)
+            while (TryReadKlvHeader(out var keyType, out var length))
             {
-                var keyBytesRead = Input.Read(_keyBuffer, 0, Constants.KLV_KEY_SIZE);
-                if (keyBytesRead != Constants.KLV_KEY_SIZE) break;
 
-                var keyType = Keys.GetKeyType(_keyBuffer.AsSpan(0, Constants.KLV_KEY_SIZE));
-                var length = ReadBerLength(Input, _berLengthBuffer);
-                if (length < 0) break;
-
-                // Determine if we should extract this key
+                // Determine if we should extract or restripe this key
                 bool shouldExtract = Function == Function.Extract && (DemuxMode || RequiredKeys.Contains(keyType));
+                bool shouldRestripe = Function == Function.Restripe;
 
                 if (shouldExtract)
                 {
@@ -208,14 +214,32 @@ public class MXF : IDisposable
                 {
                     switch (keyType)
                     {
+
+                        case KeyType.TimecodeComponent:
+                            if (Function == Function.Restripe)
+                            {
+                                //RestripePacket(keyType, length, timecodeComponent);
+                                RestripeTimecodeComponent(length, timecodeComponent);
+                            }
+                            else
+                            {
+                                SkipPacket(length);
+                            }
+                            break;
                         case KeyType.System:
-                            if (RequiredKeys.Contains(KeyType.System))
+                            if (Function == Function.Restripe)
+                            {
+                                //RestripePacket(keyType, length, smpteTimecode);
+                                RestripeSystemPacket(length, smpteTimecode);
+                                smpteTimecode = smpteTimecode.GetNext(); // Increment timecode for the next packet
+                            }
+                            else if (ShouldProcessKey(KeyType.System))
                             {
                                 ProcessSystemPacket(length);
                             }
                             else
                             {
-                                Input.Seek(length, SeekOrigin.Current);
+                                SkipPacket(length);
                             }
                             break;
 
@@ -233,32 +257,21 @@ public class MXF : IDisposable
                             }
                             else
                             {
-                                if (RequiredKeys.Contains(KeyType.Data))
+                                if (ShouldProcessKey(KeyType.Data))
                                 {
                                     ProcessDataPacket(length);
                                 }
                                 else
                                 {
-                                    Input.Seek(length, SeekOrigin.Current);
+                                    SkipPacket(length);
                                 }
                             }
                             break;
 
                         case KeyType.Video:
                         case KeyType.Audio:
-                        case KeyType.TimecodeComponent:
-                            if (RequiredKeys.Contains(keyType))
-                            {
-                                // For now, just skip these packets
-                                Input.Seek(length, SeekOrigin.Current);
-                            }
-                            else
-                            {
-                                Input.Seek(length, SeekOrigin.Current);
-                            }
-                            break;
                         default:
-                            Input.Seek(length, SeekOrigin.Current);
+                            SkipPacket(length);
                             break;
                     }
                 }
@@ -274,21 +287,13 @@ public class MXF : IDisposable
 
     private void ProcessSystemPacket(int length)
     {
-        int offset = -1;
-        if (length >= Constants.SYSTEM_METADATA_PACK_GC + Constants.SMPTE_TIMECODE_SIZE)
-        {
-            offset = Constants.SYSTEM_METADATA_PACK_GC;
-        }
-        else if (length >= Constants.SYSTEM_METADATA_SET_GC_OFFSET + Constants.SMPTE_TIMECODE_SIZE)
-        {
-            offset = Constants.SYSTEM_METADATA_SET_GC_OFFSET;
-        }
+        var offset = GetSystemMetadataOffset(length);
         if (offset < 0)
         {
-            Input.Seek(length, SeekOrigin.Current);
+            SkipPacket(length);
             return;
         }
-        Input.Seek(offset, SeekOrigin.Current);
+        SkipPacket(offset);
 
         var smpteRead = Input.Read(_smpteBuffer, 0, Constants.SMPTE_TIMECODE_SIZE);
         if (smpteRead == Constants.SMPTE_TIMECODE_SIZE)
@@ -311,7 +316,7 @@ public class MXF : IDisposable
         var remainingBytes = length - offset - Constants.SMPTE_TIMECODE_SIZE;
         if (remainingBytes > 0)
         {
-            Input.Seek(remainingBytes, SeekOrigin.Current);
+            SkipPacket(remainingBytes);
         }
         else if (remainingBytes < 0)
         {
@@ -386,22 +391,15 @@ public class MXF : IDisposable
         Input.Seek(0, SeekOrigin.Begin);
         _lastTimecode = null;
 
-        while (true)
+        while (TryReadKlvHeader(out var keyType, out var length))
         {
-            var keyBytesRead = Input.Read(_keyBuffer, 0, Constants.KLV_KEY_SIZE);
-            if (keyBytesRead != Constants.KLV_KEY_SIZE) break;
-
-            var keyType = Keys.GetKeyType(_keyBuffer.AsSpan(0, Constants.KLV_KEY_SIZE));
-            var length = ReadBerLength(Input);
-            if (length < 0) break;
-
             if (keyType == KeyType.System)
             {
                 ProcessSystemPacket(length);
             }
             else
             {
-                Input.Seek(length, SeekOrigin.Current);
+                SkipPacket(length);
             }
         }
 
@@ -441,56 +439,17 @@ public class MXF : IDisposable
     
     private void ExtractPacket(KeyType keyType, int length)
     {
-        FileStream outputStream;
-        
-        if (DemuxMode)
+        var outputStream = GetOrCreateExtractionStream(keyType);
+        if (outputStream == null)
         {
-            // Demux mode: create unique file for each key
-            var keyIdentifier = UseKeyNames ? GetKeyName(_keyBuffer) : BytesToHexString(_keyBuffer);
-            
-            if (!_foundKeys.Contains(keyIdentifier))
-            {
-                Console.WriteLine($"Found key: {keyIdentifier}, length: {length}");
-                _foundKeys.Add(keyIdentifier);
-            }
-            
-            if (!_demuxStreams.TryGetValue(keyIdentifier, out outputStream!))
-            {
-                var fileExtension = KlvMode ? ".klv" : ".raw";
-                var outputPath = $"{OutputBasePath ?? Path.ChangeExtension(InputFile.FullName, null)}_{keyIdentifier}{fileExtension}";
-                outputStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write);
-                _demuxStreams[keyIdentifier] = outputStream;
-            }
-        }
-        else
-        {
-            // Normal extraction mode
-            if (!_outputStreams.TryGetValue(keyType, out outputStream!))
-            {
-                if (_keyTypeToExtension.TryGetValue(keyType, out var extension))
-                {
-                    if (KlvMode)
-                    {
-                        extension = extension.Replace(".raw", ".klv");
-                    }
-                    var outputPath = (OutputBasePath ?? Path.ChangeExtension(InputFile.FullName, null)) + extension;
-                    outputStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write);
-                    _outputStreams[keyType] = outputStream;
-                }
-                else
-                {
-                    // Skip if no extension mapping
-                    Input.Seek(length, SeekOrigin.Current);
-                    return;
-                }
-            }
+            SkipPacket(length);
+            return;
         }
         
         // Write KLV header if requested
         if (KlvMode)
         {
-            outputStream.Write(_keyBuffer, 0, Constants.KLV_KEY_SIZE);
-            outputStream.Write([.. _berLengthBuffer], 0, _berLengthBuffer.Count);
+            WriteKlvHeader(outputStream);
         }
         
         // Write essence data
@@ -557,6 +516,108 @@ public class MXF : IDisposable
         
         return BytesToHexString(keyBytes);
     }
+
+    private static byte[] CreateTagValueBytes(long value, int tagLength)
+    {
+        return tagLength switch
+        {
+            8 => BitConverter.GetBytes(value),
+            4 => BitConverter.GetBytes((int)value),
+            2 => BitConverter.GetBytes((short)value),
+            1 => [(byte)value],
+            _ => BitConverter.GetBytes((int)value)
+        };
+    }
+
+    private void RestripeTimecodeComponent(int length, Timecode newTimecode)
+    {
+        var dataStartPosition = Input.Position;
+        var data = new byte[length];
+        var actualRead = Input.Read(data, 0, length);
+        if (actualRead != length)
+            throw new EndOfStreamException($"Expected to read {length} bytes but only read {actualRead}");
+
+        // Parse the TimecodeComponent to get the current start timecode
+        var timecodeComponent = TimecodeComponent.Parse(data);
+        var currentTimecode = new Timecode(timecodeComponent.StartTimecode, timecodeComponent.RoundedTimecodeTimebase, timecodeComponent.DropFrame);
+
+        if (Verbose)
+        {
+            Console.WriteLine($"Restriping TimecodeComponent: {currentTimecode} -> {newTimecode}");
+        }
+
+        // Find and update timecode-related tags
+        var t = 0;
+        while (t < data.Length)
+        {
+            if (t + 6 > data.Length) break;
+            
+            var tagBytes = data[t..(t + 2)];
+            if (BitConverter.IsLittleEndian) Array.Reverse(tagBytes);
+            var tag = BitConverter.ToUInt16(tagBytes, 0);
+            
+            var tagLengthBytes = data[(t + 2)..(t + 4)];
+            if (BitConverter.IsLittleEndian) Array.Reverse(tagLengthBytes);
+            var tagLength = BitConverter.ToUInt16(tagLengthBytes, 0);
+
+            byte[]? newValueBytes = tag switch
+            {
+                0x1501 => CreateTagValueBytes(newTimecode.FrameNumber, tagLength), // "Start Timecode"
+                0x1502 => CreateTagValueBytes(newTimecode.Timebase, tagLength),   // "Rounded Timecode Timebase"
+                0x1503 => CreateTagValueBytes(newTimecode.DropFrame ? 1 : 0, tagLength), // "Drop Frame"
+                _ => null
+            };
+
+            if (newValueBytes != null)
+            {
+                if (BitConverter.IsLittleEndian) Array.Reverse(newValueBytes);
+                Array.Copy(newValueBytes, 0, data, t + 4, Math.Min(newValueBytes.Length, tagLength));
+            }
+            
+            t += 4 + tagLength;
+        }
+
+        // Write the modified data back to the input file
+        using var writeStream = new FileStream(InputFile.FullName, FileMode.Open, FileAccess.Write, FileShare.Read);
+        writeStream.Seek(dataStartPosition, SeekOrigin.Begin);
+        writeStream.Write(data, 0, length);
+    }
+
+    private void RestripeSystemPacket(int length, Timecode newTimecode)
+    {
+        var offset = GetSystemMetadataOffset(length);
+        if (offset < 0)
+        {
+            SkipPacket(length);
+            return;
+        }
+        
+        SkipPacket(offset);
+        var timecodePosition = Input.Position;
+
+        var smpteRead = Input.Read(_smpteBuffer, 0, Constants.SMPTE_TIMECODE_SIZE);
+        if (smpteRead == Constants.SMPTE_TIMECODE_SIZE)
+        {
+            var currentTimecode = Timecode.FromBytes(_smpteBuffer, StartTimecode.Timebase, StartTimecode.DropFrame);
+
+            if (Verbose)
+            {
+                Console.WriteLine($"Restriping System timecode at offset {offset}: {currentTimecode} -> {newTimecode}");
+            }
+
+            // Convert new timecode to bytes and write back to file
+            var newTimecodeBytes = newTimecode.ToBytes();
+            using var writeStream = new FileStream(InputFile.FullName, FileMode.Open, FileAccess.Write, FileShare.Read);
+            writeStream.Seek(timecodePosition, SeekOrigin.Begin);
+            writeStream.Write(newTimecodeBytes, 0, Constants.SMPTE_TIMECODE_SIZE);
+        }
+
+        var remainingBytes = length - offset - Constants.SMPTE_TIMECODE_SIZE;
+        if (remainingBytes > 0)
+        {
+            SkipPacket(remainingBytes);
+        }
+    }
     
     /// <summary>
     /// Extract essence elements from the MXF file based on the configured extraction settings.
@@ -586,5 +647,112 @@ public class MXF : IDisposable
         
         // Run the parse method which will handle extraction
         Parse();
+    }
+    
+    private bool TryReadKlvHeader(out KeyType keyType, out int length)
+    {
+        keyType = KeyType.Unknown;
+        length = -1;
+        
+        var keyBytesRead = Input.Read(_keyBuffer, 0, Constants.KLV_KEY_SIZE);
+        if (keyBytesRead != Constants.KLV_KEY_SIZE) return false;
+        
+        keyType = Keys.GetKeyType(_keyBuffer.AsSpan(0, Constants.KLV_KEY_SIZE));
+        length = ReadBerLength(Input, _berLengthBuffer);
+        
+        return length >= 0;
+    }
+    
+    private void SkipPacket(int length)
+    {
+        Input.Seek(length, SeekOrigin.Current);
+    }
+    
+    private bool ShouldProcessKey(KeyType keyType)
+    {
+        return RequiredKeys.Contains(keyType);
+    }
+    
+    private FileStream CreateOutputStream(string identifier, string extension)
+    {
+        var outputPath = $"{OutputBasePath ?? Path.ChangeExtension(InputFile.FullName, null)}_{identifier}{extension}";
+        return new FileStream(outputPath, FileMode.Create, FileAccess.Write);
+    }
+    
+    private void WriteKlvHeader(Stream outputStream)
+    {
+        outputStream.Write(_keyBuffer, 0, Constants.KLV_KEY_SIZE);
+        outputStream.Write([.. _berLengthBuffer], 0, _berLengthBuffer.Count);
+    }
+    
+    private void CopyDataToStream(Stream outputStream, int length)
+    {
+        var buffer = new byte[Math.Min(length, 65536)];
+        var remaining = length;
+        while (remaining > 0)
+        {
+            var toRead = Math.Min(remaining, buffer.Length);
+            var bytesRead = Input.Read(buffer, 0, toRead);
+            if (bytesRead == 0)
+                break;
+            outputStream.Write(buffer, 0, bytesRead);
+            remaining -= bytesRead;
+        }
+    }
+    
+    private int GetSystemMetadataOffset(int length)
+    {
+        if (length >= Constants.SYSTEM_METADATA_PACK_GC + Constants.SMPTE_TIMECODE_SIZE)
+        {
+            return Constants.SYSTEM_METADATA_PACK_GC;
+        }
+        else if (length >= Constants.SYSTEM_METADATA_SET_GC_OFFSET + Constants.SMPTE_TIMECODE_SIZE)
+        {
+            return Constants.SYSTEM_METADATA_SET_GC_OFFSET;
+        }
+        return -1;
+    }
+    
+    private FileStream? GetOrCreateExtractionStream(KeyType keyType)
+    {
+        if (DemuxMode)
+        {
+            var keyIdentifier = UseKeyNames ? GetKeyName(_keyBuffer) : BytesToHexString(_keyBuffer);
+            
+            if (!_foundKeys.Contains(keyIdentifier))
+            {
+                Console.WriteLine($"Found key: {keyIdentifier}");
+                _foundKeys.Add(keyIdentifier);
+            }
+            
+            if (!_demuxStreams.TryGetValue(keyIdentifier, out var outputStream))
+            {
+                var fileExtension = KlvMode ? ".klv" : ".raw";
+                outputStream = CreateOutputStream(keyIdentifier, fileExtension);
+                _demuxStreams[keyIdentifier] = outputStream;
+            }
+            return outputStream;
+        }
+        else
+        {
+            if (!_outputStreams.TryGetValue(keyType, out var outputStream))
+            {
+                if (_keyTypeToExtension.TryGetValue(keyType, out var extension))
+                {
+                    if (KlvMode)
+                    {
+                        extension = extension.Replace(".raw", ".klv");
+                    }
+                    var basePath = OutputBasePath ?? Path.ChangeExtension(InputFile.FullName, null);
+                    outputStream = new FileStream(basePath + extension, FileMode.Create, FileAccess.Write);
+                    _outputStreams[keyType] = outputStream;
+                }
+                else
+                {
+                    return null;
+                }
+            }
+            return outputStream;
+        }
     }
 }

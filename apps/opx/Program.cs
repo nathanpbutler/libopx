@@ -10,10 +10,12 @@ class Program
 
         var filterCommand = await Commands.CreateFilterCommand();
         var extractCommand = await Commands.CreateExtractCommand();
+        var restripeCommand = await Commands.CreateRestripeCommand();
 
         rootCommand.Add(filterCommand);
         rootCommand.Add(extractCommand);
-
+        rootCommand.Add(restripeCommand);
+        
         return await rootCommand.Parse(args).InvokeAsync();
     }
 }
