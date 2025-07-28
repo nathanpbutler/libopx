@@ -253,22 +253,30 @@ public class Functions
     /// <param name="outputPath">The output file path. If null, defaults to input_restriped.mxf.</param>
     /// <param name="verbose">If true, enables verbose output during processing.</param>
     /// <returns>An integer indicating the result of the restripe operation (0 for success, 1 for failure).</returns>
-    public static int Restripe(FileInfo inputFile, string timecodeString, bool verbose)
+    public static int Restripe(FileInfo inputFileInfo, string timecodeString, bool verbose, bool printProgress = false)
     {
         try
         {
             
             if (verbose)
             {
-                Console.WriteLine($"        Input file: {inputFile.FullName}");
+                Console.WriteLine($"        Input file: {inputFileInfo.FullName}");
                 Console.WriteLine($"New start timecode: {timecodeString}");
             }
 
+            // Create a FileStream that can read and write to the input file
+            if (!inputFileInfo.Exists)
+            {
+                Console.Error.WriteLine($"Error: Input file '{inputFileInfo.FullName}' does not exist.");
+                return 1;
+            }
+
             // Create MXF instance and configure for restriping
-            using var mxf = new MXF(inputFile.FullName)
+            using var mxf = new MXF(inputFileInfo)
             {
                 Function = Function.Restripe,
-                Verbose = verbose
+                Verbose = verbose,
+                PrintProgress = printProgress // Set progress printing option
             };
 
             // Run the parse method which will handle restriping

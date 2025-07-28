@@ -240,15 +240,25 @@ public class Commands
             DefaultValueFactory = _ => false
         };
 
+        var printProgressOption = new Option<bool>("-pp")
+        {
+            Aliases = { "--print-progress" },
+            Description = "Print progress during parsing",
+            Required = false,
+            DefaultValueFactory = _ => false
+        };
+
         restripeCommand.Arguments.Add(inputOption);
         restripeCommand.Options.Add(timecodeOption);
         restripeCommand.Options.Add(verboseOption);
+        restripeCommand.Options.Add(printProgressOption);
 
         restripeCommand.SetAction(async (parseResult) =>
         {
             FileInfo? inputFile = parseResult.GetValue(inputOption);
             string? timecodeString = parseResult.GetValue(timecodeOption);
             bool verbose = parseResult.GetValue(verboseOption);
+            bool printProgress = parseResult.GetValue(printProgressOption);
 
             if (inputFile == null || !inputFile.Exists)
             {
@@ -264,7 +274,7 @@ public class Commands
                 return;
             }
 
-            await Task.FromResult(Functions.Restripe(inputFile, timecodeString, verbose));
+            await Task.FromResult(Functions.Restripe(inputFile, timecodeString, verbose, printProgress));
         });
 
         return await Task.FromResult(restripeCommand);
