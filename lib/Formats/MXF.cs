@@ -25,6 +25,7 @@ public class MXF : IDisposable
     public bool KlvMode { get; set; } = false; // Include key and length bytes in output files
     public string? OutputBasePath { get; set; } // Base path for extracted files
     public bool Verbose { get; set; } = false; // Verbose output for debugging
+    public bool PrintProgress { get; set; } = false; // Print progress during parsing
     private readonly Dictionary<KeyType, string> _keyTypeToExtension = new()
     {
         { KeyType.Data, "_d.raw" },
@@ -58,6 +59,33 @@ public class MXF : IDisposable
         if (!IsValidMXFFile())
         {
             throw new InvalidDataException("The specified file is not a valid MXF file.");
+        }
+
+        if (!GetStartTimecode())
+        {
+            throw new InvalidOperationException("Failed to retrieve start timecode from the MXF file.");
+        }
+
+        Input.Seek(0, SeekOrigin.Begin); // Reset stream position to the beginning
+    }
+
+
+    // Constructor that accepts a FileInfo object for the input file that is read and written to
+    [SetsRequiredMembers]
+    public MXF(FileInfo inputFileInfo)
+    {
+        InputFile = inputFileInfo;
+
+        if (!InputFile.Exists)
+        {
+            throw new FileNotFoundException("The specified MXF file does not exist.", InputFile.FullName);
+        }
+
+        Input = new FileStream(InputFile.FullName, FileMode.Open, FileAccess.ReadWrite);
+
+        if (!IsValidMXFFile())
+        {
+            throw new InvalidDataException("The specified stream is not a valid MXF file.");
         }
 
         if (!GetStartTimecode())
@@ -197,6 +225,10 @@ public class MXF : IDisposable
 
         int lineNumber = 0;
 
+        // Used to update progress (if Verbose is true) at minimum intervals (1000ms)
+        var restripeStart = DateTime.Now;
+        var restripeNow = DateTime.Now;
+
         try
         {
             while (TryReadKlvHeader(out var keyType, out var length))
@@ -211,7 +243,7 @@ public class MXF : IDisposable
                     ExtractPacket(keyType, length);
                     continue; // Skip to next iteration after extraction
                 }
-                
+
                 // Handle non-extraction processing
                 switch (keyType)
                 {
@@ -273,7 +305,24 @@ public class MXF : IDisposable
                     default:
                         SkipPacket(length);
                         break;
+
                 }
+
+                // If 1000ms have passed since the last progress update, print the current position
+                if (PrintProgress && (DateTime.Now - restripeNow).TotalMilliseconds >= 1000 && Function == Function.Restripe)
+                {
+                    restripeNow = DateTime.Now; // Reset the start time for the next interval
+                    var percentComplete = (double)Input.Position / Input.Length * 100;
+                    Console.WriteLine($"Progress: {percentComplete:F2}% complete. Current position: {Input.Position} bytes of {Input.Length} bytes.");
+                }
+            }
+
+            // Print total duration if PrintProgress is enabled
+            if (PrintProgress && Function == Function.Restripe)
+            {
+                var restripeEnd = DateTime.Now;
+                var totalDuration = (restripeEnd - restripeStart).TotalSeconds;
+                Console.WriteLine($"Restriping completed in {totalDuration:F2} seconds.");
             }
         }
         finally
@@ -572,11 +621,11 @@ public class MXF : IDisposable
         while (t < data.Length)
         {
             if (t + 6 > data.Length) break;
-            
+
             var tagBytes = data[t..(t + 2)];
             if (BitConverter.IsLittleEndian) Array.Reverse(tagBytes);
             var tag = BitConverter.ToUInt16(tagBytes, 0);
-            
+
             var tagLengthBytes = data[(t + 2)..(t + 4)];
             if (BitConverter.IsLittleEndian) Array.Reverse(tagLengthBytes);
             var tagLength = BitConverter.ToUInt16(tagLengthBytes, 0);
@@ -594,14 +643,13 @@ public class MXF : IDisposable
                 if (BitConverter.IsLittleEndian) Array.Reverse(newValueBytes);
                 Array.Copy(newValueBytes, 0, data, t + 4, Math.Min(newValueBytes.Length, tagLength));
             }
-            
+
             t += 4 + tagLength;
         }
 
         // Write the modified data back to the input file
-        using var writeStream = new FileStream(InputFile.FullName, FileMode.Open, FileAccess.Write, FileShare.Read);
-        writeStream.Seek(dataStartPosition, SeekOrigin.Begin);
-        writeStream.Write(data, 0, length);
+        Input.Seek(dataStartPosition, SeekOrigin.Begin);
+        Input.Write(data, 0, length);
     }
 
     private void RestripeSystemPacket(int length, Timecode newTimecode)
@@ -648,9 +696,8 @@ public class MXF : IDisposable
 
             // Convert new timecode to bytes and write back to file
             var newTimecodeBytes = newTimecode.ToBytes();
-            using var writeStream = new FileStream(InputFile.FullName, FileMode.Open, FileAccess.Write, FileShare.Read);
-            writeStream.Seek(timecodePosition, SeekOrigin.Begin);
-            writeStream.Write(newTimecodeBytes, 0, Constants.SMPTE_TIMECODE_SIZE);
+            Input.Seek(timecodePosition, SeekOrigin.Begin);
+            Input.Write(newTimecodeBytes, 0, Constants.SMPTE_TIMECODE_SIZE);
         }
 
         var remainingBytes = length - offset - Constants.SMPTE_TIMECODE_SIZE;
