@@ -12,8 +12,8 @@ dotnet build
 
 # Build specific project
 dotnet build lib/libopx.csproj
-dotnet build tools/mxfExtract/mxfExtract.csproj
-dotnet build tools/filter/filter.csproj
+dotnet build apps/opx/opx.csproj
+dotnet build tests/libopx.Tests.csproj
 
 # Release build
 dotnet build -c Release
@@ -35,80 +35,93 @@ dotnet test --collect:"XPlat Code Coverage"
 dotnet test --filter "ClassName"
 ```
 
-### Publish Tools
+### Publish opx Tool
 
 ```bash
-# Publish mxfExtract as single-file executable
-dotnet publish tools/mxfExtract -c Release -r win-x64 --self-contained
-dotnet publish tools/mxfExtract -c Release -r linux-x64 --self-contained
-dotnet publish tools/mxfExtract -c Release -r osx-x64 --self-contained
-
-# Publish filter as single-file executable
-dotnet publish tools/filter -c Release -r win-x64 --self-contained
-dotnet publish tools/filter -c Release -r linux-x64 --self-contained
-dotnet publish tools/filter -c Release -r osx-x64 --self-contained
+# Publish opx as single-file executable
+dotnet publish apps/opx -c Release -r win-x64 --self-contained
+dotnet publish apps/opx -c Release -r linux-x64 --self-contained
+dotnet publish apps/opx -c Release -r osx-x64 --self-contained
 ```
 
-### Run mxfExtract tool
+### Run opx tool
 
 ```bash
-dotnet run --project tools/mxfExtract -- [options] <input-file>
+dotnet run --project apps/opx -- [command] [options]
 ```
 
-**Available options:**
+**Available commands:**
 
-- `-k, --keys <d|v|s|t|a>`: Extract specific keys (data, video, system, timecode, all)
-- `-d, --demux`: Demux mode - extract all found keys as individual files
-- `-n, --name`: Use human-readable names instead of hex for output files
-- `--klv`: Include key/length bytes in output
-- `-v, --version`: Show version information
-
-### Run filter tool
+#### filter - Filter teletext data by magazine and rows
 
 ```bash
-dotnet run --project tools/filter -- [options] <input-file?>
+dotnet run --project apps/opx -- filter [options] <input-file?>
 ```
 
-**Available options:**
+**Options:**
 
 - `-m, --magazine <int>`: Filter by magazine number (default: 8)
 - `-r, --rows <int[]>`: Filter by number of rows (comma-separated, default: caption rows)
 - `-f, --format <bin|vbi|vbid|t42>`: Input format override (default: vbi)
 - `-l, --line-count <int>`: Number of lines per frame for timecode incrementation (default: 2)
 - `-V, --verbose`: Enable verbose output
-- `-v, --version`: Show version information
+
+#### extract - Extract/demux streams from MXF files
+
+```bash
+dotnet run --project apps/opx -- extract [options] <input-file>
+```
+
+**Options:**
+
+- `-o, --output <string>`: Output base path - files will be created as \<base>_d.raw, \<base>_v.raw, etc
+- `-k, --key <d|v|s|t|a>`: Extract specific keys (data, video, system, timecode, audio)
+- `-d, --demux`: Extract all keys found, output as \<base>_\<hexkey>.raw
+- `-n`: Use Key/Essence names instead of hex keys (use with -d)
+- `--klv`: Include key and length bytes in output files, use .klv extension
+- `-V, --verbose`: Enable verbose output
+
+#### restripe - Restripe MXF file with new start timecode
+
+```bash
+dotnet run --project apps/opx -- restripe [options] <input-file>
+```
+
+**Options:**
+
+- `-t, --timecode <string>`: New start timecode (HH:MM:SS:FF) [required]
+- `-V, --verbose`: Enable verbose output
+- `-pp, --print-progress`: Print progress during parsing
 
 **Usage examples:**
 
 ```bash
 # Filter stdin for magazine 8, caption rows only
-cat input.vbi | dotnet run --project tools/filter
+cat input.vbi | dotnet run --project apps/opx -- filter
 
 # Filter specific file for magazine 1, rows 0 and 23
-dotnet run --project tools/filter -- -m 1 -r 0,23 input.vbi
+dotnet run --project apps/opx -- filter -m 1 -r 0,23 input.vbi
 
-# Process BIN file with verbose output
-dotnet run --project tools/filter -- -f bin --verbose input.bin
+# Extract data and video streams from MXF
+dotnet run --project apps/opx -- extract -k d,v input.mxf
 
-# Publish filter as single-file executable
-dotnet publish tools/filter -c Release -r win-x64 --self-contained
-dotnet publish tools/filter -c Release -r linux-x64 --self-contained
-dotnet publish tools/filter -c Release -r osx-x64 --self-contained
+# Restripe MXF with new timecode
+dotnet run --project apps/opx -- restripe -t 10:00:00:00 input.mxf
 ```
 
-**Note:** If input file is not specified, reads from stdin. Format is auto-detected from file extension or can be overridden with -f option.
+**Note:** For filter command, if input file is not specified, reads from stdin. Format is auto-detected from file extension or can be overridden with -f option.
 
 ### Parse VBI and T42 files
 
 ```csharp
-# Parse VBI file with magazine and row filtering, converting to T42 format
+// Parse VBI file with magazine and row filtering, converting to T42 format
 using var vbi = new VBI("input.vbi");
 foreach (var line in vbi.Parse(magazine: 8, rows: Constants.CAPTION_ROWS))
 {
     Console.WriteLine(line);
 }
 
-# Parse T42 file with filtering
+// Parse T42 file with filtering
 using var t42 = new T42("input.t42");
 foreach (var line in t42.Parse(magazine: 8, rows: Constants.CAPTION_ROWS))
 {
@@ -140,17 +153,15 @@ The project uses a multi-project solution (`libopx.sln`) with the following stru
   - Uses coverlet for code coverage collection
   - Includes sample test data files from `samples/` directory
 
-- **tools/**: Command-line tools folder
-  - **mxfExtract/**: CLI tool for extracting streams from MXF files
-    - Uses System.CommandLine for argument parsing
+- **apps/**: Application projects folder
+  - **opx/**: Unified CLI tool combining extract, filter, and restripe functionality
+    - Uses System.CommandLine for argument parsing with subcommands
     - Configured for single-file publishing with ReadyToRun optimization
-  - **filter/**: CLI tool for teletext stream filtering and format conversion
-    - Supports BIN, VBI, and T42 format input with auto-detection
-    - Filters by magazine number and row selection
-    - Streaming from stdin or file input
-    - Uses System.CommandLine for argument parsing
+    - Supports BIN, VBI, T42, and MXF format processing
+    - Three main commands: filter (teletext filtering), extract (MXF stream extraction), restripe (MXF timecode modification)
 
-- **temp/**: Sample test data files
+- **scripts/**: PowerShell and shell scripts for test file creation and processing
+- **temp/**: Sample test data files and processing output
 
 ### Key Architectural Patterns
 
@@ -189,5 +200,5 @@ The SMPTE namespace contains comprehensive metadata definitions loaded from XML 
 - **Dependencies**:
   - System.CommandLine (v2.0.0-beta6) for CLI argument parsing
   - xUnit with coverlet for testing and coverage
-- **Publishing**: Command-line tools (mxfExtract, filter) configured for single-file deployment with ReadyToRun optimization
+- **Publishing**: Command-line tool (opx) configured for single-file deployment with ReadyToRun optimization
 - See `lib/EXAMPLES.md` for detailed usage patterns of all format parsers
