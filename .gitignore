@@ -414,13 +414,5 @@ FodyWeavers.xsd
 *.msm
 *.msp
 
-*.vbi
-*.bin
-*.mxf
-*.klv
-*.raw
-
 .vscode/
 .DS_Store
-
-temp/
