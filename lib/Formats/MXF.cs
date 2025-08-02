@@ -19,6 +19,7 @@ public class MXF : IDisposable
     public List<Packet> Packets { get; set; } = []; // List of packets parsed from the MXF data stream
     public List<KeyType> RequiredKeys { get; set; } = []; // List of required keys for parsing
     public bool CheckSequential { get; set; } = true; // Check if SMPTE timecodes are sequential
+    public Format? OutputFormat { get; set; } = Format.T42; // Default output format
     public Function Function { get; set; } = Function.Filter; // Default function is Filter (outputting to console)
     public bool DemuxMode { get; set; } = false; // Extract all keys found, output as separate files
     public bool UseKeyNames { get; set; } = false; // Use Key/Essence names instead of hex keys (use with DemuxMode)
@@ -103,6 +104,25 @@ public class MXF : IDisposable
         Input?.Close();
         Input?.Dispose();
         _outputStream?.Dispose();
+    }
+
+    /// <summary>
+    /// Sets the output file for writing
+    /// </summary>
+    /// <param name="outputFile">Path to the output file</param>
+    public void SetOutput(string outputFile)
+    {
+        OutputFile = new FileInfo(outputFile);
+    }
+    
+    /// <summary>
+    /// Sets the output stream for writing
+    /// </summary>
+    /// <param name="outputStream">The output stream to write to</param>
+    public void SetOutput(Stream outputStream)
+    {
+        OutputFile = null; // Clear OutputFile since we're using a custom stream
+        _outputStream = outputStream ?? throw new ArgumentNullException(nameof(outputStream), "Output stream cannot be null.");
     }
 
     /// <summary>
@@ -278,7 +298,7 @@ public class MXF : IDisposable
                     case KeyType.Data:
                         if (Function == Function.Filter)
                         {
-                            var packet = FilterDataPacket(magazine, rows, timecode, lineNumber);
+                            var packet = FilterDataPacket(magazine, rows, timecode, lineNumber, OutputFormat ?? Format.T42);
                             if (Verbose) Console.WriteLine($"Packet found at timecode {timecode}");
                             // Only yield packets that have at least one line after filtering
                             if (packet.Lines.Count > 0)
@@ -410,7 +430,7 @@ public class MXF : IDisposable
         Packets.Add(packet);
     }
 
-    private Packet FilterDataPacket(int? magazine, int[]? rows, Timecode startTimecode, int lineNumber = 0)
+    private Packet FilterDataPacket(int? magazine, int[]? rows, Timecode startTimecode, int lineNumber = 0, Format outputFormat = Format.T42)
     {
         Span<byte> header = stackalloc byte[Constants.PACKET_HEADER_SIZE];
         Span<byte> lineHeader = stackalloc byte[Constants.LINE_HEADER_SIZE];
@@ -435,16 +455,16 @@ public class MXF : IDisposable
             }
 
             // Use the more efficient ParseLine method
-            line.ParseLine(Input, Format.T42);
+            line.ParseLine(Input, outputFormat);
 
-            // Apply filtering if specified
-            if (magazine.HasValue && line.Magazine != magazine.Value)
+            // Apply filtering if specified (only for T42 output format)
+            if (magazine.HasValue && line.Magazine != magazine.Value && outputFormat == Format.T42)
             {
                 lineNumber++;
                 continue; // Skip lines that don't match the magazine filter
             }
 
-            if (rows != null && !rows.Contains(line.Row))
+            if (rows != null && !rows.Contains(line.Row) && outputFormat == Format.T42)
             {
                 lineNumber++;
                 continue; // Skip lines that don't match the row filter

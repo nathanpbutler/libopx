@@ -77,6 +77,16 @@ public class VBI : IDisposable
     {
         OutputFile = new FileInfo(outputFile);
     }
+    
+    /// <summary>
+    /// Sets the output stream for writing
+    /// </summary>
+    /// <param name="outputStream">The output stream to write to</param>
+    public void SetOutput(Stream outputStream)
+    {
+        OutputFile = null; // Clear OutputFile since we're using a custom stream
+        _outputStream = outputStream ?? throw new ArgumentNullException(nameof(outputStream), "Output stream cannot be null.");
+    }
 
     public IEnumerable<Line> Parse(int? magazine = 8, int[]? rows = null)
     {
@@ -98,7 +108,7 @@ public class VBI : IDisposable
             {
                 timecode = timecode.GetNext();
             }
-            
+
             // Create a basic Line object for VBI data
             var line = new Line()
             {
@@ -145,6 +155,13 @@ public class VBI : IDisposable
                     continue;
                 }
             }
+            else if (outputFormat == Format.VBI_DOUBLE && LineLength == Constants.VBI_LINE_SIZE)
+            {
+                line.Data = Functions.Double(vbiBuffer);
+                line.Magazine = -1; // No magazine for VBI
+                line.Row = -1; // No row for VBI
+                line.Text = Constants.T42_BLANK_LINE; // Default blank line text
+            }
             else
             {
                 // For VBI output, keep original data
@@ -154,13 +171,13 @@ public class VBI : IDisposable
             }
 
             // Apply filtering if specified and conversion was successful
-            if (magazine.HasValue && line.Magazine != magazine.Value)
+            if (magazine.HasValue && line.Magazine != magazine.Value && outputFormat == Format.T42)
             {
                 lineNumber++;
                 continue;
             }
 
-            if (rows != null && !rows.Contains(line.Row))
+            if (rows != null && !rows.Contains(line.Row) && outputFormat == Format.T42)
             {
                 lineNumber++;
                 continue;
@@ -216,103 +233,4 @@ public class VBI : IDisposable
 
         return t42;
     }
-
-    #region Legacy Methods
-    /// <summary>
-    /// Process VBI data from a file
-    /// </summary>
-    /// <param name="input">The input file to process.</param>
-    /// <param name="output">The output file to write the processed data to.</param>
-    /// <param name="inputFormat">The format of the input file.</param>
-    /// <param name="outputFormat">The format of the output file.</param>
-    /// <param name="magazine">The magazine number.</param>
-    /// <param name="rows">The rows to process.</param>
-    /// <param name="debug">Whether to print debug information.</param>
-    /// <returns>The exit code of the operation.</returns>
-    public static async Task<int> Process(Stream input, Stream output, Format inputFormat, Format outputFormat, int magazine, int[] rows, bool debug = false)
-    {
-        // Validate output format
-        if (!ValidOutputs.Contains(outputFormat))
-        {
-            throw new ArgumentException($"Invalid output format: {outputFormat}. Valid formats are: {string.Join(", ", ValidOutputs)}");
-        }
-
-        // Read chunks of up to VBI_LINE_SIZE (or VBI_DOUBLE_LINE_SIZE if VBI_DOUBLE) bytes from input until EOF
-        byte[] buffer = inputFormat == Format.VBI_DOUBLE ? new byte[Constants.VBI_DOUBLE_LINE_SIZE] : new byte[Constants.VBI_LINE_SIZE];
-        int bytesRead;
-        while ((bytesRead = await input.ReadAsync(buffer)) > 0)
-        {
-            // Only process the actual bytes read, not the full buffer
-            byte[] actualData = new byte[bytesRead];
-            Array.Copy(buffer, actualData, bytesRead);
-            await Line(actualData, output, inputFormat, outputFormat, magazine, rows);
-        }
-        return 0;
-    }
-
-    /// <summary>
-    /// Process a line of VBI data
-    /// </summary>
-    /// <param name="lineData">The input data to process.</param>
-    /// <param name="inputFormat">The format of the input data.</param>
-    /// <param name="outputFormat">The format of the output data.</param>
-    /// <param name="magazine">The magazine number.</param>
-    /// <param name="rows">The rows to process.</param>
-    /// <param name="debug">Whether to print debug information.</param>
-    /// <returns>The processed line data.</returns>
-    public static async Task<int> Line(byte[] lineData, Stream output, Format inputFormat, Format outputFormat, int magazine, int[] rows, bool debug = false)
-    {
-        // If outputFormat == Format.VBI, pass through the data
-        if (outputFormat == Format.VBI)
-        {
-            await output.WriteAsync(lineData);
-        }
-        // If outputFormat == Format.VBI_DOUBLE, double the data if needed and pass through
-        else if (outputFormat == Format.VBI_DOUBLE)
-        {
-            var doubledData = inputFormat == Format.VBI_DOUBLE ? lineData : Functions.Double(lineData);
-            await output.WriteAsync(doubledData);
-        }
-        // If outputFormat == Format.T42, decode the data
-        else if (outputFormat is Format.T42 or Format.RCWT)
-        {
-            // Double the line data
-            var newLine = inputFormat == Format.VBI_DOUBLE ? lineData : Functions.Double(lineData);
-
-            // Normalise the line data
-            var normalised = Functions.Normalise(newLine);
-
-            // Create a BitArray from the normalised line
-            var bits = Functions.GetBits(normalised);
-
-            // Get the offset of the line
-            var offset = Functions.GetOffset(bits);
-
-            // If the offset is not within valid range, return a blank byte array
-            if (offset is <= -1 or >= Constants.VBI_MAX_OFFSET_RANGE)
-            {
-                // Return a blank byte array
-                // output.Write(new byte[42]);
-                return 0;
-            }
-            // Get the T42 bytes from the line
-            var t42 = T42.Get(bits, offset, debug);
-            // Check if the T42 bytes are valid
-            if (T42.Check(t42, magazine, rows))
-            {
-                // Return the T42 bytes or send to RCWT.Process()
-                if (outputFormat == Format.T42)
-                {
-                    await output.WriteAsync(t42);
-                }
-                else if (outputFormat == Format.RCWT)
-                {
-                    // TODO: Implement RCWT processing
-                    // await RCWT.Process(t42, output);
-                }
-            }
-        }
-        return 0;
-    }
-    #endregion
 }

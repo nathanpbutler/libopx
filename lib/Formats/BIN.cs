@@ -68,6 +68,16 @@ public class BIN : IDisposable
     {
         OutputFile = new FileInfo(outputFile);
     }
+    
+    /// <summary>
+    /// Sets the output stream for writing
+    /// </summary>
+    /// <param name="outputStream">The output stream to write to</param>
+    public void SetOutput(Stream outputStream)
+    {
+        OutputFile = null; // Clear OutputFile since we're using a custom stream
+        _outputStream = outputStream ?? throw new ArgumentNullException(nameof(outputStream), "Output stream cannot be null.");
+    }
 
     public IEnumerable<Packet> Parse(int? magazine = 8, int[]? rows = null, Timecode? startTimecode = null)
     {
@@ -76,7 +86,7 @@ public class BIN : IDisposable
 
         // If OutputFormat is not set, use the provided outputFormat
         var outputFormat = OutputFormat ?? Format.T42;
-        
+
         int lineNumber = 0;
 
         var timecode = startTimecode ?? new Timecode(0); // Default timecode, can be modified later
@@ -105,18 +115,18 @@ public class BIN : IDisposable
                 line.ParseLine(Input, outputFormat);
 
                 // Apply filtering if specified
-                if (magazine.HasValue && line.Magazine != magazine.Value)
+                if (magazine.HasValue && line.Magazine != magazine.Value && outputFormat == Format.T42)
                 {
                     lineNumber++;
                     continue; // Skip lines that don't match the magazine filter
                 }
-                
-                if (rows != null && !rows.Contains(line.Row))
+
+                if (rows != null && !rows.Contains(line.Row) && outputFormat == Format.T42)
                 {
                     lineNumber++;
                     continue; // Skip lines that don't match the row filter
                 }
-                
+
                 packet.Lines.Add(line);
                 lineNumber++; // Increment line number for each line processed
             }

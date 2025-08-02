@@ -15,7 +15,7 @@ public class T42 : IDisposable
     public Stream Output => _outputStream ??= OutputFile == null ? Console.OpenStandardOutput() : OutputFile.Open(FileMode.Create, FileAccess.Write, FileShare.Read);
     public Format InputFormat { get; set; } = Format.T42; // Default input format is T42
     public Format? OutputFormat { get; set; } = Format.T42; // Default output format is T42
-    public int LineLength => Constants.T42_LINE_SIZE; // Length of the T42 line
+    public static int LineLength => Constants.T42_LINE_SIZE; // Length of the T42 line
     public Function Function { get; set; } = Function.Filter; // Default function is Filter
     public int LineCount { get; set; } = 2; // For Timecode incementation, default is 2 lines
 
@@ -71,6 +71,16 @@ public class T42 : IDisposable
     {
         OutputFile = new FileInfo(outputFile);
     }
+    
+    /// <summary>
+    /// Sets the output stream for writing
+    /// </summary>
+    /// <param name="outputStream">The output stream to write to</param>
+    public void SetOutput(Stream outputStream)
+    {
+        OutputFile = null; // Clear OutputFile since we're using a custom stream
+        _outputStream = outputStream ?? throw new ArgumentNullException(nameof(outputStream), "Output stream cannot be null.");
+    }
 
     public IEnumerable<Line> Parse(int? magazine = 8, int[]? rows = null)
     {
@@ -91,7 +101,7 @@ public class T42 : IDisposable
             {
                 timecode = timecode.GetNext();
             }
-            
+
             // Create a basic Line object for T42 data
             var line = new Line()
             {
@@ -222,9 +232,7 @@ public class T42 : IDisposable
             resized[i] = (byte)(bytes[leftPixel] * leftWeight + bytes[rightPixel] * rightWeight);
         }
 
-        //var resized = pad.Take(6).Concat(resized).Concat(pad).Take(720).ToArray();
-
-        resized = Constants.VBI_PADDING_BYTES.Take(Constants.VBI_PAD_START).Concat(resized).Concat(Constants.VBI_PADDING_BYTES).Take(Constants.VBI_LINE_SIZE).ToArray();
+        resized = [.. Constants.VBI_PADDING_BYTES.Take(Constants.VBI_PAD_START).Concat(resized).Concat(Constants.VBI_PADDING_BYTES).Take(Constants.VBI_LINE_SIZE)];
 
         if (outputFormat == Format.VBI_DOUBLE)
         {
@@ -586,45 +594,6 @@ public class T42 : IDisposable
     {
         var baseCode = isBackground ? 40 : 30;
         return $"\x1b[{colorCode + baseCode}m" + (isBackground ? "" : " ");
-    }
-
-    /// <summary>
-    /// Checks if a byte represents a teletext special character
-    /// </summary>
-    /// <param name="b">The byte to check</param>
-    /// <returns>True if it's a special character</returns>
-    private static bool IsTeletextSpecialCharacter(byte b)
-    {
-        // Common teletext special characters that should be displayed as specific symbols
-        return b switch
-        {
-            0x85 => true, // Start box
-            0x8A => true, // End box  
-            0x9B => true, // CSI
-            0x9D => true, // Operating System Command
-            0xD5 => true, // Special teletext character
-            0xCE => true, // Special teletext character
-            _ => false
-        };
-    }
-
-    /// <summary>
-    /// Gets the display representation of a teletext special character
-    /// </summary>
-    /// <param name="b">The special character byte</param>
-    /// <returns>Display representation</returns>
-    private static string GetTeletextSpecialCharacter(byte b)
-    {
-        return b switch
-        {
-            0x85 => "┌", // Start box - top-left corner
-            0x8A => "┐", // End box - top-right corner
-            0x9B => " ", // CSI - control sequence introducer (non-printable)
-            0x9D => " ", // Operating System Command (non-printable)
-            0xD5 => "█", // Block character
-            0xCE => "N", // Could be a special N character
-            _ => " "
-        };
     }
 
     /// <summary>

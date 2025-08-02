@@ -1,6 +1,5 @@
 using System.CommandLine;
 using System.CommandLine.Completions;
-using System.Reflection;
 using nathanbutlerDEV.libopx;
 using nathanbutlerDEV.libopx.Enums;
 
@@ -110,8 +109,8 @@ public class Commands
             bool verbose = parseResult.GetValue(verboseOption);
 
             Format inputFormat = inputFile != null && inputFile.Exists
-                ? Functions.ParseInputFormat(Path.GetExtension(inputFile.Name).ToLowerInvariant())
-                : Functions.ParseInputFormat(inputFormatString);
+                ? Functions.ParseFormat(Path.GetExtension(inputFile.Name).ToLowerInvariant())
+                : Functions.ParseFormat(inputFormatString);
 
             await Task.FromResult(Functions.Filter(inputFile, magazine, rows, lineCount, inputFormat, verbose));
         });
@@ -311,8 +310,9 @@ public class Commands
         var outputFormatOption = new Option<string>("-o")
         {
             Aliases = { "--output-format" },
-            Description = "Output format (required)",
-            Required = true
+            Description = "Output format",
+            Required = false,
+            DefaultValueFactory = _ => "t42"
         };
         outputFormatOption.CompletionSources.Add(ctx =>
         {
@@ -417,11 +417,11 @@ public class Commands
             Format inputFormat;
             if (!string.IsNullOrEmpty(inputFormatString))
             {
-                inputFormat = Functions.ParseInputFormat(inputFormatString);
+                inputFormat = Functions.ParseFormat(inputFormatString);
             }
             else if (inputFile != null && inputFile.Exists)
             {
-                inputFormat = Functions.ParseInputFormat(Path.GetExtension(inputFile.Name).ToLowerInvariant());
+                inputFormat = Functions.ParseFormat(Path.GetExtension(inputFile.Name).ToLowerInvariant());
             }
             else
             {
@@ -431,7 +431,17 @@ public class Commands
             }
 
             // Parse output format
-            Format outputFormat = Functions.ParseInputFormat(outputFormatString ?? "t42");
+            Format outputFormat;
+            try
+            {
+                outputFormat = Functions.ParseFormat(outputFormatString);
+            }
+            catch (ArgumentException ex)
+            {
+                Console.Error.WriteLine($"Error: Invalid output format '{outputFormatString}': {ex.Message}");
+                await Task.FromResult(1);
+                return;
+            }
 
             await Task.FromResult(Functions.Convert(inputFile, inputFormat, outputFormat, outputFile, magazine, rows, lineCount, verbose));
         });

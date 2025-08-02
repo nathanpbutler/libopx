@@ -226,6 +226,7 @@ public class Line : IDisposable
     /// Parses the line data from a stream.
     /// </summary>
     /// <param name="input">The input stream</param>
+    /// <param name="outputFormat">The desired output format for conversion</param>
     public void ParseLine(Stream input, Format outputFormat = Format.Unknown)
     {
         if (Length <= 0)
@@ -242,83 +243,164 @@ public class Line : IDisposable
             throw new InvalidDataException($"Not enough data to read the line. Expected {Length}, got {bytesRead}.");
         }
 
+        // Parse the line with the read data
+        ParseLine(data, outputFormat);
+    }
+
+    public void ParseLine(byte[] data, Format outputFormat = Format.Unknown)
+    {
+        // Determine the input format first
+        Format inputFormat = GetFormat(data);
+        
+        // Handle MXF data with CRIFC
         if (data.Length >= Constants.T42_PLUS_CRIFC && data.Length < Constants.VBI_LINE_SIZE)
         {
             var crifc = Functions.GetCrifc(data);
             if (crifc >= 0)
             {
-                // If the CRIFC is valid, we can set the type to T42
-                _cachedType = Format.T42;
-
-                // Ensure we have enough data after CRIFC for a full T42 line
+                // Extract T42 data after CRIFC
                 var remainingBytes = data.Length - (crifc + 3);
                 if (remainingBytes >= Constants.T42_LINE_SIZE)
                 {
-                    Data = [.. data.Skip(crifc + 3).Take(Constants.T42_LINE_SIZE)];
+                    data = [.. data.Skip(crifc + 3).Take(Constants.T42_LINE_SIZE)];
+                    inputFormat = Format.T42;
+                }
+                else
+                {
+                    // Not enough data for a complete T42 line
+                    Data = data;
+                    Magazine = -1;
+                    Row = -1;
+                    Text = Constants.T42_BLANK_LINE;
+                    _cachedType = Format.Unknown;
+                    return;
+                }
+            }
+            else
+            {
+                Data = [.. data.Take(Length)];
+                Magazine = -1;
+                Row = -1;
+                Text = Constants.T42_BLANK_LINE;
+                _cachedType = Format.Unknown;
+                return;
+            }
+        }
+
+        // If no output format specified, use input format
+        if (outputFormat == Format.Unknown)
+        {
+            outputFormat = inputFormat;
+        }
+
+        // Perform format conversion if needed
+        if (inputFormat != outputFormat)
+        {
+            try
+            {
+                data = ConvertFormat(data, inputFormat, outputFormat);
+                _cachedType = outputFormat;
+            }
+            catch
+            {
+                // If conversion fails, use original data and format
+                outputFormat = inputFormat;
+                _cachedType = inputFormat;
+            }
+        }
+        else
+        {
+            _cachedType = inputFormat;
+        }
+
+        // Set the converted/original data
+        Data = data;
+        Length = data.Length;
+
+        // Update sample coding based on output format
+        SampleCoding = outputFormat switch
+        {
+            Format.VBI_DOUBLE => 0x32,
+            Format.T42 => 0x31,
+            Format.VBI => 0x31,
+            _ => SampleCoding
+        };
+        SampleCount = data.Length;
+
+        // Extract metadata based on output format
+        ExtractMetadata(outputFormat);
+    }
+
+    /// <summary>
+    /// Converts data from one format to another
+    /// </summary>
+    /// <param name="data">Input data</param>
+    /// <param name="inputFormat">Source format</param>
+    /// <param name="outputFormat">Target format</param>
+    /// <returns>Converted data</returns>
+    private static byte[] ConvertFormat(byte[] data, Format inputFormat, Format outputFormat)
+    {
+        return (inputFormat, outputFormat) switch
+        {
+            // VBI to T42 conversion
+            (Format.VBI, Format.T42) or (Format.VBI_DOUBLE, Format.T42) => VBI.ToT42(data),
+
+            // VBI to VBI_DOUBLE conversion
+            (Format.VBI, Format.VBI_DOUBLE) => Functions.Double(data),
+
+            // T42 to VBI conversion
+            (Format.T42, Format.VBI) => T42.ToVBI(data, Format.VBI),
+
+            // T42 to VBI_DOUBLE conversion
+            (Format.T42, Format.VBI_DOUBLE) => T42.ToVBI(data, Format.VBI_DOUBLE),
+
+            // VBI_DOUBLE to VBI conversion (take every other byte)
+            (Format.VBI_DOUBLE, Format.VBI) => [.. data.Where((b, i) => i % 2 == 0)],
+
+            // Same format - no conversion needed
+            _ when inputFormat == outputFormat => data,
+
+            // Unsupported conversion
+            _ => throw new NotSupportedException($"Conversion from {inputFormat} to {outputFormat} is not supported")
+        };
+    }
+
+    /// <summary>
+    /// Extracts metadata based on the format
+    /// </summary>
+    /// <param name="format">The format to extract metadata for</param>
+    private void ExtractMetadata(Format format)
+    {
+        switch (format)
+        {
+            case Format.T42:
+                if (Data.Length >= Constants.T42_LINE_SIZE && Data.Any(b => b != 0))
+                {
                     Magazine = T42.GetMagazine(Data[0]);
                     Row = T42.GetRow([.. Data.Take(2)]);
                     Text = T42.GetText([.. Data.Skip(2)]);
                 }
                 else
                 {
-                    // Not enough data for a complete T42 line
-                    Data = data; // Store the data as is
-                    Magazine = -1; // Unknown magazine
-                    Row = -1; // Unknown row
-                    Text = Constants.T42_BLANK_LINE; // Default text for T42 lines
-                    _cachedType = Format.Unknown;
-                }
-            }
-            else
-            {
-                _cachedType = Format.Unknown; // Unknown line type
-                Data = [.. data.Take(Length)]; // Store the data as is
-                Magazine = -1; // Unknown magazine
-                Row = -1; // Unknown row
-                Text = Constants.T42_BLANK_LINE; // Default text for T42 lines
-            }
-        }
-        else
-        {
-            _cachedType = GetFormat(data); // Use the static method to determine the type
-            Data = [.. data.Take(Length)];
-            
-            // Convert VBI to T42 if requested
-            if (outputFormat == Format.T42 && (_cachedType == Format.VBI || _cachedType == Format.VBI_DOUBLE))
-            {
-                try
-                {
-                    // Convert VBI data to T42
-                    var t42Data = VBI.ToT42(Data);
-                    
-                    // Update line properties for T42
-                    Data = t42Data;
-                    _cachedType = Format.T42;
-                    SampleCoding = 0x31; // T42 sample coding
-                    SampleCount = t42Data.Length;
-                    
-                    // Extract T42 metadata
-                    if (t42Data.Length >= Constants.T42_LINE_SIZE)
-                    {
-                        Magazine = T42.GetMagazine(Data[0]);
-                        Row = T42.GetRow([.. Data.Take(2)]);
-                        Text = T42.GetText([.. Data.Skip(2)]);
-                    }
-                    else
-                    {
-                        Magazine = -1;
-                        Row = -1;
-                        Text = Constants.T42_BLANK_LINE;
-                    }
-                }
-                catch
-                {
-                    // If conversion fails, keep original data
                     Magazine = -1;
                     Row = -1;
                     Text = Constants.T42_BLANK_LINE;
                 }
-            }
+                break;
+                
+            case Format.VBI:
+            case Format.VBI_DOUBLE:
+                // VBI formats don't have magazine/row metadata
+                Magazine = -1;
+                Row = -1;
+                Text = Constants.T42_BLANK_LINE;
+                break;
+                
+            default:
+                Magazine = -1;
+                Row = -1;
+                Text = Constants.T42_BLANK_LINE;
+                break;
         }
     }
 
