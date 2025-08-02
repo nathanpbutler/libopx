@@ -1,0 +1,5 @@
+samples/*.mxf filter=lfs diff=lfs merge=lfs -text
+samples/*.bin filter=lfs diff=lfs merge=lfs -text
+samples/*.vbi filter=lfs diff=lfs merge=lfs -text
+samples/*.vbid filter=lfs diff=lfs merge=lfs -text
+samples/*.t42 filter=lfs diff=lfs merge=lfs -text
