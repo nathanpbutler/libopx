@@ -109,7 +109,7 @@ public class Functions
         }
     }
 
-    public static Format ParseInputFormat(string format)
+    public static Format ParseFormat(string format)
     {
         return format.TrimStart('.').ToLowerInvariant() switch
         {
@@ -295,7 +295,7 @@ public class Functions
             return 1;
         }
     }
-
+    
     /// <summary>
     /// Convert function to transform input files between different teletext formats.
     /// </summary>
@@ -353,14 +353,46 @@ public class Functions
                 switch (inputFormat)
                 {
                     case Format.BIN:
-                        return ConvertFromBin(input, outputFormat, outputStream, magazine, rows);
+                    var bin = input is FileInfo inputBIN && inputBIN.Exists
+                        ? new BIN(inputBIN.FullName)
+                        : new BIN(Console.OpenStandardInput());
+                    bin.OutputFormat = outputFormat;
+                    bin.SetOutput(outputStream);
+                    foreach (var packet in bin.Parse(magazine, rows))
+                    {
+                        foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
+                        {
+                            bin.Output.Write(line.Data);
+                        }
+                    }
+                    return 0;
 
                     case Format.VBI:
                     case Format.VBI_DOUBLE:
-                        return ConvertFromVbi(input, inputFormat, outputFormat, outputStream, magazine, rows, lineCount);
+                        var vbi = input is FileInfo inputVBI && inputVBI.Exists
+                            ? new VBI(inputVBI.FullName, inputFormat)
+                            : new VBI(Console.OpenStandardInput(), inputFormat);
+                        vbi.OutputFormat = outputFormat;
+                        vbi.LineCount = lineCount;
+                        vbi.SetOutput(outputStream);
+                        foreach (var line in vbi.Parse(magazine, rows))
+                        {
+                            vbi.Output.Write(line.Data);
+                        }
+                        return 0;
 
                     case Format.T42:
-                        return ConvertFromT42(input, outputFormat, outputStream, magazine, rows, lineCount);
+                        var t42 = input is FileInfo inputT42 && inputT42.Exists
+                            ? new T42(inputT42.FullName)
+                            : new T42(Console.OpenStandardInput());
+                        t42.OutputFormat = outputFormat;
+                        t42.LineCount = lineCount;
+                        t42.SetOutput(outputStream);
+                        foreach (var line in t42.Parse(magazine, rows))
+                        {
+                            t42.Output.Write(line.Data);
+                        }
+                        return 0;
 
                     case Format.MXF:
                         if (input == null || !input.Exists)
@@ -368,7 +400,21 @@ public class Functions
                             Console.Error.WriteLine("Error: Input file must be specified and exist for MXF format conversion.");
                             return 1;
                         }
-                        return ConvertFromMxf(input, outputFormat, outputStream, magazine, rows, verbose);
+                        var mxf = new MXF(input.FullName)
+                        {
+                            OutputFormat = outputFormat,
+                            Verbose = verbose
+                        };
+                        mxf.OutputFormat = outputFormat;
+                        mxf.SetOutput(outputStream);
+                        foreach (var packet in mxf.Parse(magazine, rows))
+                        {
+                            foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
+                            {
+                                mxf.Output.Write(line.Data);
+                            }
+                        }
+                        return 0;
 
                     default:
                         Console.Error.WriteLine($"Error: Unsupported input format '{inputFormat}'.");
@@ -388,84 +434,6 @@ public class Functions
             Console.Error.WriteLine($"Error: {ex.Message}");
             return 1;
         }
-    }
-
-    private static int ConvertFromBin(FileInfo? input, Format outputFormat, Stream outputStream, int magazine, int[] rows)
-    {
-        var bin = input != null && input.Exists
-            ? new BIN(input.FullName) { OutputFormat = outputFormat }
-            : new BIN(Console.OpenStandardInput()) { OutputFormat = outputFormat };
-
-        using (bin)
-        {
-            foreach (var packet in bin.Parse(magazine, rows))
-            {
-                foreach (var line in packet.Lines)
-                {
-                    outputStream.Write(line.Data);
-                }
-            }
-        }
-        return 0;
-    }
-
-    private static int ConvertFromVbi(FileInfo? input, Format inputFormat, Format outputFormat, Stream outputStream, int magazine, int[] rows, int lineCount)
-    {
-        var vbi = input != null && input.Exists
-            ? new VBI(input.FullName, inputFormat) { OutputFormat = outputFormat, LineCount = lineCount }
-            : new VBI(Console.OpenStandardInput(), inputFormat) { OutputFormat = outputFormat, LineCount = lineCount };
-
-        using (vbi)
-        {
-            foreach (var line in vbi.Parse(magazine, rows))
-            {
-                outputStream.Write(line.Data);
-            }
-        }
-        return 0;
-    }
-
-    private static int ConvertFromT42(FileInfo? input, Format outputFormat, Stream outputStream, int magazine, int[] rows, int lineCount)
-    {
-        var t42 = input != null && input.Exists
-            ? new T42(input.FullName) { OutputFormat = outputFormat, LineCount = lineCount }
-            : new T42(Console.OpenStandardInput()) { OutputFormat = outputFormat, LineCount = lineCount };
-
-        using (t42)
-        {
-            foreach (var line in t42.Parse(magazine, rows))
-            {
-                outputStream.Write(line.Data);
-            }
-        }
-        return 0;
-    }
-
-    private static int ConvertFromMxf(FileInfo input, Format outputFormat, Stream outputStream, int magazine, int[] rows, bool verbose)
-    {
-        using var mxf = new MXF(input.FullName)
-        {
-            Function = Function.Filter,
-            Verbose = verbose
-        };
-        mxf.AddRequiredKey(KeyType.Data);
-
-        foreach (var packet in mxf.Parse(magazine, rows))
-        {
-            foreach (var line in packet.Lines)
-            {
-                // Convert line data to the desired output format
-                byte[] convertedData = outputFormat switch
-                {
-                    Format.VBI => line.Data.Length == Constants.T42_LINE_SIZE ? T42.ToVBI(line.Data, Format.VBI) : line.Data,
-                    Format.VBI_DOUBLE => line.Data.Length == Constants.T42_LINE_SIZE ? T42.ToVBI(line.Data, Format.VBI_DOUBLE) : line.Data,
-                    Format.T42 => line.Data.Length != Constants.T42_LINE_SIZE ? VBI.ToT42(line.Data) : line.Data,
-                    _ => line.Data
-                };
-                outputStream.Write(convertedData);
-            }
-        }
-        return 0;
     }
 
     #endregion

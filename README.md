@@ -1,7 +1,31 @@
 # libopx - a Material Exchange Format (MXF) and OP-42/OP-47 Teletext processing library
 
-<!-- Brief description of what your library does -->
 A .NET 9 C# library for parsing and extracting data from MXF (Material Exchange Format), BIN (MXF caption data stream), VBI (Vertical Blanking Interval), and T42 (Teletext packet stream) files, with SMPTE timecode and Teletext caption support.
+
+## Table of Contents
+
+- [libopx - a Material Exchange Format (MXF) and OP-42/OP-47 Teletext processing library](#libopx---a-material-exchange-format-mxf-and-op-42op-47-teletext-processing-library)
+  - [Table of Contents](#table-of-contents)
+  - [Features](#features)
+  - [Installation](#installation)
+  - [Quick Start](#quick-start)
+    - [Using the CLI Tool](#using-the-cli-tool)
+    - [Using the Library](#using-the-library)
+      - [Filtering Teletext Data](#filtering-teletext-data)
+      - [Converting Between Formats](#converting-between-formats)
+  - [CLI Commands](#cli-commands)
+    - [filter - Filter teletext data](#filter---filter-teletext-data)
+    - [extract - Extract/demux streams from MXF](#extract---extractdemux-streams-from-mxf)
+    - [convert - Convert between teletext formats](#convert---convert-between-teletext-formats)
+    - [restripe - Restripe MXF with new timecode](#restripe---restripe-mxf-with-new-timecode)
+  - [Project Structure](#project-structure)
+  - [Building](#building)
+  - [Testing](#testing)
+  - [Requirements](#requirements)
+  - [Dependencies](#dependencies)
+  - [Contributing](#contributing)
+  - [License](#license)
+  - [Support](#support)
 
 ## Features
 
@@ -24,7 +48,7 @@ cd libopx
 # Build the solution
 dotnet build
 
-# Run tests (WIP)
+# Run tests (to be implemented)
 dotnet test
 ```
 
@@ -80,44 +104,29 @@ using nathanbutlerDEV.libopx;
 using nathanbutlerDEV.libopx.Formats;
 using nathanbutlerDEV.libopx.Enums;
 
-// Convert VBI to T42 format
-using var vbi = new VBI("input.vbi")
+// Format conversion pattern - works for VBI, T42, BIN, and MXF
+using var parser = new VBI("input.vbi") // or T42, BIN, MXF
 {
-    OutputFormat = Format.T42
+    OutputFormat = Format.T42 // or Format.VBI, Format.VBI_DOUBLE
 };
-vbi.SetOutput("output.t42");
-foreach (var line in vbi.Parse(magazine: 8))
-{
-    vbi.Output.Write(line.Data);
-}
-vbi.Dispose(); // Ensure output is flushed
+parser.SetOutput("output.t42");
 
-// Convert T42 to VBI format
-using var t42 = new T42("input.t42")
+// For VBI/T42 (returns IEnumerable<Line>)
+foreach (var line in parser.Parse(magazine: 8, rows: Constants.DEFAULT_ROWS))
 {
-    OutputFormat = Format.VBI
-};
-t42.SetOutput("output.vbi");
-foreach (var line in t42.Parse(magazine: 8))
-{
-    t42.Output.Write(line.Data);
+    parser.Output.Write(line.Data);
 }
-t42.Dispose(); // Ensure output is flushed
 
-// Convert BIN to T42 format
-using var bin = new BIN("input.bin")
+// For BIN/MXF (returns IEnumerable<Packet>)
+foreach (var packet in parser.Parse(magazine: 8, rows: Constants.DEFAULT_ROWS))
 {
-    OutputFormat = Format.T42
-};
-bin.SetOutput("output.t42");
-foreach (var packet in bin.Parse(magazine: 8))
-{
-    foreach (var line in packet.Lines)
+    foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
     {
-        bin.Output.Write(line.Data);
+        parser.Output.Write(line.Data);
     }
 }
-bin.Dispose(); // Ensure output is flushed
+
+parser.Dispose(); // Ensure output is flushed
 ```
 
 ## CLI Commands
@@ -138,7 +147,7 @@ dotnet run --project apps/opx -- filter [options] <input-file?>
 ### extract - Extract/demux streams from MXF
 
 ```bash
-dotnet run --project apps/opx -- extract [options] <input-file>
+dotnet run --project apps/opx -- extract [options] <input.mxf>
 ```
 
 **Options:**
@@ -152,7 +161,7 @@ dotnet run --project apps/opx -- extract [options] <input-file>
 ### convert - Convert between teletext formats
 
 ```bash
-dotnet run --project apps/opx -- convert [options] <input-file?>
+dotnet run --project apps/opx -- convert [options] <input-file>
 ```
 
 **Options:**
