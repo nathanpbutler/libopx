@@ -93,6 +93,22 @@ dotnet run --project apps/opx -- restripe [options] <input-file>
 - `-V, --verbose`: Enable verbose output
 - `-pp, --print-progress`: Print progress during parsing
 
+#### convert - Convert between different teletext data formats
+
+```bash
+dotnet run --project apps/opx -- convert [options] <input-file?>
+```
+
+**Options:**
+
+- `-i, --input-format <bin|vbi|vbid|t42|mxf>`: Input format (auto-detected from file extension if not specified)
+- `-o, --output-format <vbi|vbid|t42>`: Output format [required]
+- `-f, --output-file <file>`: Output file path (writes to stdout if not specified)
+- `-m, --magazine <int>`: Filter by magazine number (default: 8)
+- `-r, --rows <int[]>`: Filter by number of rows (comma-separated, default: all rows)
+- `-l, --line-count <int>`: Number of lines per frame for timecode incrementation (default: 2)
+- `-V, --verbose`: Enable verbose output
+
 **Usage examples:**
 
 ```bash
@@ -107,6 +123,15 @@ dotnet run --project apps/opx -- extract -k d,v input.mxf
 
 # Restripe MXF with new timecode
 dotnet run --project apps/opx -- restripe -t 10:00:00:00 input.mxf
+
+# Convert VBI to T42 format (auto-detect input format)
+dotnet run --project apps/opx -- convert -o t42 input.vbi
+
+# Convert MXF data stream to T42 with file output
+dotnet run --project apps/opx -- convert -i mxf -o t42 -f output.t42 input.mxf
+
+# Convert T42 to VBI with filtering and verbose output
+dotnet run --project apps/opx -- convert -i t42 -o vbi -m 8 -r 20,22 -V input.t42
 ```
 
 **Note:** For filter command, if input file is not specified, reads from stdin. Format is auto-detected from file extension or can be overridden with -f option.

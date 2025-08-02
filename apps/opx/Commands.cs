@@ -279,4 +279,163 @@ public class Commands
 
         return await Task.FromResult(restripeCommand);
     }
+
+    public static async Task<Command> CreateConvertCommand()
+    {
+        var convertCommand = new Command("convert", "Convert between different teletext data formats");
+
+        var inputOption = new Argument<FileInfo?>("input")
+        {
+            Description = "Input file path (reads from stdin if not specified)",
+            DefaultValueFactory = null
+        };
+
+        var inputFormatOption = new Option<string?>("-i")
+        {
+            Aliases = { "--input-format" },
+            Description = "Input format (auto-detected from file extension if not specified)",
+            Required = false
+        };
+        inputFormatOption.CompletionSources.Add(ctx =>
+        {
+            return
+            [
+                new CompletionItem("bin", "MXF data stream"),
+                new CompletionItem("vbi", "VBI format"),
+                new CompletionItem("vbid", "VBI format (double width)"),
+                new CompletionItem("t42", "T42 format"),
+                new CompletionItem("mxf", "MXF container format")
+            ];
+        });
+
+        var outputFormatOption = new Option<string>("-o")
+        {
+            Aliases = { "--output-format" },
+            Description = "Output format (required)",
+            Required = true
+        };
+        outputFormatOption.CompletionSources.Add(ctx =>
+        {
+            return
+            [
+                new CompletionItem("vbi", "VBI format"),
+                new CompletionItem("vbid", "VBI format (double width)"),
+                new CompletionItem("t42", "T42 format")
+            ];
+        });
+
+        var outputFileOption = new Option<FileInfo?>("-f")
+        {
+            Aliases = { "--output-file" },
+            Description = "Output file path (writes to stdout if not specified)",
+            Required = false
+        };
+
+        var magazineOption = new Option<int?>("-m")
+        {
+            Aliases = { "--magazine" },
+            Description = "Filter by magazine number",
+            DefaultValueFactory = _ => Constants.DEFAULT_MAGAZINE,
+            Required = false
+        };
+        magazineOption.CompletionSources.Add(ctx =>
+        {
+            List<CompletionItem> magazines = [];
+            for (int i = 1; i <= 8; i++)
+            {
+                magazines.Add(new CompletionItem(
+                    label: i.ToString(),
+                    sortText: i.ToString("D2")));
+            }
+            return magazines;
+        });
+
+        var rowsOption = new Option<int[]?>("-r")
+        {
+            Aliases = { "--rows" },
+            Description = "Filter by number of rows (comma-separated)",
+            DefaultValueFactory = _ => Constants.DEFAULT_ROWS,
+            Required = false
+        };
+        rowsOption.CompletionSources.Add(ctx =>
+        {
+            List<CompletionItem> rows = [];
+            for (int i = 0; i <= 24; i++)
+            {
+                rows.Add(new CompletionItem(
+                    label: i.ToString(),
+                    sortText: i.ToString("D2")));
+            }
+            return rows;
+        });
+
+        var lineCountOption = new Option<int?>("-l")
+        {
+            Aliases = { "--line-count" },
+            Description = "Number of lines per frame for timecode incrementation",
+            Required = false,
+            DefaultValueFactory = _ => 2
+        };
+
+        var verboseOption = new Option<bool>("-V")
+        {
+            Aliases = { "--verbose" },
+            Description = "Enable verbose output",
+            Required = false,
+            DefaultValueFactory = _ => false
+        };
+
+        convertCommand.Arguments.Add(inputOption);
+        convertCommand.Options.Add(inputFormatOption);
+        convertCommand.Options.Add(outputFormatOption);
+        convertCommand.Options.Add(outputFileOption);
+        convertCommand.Options.Add(magazineOption);
+        convertCommand.Options.Add(rowsOption);
+        convertCommand.Options.Add(lineCountOption);
+        convertCommand.Options.Add(verboseOption);
+
+        convertCommand.SetAction(async (parseResult) =>
+        {
+            FileInfo? inputFile = parseResult.GetValue(inputOption);
+            string? inputFormatString = parseResult.GetValue(inputFormatOption);
+            string outputFormatString = parseResult.GetValue(outputFormatOption) ?? "t42";
+            FileInfo? outputFile = parseResult.GetValue(outputFileOption);
+            int magazine = parseResult.GetValue(magazineOption) ?? Constants.DEFAULT_MAGAZINE;
+            int[] rows = parseResult.GetValue(rowsOption) ?? Constants.DEFAULT_ROWS;
+            int lineCount = parseResult.GetValue(lineCountOption) ?? 2;
+            bool verbose = parseResult.GetValue(verboseOption);
+
+            // Validate input file
+            if (inputFile != null && !inputFile.Exists && !inputFile.Name.Equals("-", StringComparison.OrdinalIgnoreCase) && !inputFile.Name.Equals("stdin", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine($"Error: Input file '{inputFile.FullName}' does not exist.");
+                await Task.FromResult(1);
+                return;
+            }
+
+            // Determine input format
+            Format inputFormat;
+            if (!string.IsNullOrEmpty(inputFormatString))
+            {
+                inputFormat = Functions.ParseInputFormat(inputFormatString);
+            }
+            else if (inputFile != null && inputFile.Exists)
+            {
+                inputFormat = Functions.ParseInputFormat(Path.GetExtension(inputFile.Name).ToLowerInvariant());
+            }
+            else
+            {
+                Console.Error.WriteLine("Error: Input format must be specified when reading from stdin.");
+                await Task.FromResult(1);
+                return;
+            }
+
+            // Parse output format
+            Format outputFormat = Functions.ParseInputFormat(outputFormatString ?? "t42");
+
+            await Task.FromResult(Functions.Convert(inputFile, inputFormat, outputFormat, outputFile, magazine, rows, lineCount, verbose));
+        });
+
+        return await Task.FromResult(convertCommand);
+    }
 }

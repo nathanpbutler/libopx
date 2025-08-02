@@ -27,15 +27,22 @@ public class Constants
     public const int VBI_CLOCK_OFFSET_1 = 8; // Clock offset 1
     public const int VBI_FRAMING_OFFSET_1 = 39; // Framing offset 1
     public const int VBI_FRAMING_OFFSET_2 = 40; // Framing offset 2
+    #endregion
+
+    #region T42toVBI Constants
     public const byte VBI_LOW_VALUE = 0x10; // Low value for VBI padding
     public const byte VBI_HIGH_VALUE = 0xEB; // High value for VBI padding
-    public const int VBI_PADDING_SIZE = 16; // Padding size for VBI
-    public const int VBI_BITS_SIZE = 360; // Size of VBI bits
     public const int VBI_PAD_START = 6; // Start of padding in VBI
-    public const int VBI_RESIZED_SIZE = 701; // Size of resized VBI data
+    public const int VBI_BITS_SIZE = 360; // Size of VBI bits
+    public const int VBI_PADDING_SIZE = 16; // Size of padding in VBI
+    public static readonly byte[] VBI_PADDING_BYTES = [.. Enumerable.Repeat(VBI_LOW_VALUE, VBI_PADDING_SIZE)]; // Padding bytes for VBI
+    public const int VBI_RESIZE_SIZE = 701; // Size of resized VBI data
+    public static readonly byte[] VBI_RESIZE_BYTES = new byte[VBI_RESIZE_SIZE]; // Array for resized VBI data
+    public const float VBI_SCALE = (float)VBI_BITS_SIZE / VBI_RESIZE_SIZE; // Scale factor for VBI bits to T42 line size
     #endregion
 
     #region T42 Constants
+    public static readonly byte[] T42_CRIFC = [0x55, 0x55, 0x27]; // T42 CRIFC (Clock, Clock, Framing Code)
     public const int T42_LINE_SIZE = 42; // Size of a T42 line
     public const byte T42_CLOCK_BYTE = 0x55; // Clock byte
     public const byte T42_FRAMING_CODE = 0x27; // Framing code
