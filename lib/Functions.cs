@@ -11,7 +11,7 @@ public class Functions
     /// <summary>
     /// Filter function to process input files based on specified parameters.
     /// </summary>
-    /// <param name="inputFile">The input file to process, or null to read from stdin.</param>
+    /// <param name="input">The input file to process, or null to read from stdin.</param>
     /// <param name="magazine">The magazine number to filter by.</param>
     /// <param name="rows">The number of rows to filter by.</param>
     /// <param name="lineCount">The number of lines per frame for timecode incrementation.</param>
@@ -317,7 +317,7 @@ public class Functions
     /// <exception cref="ArgumentException">Thrown if an unsupported input or output format is specified.</exception>
     /// <exception cref="FileNotFoundException">Thrown if the specified input file does not exist.</exception>
     /// <exception cref="IOException">Thrown if there is an error reading the input file or writing the output file.</exception>
-    public static int Convert(FileInfo? input, Format inputFormat, Format outputFormat, FileInfo? output, int magazine, int[] rows, int lineCount, bool verbose)
+    public static int Convert(FileInfo? input, Format inputFormat, Format outputFormat, string? output, int magazine, int[] rows, int lineCount, bool verbose)
     {
         try
         {
@@ -336,8 +336,8 @@ public class Functions
                     Console.WriteLine("Reading from stdin");
                 Console.WriteLine($" Input format: {inputFormat}");
                 Console.WriteLine($"Output format: {outputFormat}");
-                if (output != null)
-                    Console.WriteLine($"  Output file: {output.FullName}");
+                if (!string.IsNullOrEmpty(output))
+                    Console.WriteLine($"  Output file: {Path.GetFileName(output)}");
                 else
                     Console.WriteLine("Writing to stdout");
                 Console.WriteLine($"     Magazine: {magazine}");
@@ -346,7 +346,9 @@ public class Functions
             }
 
             // Set up output stream
-            Stream outputStream = output?.Create() ?? Console.OpenStandardOutput();
+            Stream outputStream = output != null
+                ? new FileStream(output, FileMode.Create, FileAccess.Write, FileShare.None)
+                : Console.OpenStandardOutput();
             
             try
             {

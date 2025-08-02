@@ -1,10 +1,10 @@
-# libopx - a Material Exchange Format (MXF) and OP-42/OP-47 Teletext processing library
+# libopx - an MXF and OP-42/OP-47 Teletext processing library
 
 A .NET 9 C# library for parsing and extracting data from MXF (Material Exchange Format), BIN (MXF caption data stream), VBI (Vertical Blanking Interval), and T42 (Teletext packet stream) files, with SMPTE timecode and Teletext caption support.
 
 ## Table of Contents
 
-- [libopx - a Material Exchange Format (MXF) and OP-42/OP-47 Teletext processing library](#libopx---a-material-exchange-format-mxf-and-op-42op-47-teletext-processing-library)
+- [libopx - an MXF and OP-42/OP-47 Teletext processing library](#libopx---an-mxf-and-op-42op-47-teletext-processing-library)
   - [Table of Contents](#table-of-contents)
   - [Features](#features)
   - [Installation](#installation)
@@ -134,7 +134,7 @@ parser.Dispose(); // Ensure output is flushed
 ### filter - Filter teletext data
 
 ```bash
-dotnet run --project apps/opx -- filter [options] <input-file?>
+opx filter [options] <input-file?>
 ```
 
 **Options:**
@@ -144,10 +144,23 @@ dotnet run --project apps/opx -- filter [options] <input-file?>
 - `-f, --format <bin|vbi|vbid|t42>`: Input format override
 - `-V, --verbose`: Enable verbose output
 
+**Examples:**
+
+```bash
+# Filter VBI data for magazine 8, rows 20 and 22
+opx filter -m 8 -r 20,22 input.vbi
+
+# Filter T42 data for magazine 8
+opx filter -m 8 input.t42
+
+# Filter MXF data for magazine 8, rows 20 and 22
+opx filter -m 8 -r 20,22 input.mxf
+```
+
 ### extract - Extract/demux streams from MXF
 
 ```bash
-dotnet run --project apps/opx -- extract [options] <input.mxf>
+opx extract [options] <input.mxf>
 ```
 
 **Options:**
@@ -158,10 +171,20 @@ dotnet run --project apps/opx -- extract [options] <input.mxf>
 - `--klv`: Include key and length bytes
 - `-V, --verbose`: Enable verbose output
 
+**Examples:**
+
+```bash
+# Extract all streams from MXF file
+opx extract input.mxf
+
+# Extract only data and video streams
+opx extract -k d,v input.mxf
+```
+
 ### convert - Convert between teletext formats
 
 ```bash
-dotnet run --project apps/opx -- convert [options] <input-file>
+opx convert [options] <input-file?>
 ```
 
 **Options:**
@@ -178,22 +201,22 @@ dotnet run --project apps/opx -- convert [options] <input-file>
 
 ```bash
 # Convert VBI to T42 format (auto-detect input)
-dotnet run --project apps/opx -- convert -o t42 input.vbi
+opx convert -o t42 input.vbi
 
 # Convert MXF data stream to T42 with file output
-dotnet run --project apps/opx -- convert -i mxf -o t42 -f output.t42 input.mxf
+opx convert -i mxf -o t42 -f output.t42 input.mxf
 
 # Convert T42 to VBI with magazine/row filtering
-dotnet run --project apps/opx -- convert -i t42 -o vbi -m 8 -r 20,22 input.t42
+opx convert -i t42 -o vbi -m 8 -r 20,22 input.t42
 
-# Convert from stdin to stdout
-cat input.vbi | dotnet run --project apps/opx -- convert -o t42
+# Pipe a D10 MXF from FFmpeg to opx and convert to T42
+ffmpeg -v error -i input.mxf -vf crop=720:2:0:28 -f rawvideo -pix_fmt gray - | ./opx convert -i vbi -o t42 -f output.t42 -
 ```
 
 ### restripe - Restripe MXF with new timecode
 
 ```bash
-dotnet run --project apps/opx -- restripe [options] <input-file>
+opx restripe [options] <input-file>
 ```
 
 **Options:**
@@ -205,14 +228,14 @@ dotnet run --project apps/opx -- restripe [options] <input-file>
 
 ```plaintext
 libopx/
- lib/                    # Main library
-   Formats/           # Format parsers (MXF, BIN, VBI, T42)
+ lib/                # Main library
+   Formats/          # Format parsers (MXF, BIN, VBI, T42)
    SMPTE/            # SMPTE metadata system
    Enums/            # Enumeration definitions
  apps/
    opx/              # Unified CLI tool
- tests/                # xUnit test suite
- scripts/              # Utility scripts
+ tests/              # xUnit test suite
+ scripts/            # Utility scripts
 ```
 
 ## Building
@@ -267,7 +290,7 @@ dotnet test --filter "TestMethodName"
 ## License
 
 <!-- Add your license information -->
-[License Type] - see the [LICENSE](LICENSE) file for details.
+[License Type] - see the [LICENSE](LICENSE.md) file for details.
 
 ## Support
 

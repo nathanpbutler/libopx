@@ -289,7 +289,7 @@ public class Commands
             DefaultValueFactory = null
         };
 
-        var inputFormatOption = new Option<string?>("-i")
+        var inputFormatOption = new Option<string?>("-if")
         {
             Aliases = { "--input-format" },
             Description = "Input format (auto-detected from file extension if not specified)",
@@ -307,7 +307,7 @@ public class Commands
             ];
         });
 
-        var outputFormatOption = new Option<string>("-o")
+        var outputFormatOption = new Option<string>("-of")
         {
             Aliases = { "--output-format" },
             Description = "Output format",
@@ -324,7 +324,7 @@ public class Commands
             ];
         });
 
-        var outputFileOption = new Option<FileInfo?>("-f")
+        var outputFileOption = new Option<string?>("-o")
         {
             Aliases = { "--output-file" },
             Description = "Output file path (writes to stdout if not specified)",
@@ -396,10 +396,10 @@ public class Commands
 
         convertCommand.SetAction(async (parseResult) =>
         {
-            FileInfo? inputFile = parseResult.GetValue(inputOption);
+            FileInfo? inputFile = parseResult.GetValue(inputOption); // Default to stdin if not specified
             string? inputFormatString = parseResult.GetValue(inputFormatOption);
-            string outputFormatString = parseResult.GetValue(outputFormatOption) ?? "t42";
-            FileInfo? outputFile = parseResult.GetValue(outputFileOption);
+            string? outputFormatString = parseResult.GetValue(outputFormatOption);
+            string? outputFile = parseResult.GetValue(outputFileOption);
             int magazine = parseResult.GetValue(magazineOption) ?? Constants.DEFAULT_MAGAZINE;
             int[] rows = parseResult.GetValue(rowsOption) ?? Constants.DEFAULT_ROWS;
             int lineCount = parseResult.GetValue(lineCountOption) ?? 2;
@@ -425,22 +425,22 @@ public class Commands
             }
             else
             {
-                Console.Error.WriteLine("Error: Input format must be specified when reading from stdin.");
-                await Task.FromResult(1);
-                return;
+                inputFormat = Format.VBI; // Default to VBI for stdin
             }
 
             // Parse output format
             Format outputFormat;
-            try
+            if (!string.IsNullOrEmpty(outputFile))
+            {
+                outputFormat = Functions.ParseFormat(Path.GetExtension(outputFile).ToLowerInvariant());
+            }
+            else if (!string.IsNullOrEmpty(outputFormatString))
             {
                 outputFormat = Functions.ParseFormat(outputFormatString);
             }
-            catch (ArgumentException ex)
+            else
             {
-                Console.Error.WriteLine($"Error: Invalid output format '{outputFormatString}': {ex.Message}");
-                await Task.FromResult(1);
-                return;
+                outputFormat = Format.T42; // Default to T42 if not specified
             }
 
             await Task.FromResult(Functions.Convert(inputFile, inputFormat, outputFormat, outputFile, magazine, rows, lineCount, verbose));
