@@ -296,6 +296,178 @@ public class Functions
         }
     }
 
+    /// <summary>
+    /// Convert function to transform input files between different teletext formats.
+    /// </summary>
+    /// <param name="input">The input file to convert, or null to read from stdin.</param>
+    /// <param name="inputFormat">The input format (BIN, VBI, VBI_DOUBLE, T42, MXF).</param>
+    /// <param name="outputFormat">The output format (VBI, VBI_DOUBLE, T42 only).</param>
+    /// <param name="output">The output file to write to, or null to write to stdout.</param>
+    /// <param name="magazine">The magazine number to filter by.</param>
+    /// <param name="rows">The rows to filter by.</param>
+    /// <param name="lineCount">The number of lines per frame for timecode incrementation.</param>
+    /// <param name="verbose">Whether to enable verbose output.</param>
+    /// <returns>An integer indicating the result of the conversion operation.</returns>
+    /// <remarks>
+    /// This function reads from the specified input file or stdin, converts the data from the input format
+    /// to the output format, applies filtering if specified, and writes the result to the output file or stdout.
+    /// Only VBI, VBI_DOUBLE, and T42 are supported as output formats (data formats only, not containers).
+    /// TODO: Add support for RCWT output format in future update.
+    /// </remarks>
+    /// <exception cref="ArgumentException">Thrown if an unsupported input or output format is specified.</exception>
+    /// <exception cref="FileNotFoundException">Thrown if the specified input file does not exist.</exception>
+    /// <exception cref="IOException">Thrown if there is an error reading the input file or writing the output file.</exception>
+    public static int Convert(FileInfo? input, Format inputFormat, Format outputFormat, FileInfo? output, int magazine, int[] rows, int lineCount, bool verbose)
+    {
+        try
+        {
+            // Validate output format - only data formats allowed
+            if (outputFormat != Format.VBI && outputFormat != Format.VBI_DOUBLE && outputFormat != Format.T42)
+            {
+                Console.Error.WriteLine($"Error: Unsupported output format '{outputFormat}'. Supported formats: VBI, VBI_DOUBLE, T42");
+                return 1;
+            }
+
+            if (verbose)
+            {
+                if (input != null && input.Exists)
+                    Console.WriteLine($"   Input file: {input.FullName}");
+                else
+                    Console.WriteLine("Reading from stdin");
+                Console.WriteLine($" Input format: {inputFormat}");
+                Console.WriteLine($"Output format: {outputFormat}");
+                if (output != null)
+                    Console.WriteLine($"  Output file: {output.FullName}");
+                else
+                    Console.WriteLine("Writing to stdout");
+                Console.WriteLine($"     Magazine: {magazine}");
+                Console.WriteLine($"         Rows: [{string.Join(", ", rows)}]");
+                Console.WriteLine($"   Line count: {lineCount}");
+            }
+
+            // Set up output stream
+            Stream outputStream = output?.Create() ?? Console.OpenStandardOutput();
+            
+            try
+            {
+                switch (inputFormat)
+                {
+                    case Format.BIN:
+                        return ConvertFromBin(input, outputFormat, outputStream, magazine, rows);
+
+                    case Format.VBI:
+                    case Format.VBI_DOUBLE:
+                        return ConvertFromVbi(input, inputFormat, outputFormat, outputStream, magazine, rows, lineCount);
+
+                    case Format.T42:
+                        return ConvertFromT42(input, outputFormat, outputStream, magazine, rows, lineCount);
+
+                    case Format.MXF:
+                        if (input == null || !input.Exists)
+                        {
+                            Console.Error.WriteLine("Error: Input file must be specified and exist for MXF format conversion.");
+                            return 1;
+                        }
+                        return ConvertFromMxf(input, outputFormat, outputStream, magazine, rows, verbose);
+
+                    default:
+                        Console.Error.WriteLine($"Error: Unsupported input format '{inputFormat}'.");
+                        return 1;
+                }
+            }
+            finally
+            {
+                if (output != null)
+                {
+                    outputStream?.Dispose();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+    }
+
+    private static int ConvertFromBin(FileInfo? input, Format outputFormat, Stream outputStream, int magazine, int[] rows)
+    {
+        var bin = input != null && input.Exists
+            ? new BIN(input.FullName) { OutputFormat = outputFormat }
+            : new BIN(Console.OpenStandardInput()) { OutputFormat = outputFormat };
+
+        using (bin)
+        {
+            foreach (var packet in bin.Parse(magazine, rows))
+            {
+                foreach (var line in packet.Lines)
+                {
+                    outputStream.Write(line.Data);
+                }
+            }
+        }
+        return 0;
+    }
+
+    private static int ConvertFromVbi(FileInfo? input, Format inputFormat, Format outputFormat, Stream outputStream, int magazine, int[] rows, int lineCount)
+    {
+        var vbi = input != null && input.Exists
+            ? new VBI(input.FullName, inputFormat) { OutputFormat = outputFormat, LineCount = lineCount }
+            : new VBI(Console.OpenStandardInput(), inputFormat) { OutputFormat = outputFormat, LineCount = lineCount };
+
+        using (vbi)
+        {
+            foreach (var line in vbi.Parse(magazine, rows))
+            {
+                outputStream.Write(line.Data);
+            }
+        }
+        return 0;
+    }
+
+    private static int ConvertFromT42(FileInfo? input, Format outputFormat, Stream outputStream, int magazine, int[] rows, int lineCount)
+    {
+        var t42 = input != null && input.Exists
+            ? new T42(input.FullName) { OutputFormat = outputFormat, LineCount = lineCount }
+            : new T42(Console.OpenStandardInput()) { OutputFormat = outputFormat, LineCount = lineCount };
+
+        using (t42)
+        {
+            foreach (var line in t42.Parse(magazine, rows))
+            {
+                outputStream.Write(line.Data);
+            }
+        }
+        return 0;
+    }
+
+    private static int ConvertFromMxf(FileInfo input, Format outputFormat, Stream outputStream, int magazine, int[] rows, bool verbose)
+    {
+        using var mxf = new MXF(input.FullName)
+        {
+            Function = Function.Filter,
+            Verbose = verbose
+        };
+        mxf.AddRequiredKey(KeyType.Data);
+
+        foreach (var packet in mxf.Parse(magazine, rows))
+        {
+            foreach (var line in packet.Lines)
+            {
+                // Convert line data to the desired output format
+                byte[] convertedData = outputFormat switch
+                {
+                    Format.VBI => line.Data.Length == Constants.T42_LINE_SIZE ? T42.ToVBI(line.Data, Format.VBI) : line.Data,
+                    Format.VBI_DOUBLE => line.Data.Length == Constants.T42_LINE_SIZE ? T42.ToVBI(line.Data, Format.VBI_DOUBLE) : line.Data,
+                    Format.T42 => line.Data.Length != Constants.T42_LINE_SIZE ? VBI.ToT42(line.Data) : line.Data,
+                    _ => line.Data
+                };
+                outputStream.Write(convertedData);
+            }
+        }
+        return 0;
+    }
+
     #endregion
 
     #region VBI
