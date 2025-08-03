@@ -7,15 +7,67 @@ namespace nathanbutlerDEV.opx;
 
 public class Commands
 {
+    /// <summary>
+    /// Parses a string of rows into an array of integers, handling both single numbers and ranges
+    /// (e.g., "1,2,5-8,15" becomes [1, 2, 5, 6, 7, 8, 15]).
+    /// </summary>
+    /// <param name="rowsString">The string representation of the rows.</param>
+    /// <returns>An array of integers representing the parsed rows.</returns>
+    private static int[] ParseRowsString(string rowsString)
+    {
+        var rows = new List<int>();
+        var parts = rowsString.Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var part in parts)
+        {
+            var trimmed = part.Trim();
+            if (trimmed.Contains('-'))
+            {
+                // Handle range like "5-8"
+                var rangeParts = trimmed.Split('-');
+                if (rangeParts.Length == 2 &&
+                    int.TryParse(rangeParts[0], out int start) &&
+                    int.TryParse(rangeParts[1], out int end))
+                {
+                    for (int i = start; i <= end; i++)
+                    {
+                        if (i >= 0 && i <= 24)
+                            rows.Add(i);
+                    }
+                }
+            }
+            else if (int.TryParse(trimmed, out int row))
+            {
+                // Handle single number
+                if (row >= 0 && row <= 24)
+                    rows.Add(row);
+            }
+        }
+
+        return [.. rows.Distinct().OrderBy(x => x)];
+    }
+
+    /// <summary>
+    /// Creates the filter command for teletext data processing.
+    /// This command allows filtering teletext data by magazine and rows, with options for input format,
+    /// line count, and whether to use caption rows.
+    /// It also supports reading from stdin if no input file is specified.
+    /// The command will validate the input file, parse the specified options, and execute the filtering
+    /// operation using the provided parameters.
+    /// </summary>
+    /// <returns>A Command object representing the filter command.</returns>
+    /// <exception cref="ArgumentException">Thrown if the input file does not exist or is invalid.</exception>
     public static async Task<Command> CreateFilterCommand()
     {
         var filterCommand = new Command("filter", "Filter teletext data by magazine and rows");
 
-        var inputOption = new Argument<FileInfo?>("input")
+        var inputOption = new Option<string?>("-i")
         {
+            Aliases = { "--input", "--input-file" },
             Description = "Input file path (reads from stdin if not specified)",
-            DefaultValueFactory = null
+            Required = false
         };
+
         var magazineOption = new Option<int?>("-m")
         {
             Aliases = { "--magazine" },
@@ -23,43 +75,46 @@ public class Commands
             DefaultValueFactory = _ => Constants.DEFAULT_MAGAZINE,
             Required = false
         };
+
         magazineOption.CompletionSources.Add(ctx =>
         {
             List<CompletionItem> magazines = [];
             for (int i = 1; i <= 8; i++)
             {
                 magazines.Add(new CompletionItem(
-                    label: i.ToString(),
+                    label: i.ToString("D2"),
                     sortText: i.ToString("D2")));
             }
             return magazines;
         });
-        var rowsOption = new Option<int[]?>("-r")
+
+        var rowsOption = new Option<string?>("-r")
         {
             Aliases = { "--rows" },
-            Description = "Filter by number of rows (comma-separated)",
-            DefaultValueFactory = _ => Constants.DEFAULT_ROWS,
+            Description = "Filter by number of rows (comma-separated or hyphen ranges, e.g., 1,2,5-8,15)",
             Required = false
         };
+
         rowsOption.CompletionSources.Add(ctx =>
         {
             List<CompletionItem> rows = [];
             for (int i = 0; i <= 24; i++)
             {
                 rows.Add(new CompletionItem(
-                    label: i.ToString(),
+                    label: i.ToString("D2"),
                     sortText: i.ToString("D2")));
             }
             return rows;
         });
 
-        var inputFormatOption = new Option<string?>("-f")
+        var inputFormatOption = new Option<string?>("-if")
         {
-            Aliases = { "--format" },
+            Aliases = { "--input-format" },
             Description = "Input format",
             Required = false,
             DefaultValueFactory = _ => "vbi"
         };
+
         inputFormatOption.CompletionSources.Add(ctx =>
         {
             return
@@ -73,9 +128,18 @@ public class Commands
 
         var lineCountOption = new Option<int?>("-l")
         {
+            Aliases = { "--line-count" },
             Description = "Number of lines per frame for timecode incrementation",
             Required = false,
             DefaultValueFactory = _ => 2
+        };
+
+        var capsOption = new Option<bool>("-c")
+        {
+            Aliases = { "--caps" },
+            Description = "Use caption rows (1-24) instead of default rows (0-24)",
+            Required = false,
+            DefaultValueFactory = _ => false
         };
 
         var verboseOption = new Option<bool>("-V")
@@ -86,16 +150,29 @@ public class Commands
             DefaultValueFactory = _ => false
         };
 
-        filterCommand.Arguments.Add(inputOption);
+        filterCommand.Options.Add(inputOption);
+        filterCommand.Options.Add(inputFormatOption);
         filterCommand.Options.Add(magazineOption);
         filterCommand.Options.Add(rowsOption);
-        filterCommand.Options.Add(inputFormatOption);
         filterCommand.Options.Add(lineCountOption);
+        filterCommand.Options.Add(capsOption);
         filterCommand.Options.Add(verboseOption);
 
         filterCommand.SetAction(async (parseResult) =>
         {
-            FileInfo? inputFile = parseResult.GetValue(inputOption);
+            // Get input file and validate it
+            string? inputFilePath = parseResult.GetValue(inputOption);
+            if (string.IsNullOrEmpty(inputFilePath) || inputFilePath.Equals("-", StringComparison.OrdinalIgnoreCase) || inputFilePath.Equals("stdin", StringComparison.OrdinalIgnoreCase))
+            {
+                // If no input file is specified, read from stdin
+                inputFilePath = null;
+            }
+            else
+            {
+                // If input file is specified, ensure it exists
+                inputFilePath = Path.GetFullPath(inputFilePath);
+            }
+            FileInfo? inputFile = inputFilePath != null ? new FileInfo(inputFilePath) : null;
             if (inputFile != null && !inputFile.Exists && !inputFile.Name.Equals("-", StringComparison.OrdinalIgnoreCase) && !inputFile.Name.Equals("stdin", StringComparison.OrdinalIgnoreCase))
             {
                 Console.Error.WriteLine($"Error: Input file '{inputFile.FullName}' does not exist.");
@@ -103,8 +180,24 @@ public class Commands
                 return;
             }
             int magazine = parseResult.GetValue(magazineOption) ?? Constants.DEFAULT_MAGAZINE;
-            int[] rows = parseResult.GetValue(rowsOption) ?? Constants.DEFAULT_ROWS;
+            string? rowsString = parseResult.GetValue(rowsOption);
+            bool useCaps = parseResult.GetValue(capsOption);
             string inputFormatString = parseResult.GetValue(inputFormatOption) ?? "vbi";
+
+            // Determine which rows to use
+            int[] rows;
+            if (!string.IsNullOrEmpty(rowsString))
+            {
+                rows = ParseRowsString(rowsString);
+            }
+            else if (useCaps)
+            {
+                rows = Constants.CAPTION_ROWS;
+            }
+            else
+            {
+                rows = Constants.DEFAULT_ROWS;
+            }
             int lineCount = parseResult.GetValue(lineCountOption) ?? 2;
             bool verbose = parseResult.GetValue(verboseOption);
 
@@ -118,13 +211,21 @@ public class Commands
         return await Task.FromResult(filterCommand);
     }
 
+    /// <summary>
+    /// Creates the extract command for extracting/demuxing streams from MXF files.
+    /// This command allows specifying input files, output paths, keys to extract, and options for
+    /// demuxing and naming conventions. It also supports verbose output and KLV mode.
+    /// </summary>
+    /// <returns>A Command object representing the extract command.</returns>
+    /// <exception cref="ArgumentException">Thrown if the input file does not exist or is invalid.</exception>
     public static async Task<Command> CreateExtractCommand()
     {
         var extractCommand = new Command("extract", "Extract/demux streams from MXF files");
 
-        var inputOption = new Argument<FileInfo>("input")
+        var inputOption = new Argument<FileInfo>("input") // Keeping this as an Argument<FileInfo> unlike filter/convert
         {
-            Description = "Input file path"
+            Description = "Input file path",
+            Arity = ArgumentArity.ExactlyOne
         };
 
         var outputOption = new Option<string?>("-o")
@@ -132,7 +233,8 @@ public class Commands
             Aliases = { "--output" },
             Description = "Output base path - files will be created as <base>_d.raw, <base>_v.raw, etc",
             Required = false,
-            DefaultValueFactory = _ => null
+            DefaultValueFactory = _ => null,
+            Arity = ArgumentArity.ZeroOrOne
         };
 
         var keyOption = new Option<string?>("-k")
@@ -140,17 +242,20 @@ public class Commands
             Aliases = { "--key" },
             Description = "Specify keys to extract",
             Required = false,
-            DefaultValueFactory = _ => null
+            DefaultValueFactory = _ => null,
+            Arity = ArgumentArity.ZeroOrOne
         };
+        
         keyOption.CompletionSources.Add(ctx =>
         {
             return
             [
-                new CompletionItem("d", "Data stream"),
                 new CompletionItem("v", "Video stream"),
+                new CompletionItem("a", "Audio stream"),
+                new CompletionItem("d", "Data stream"),
                 new CompletionItem("s", "System stream"),
                 new CompletionItem("t", "TimecodeComponent stream"),
-                new CompletionItem("a", "Audio stream")
+
             ];
         });
 
@@ -159,21 +264,24 @@ public class Commands
             Aliases = { "--demux" },
             Description = "Extract all keys found, output as <base>_<hexkey>.raw",
             Required = false,
-            DefaultValueFactory = _ => false
+            DefaultValueFactory = _ => false,
+            Arity = ArgumentArity.ZeroOrOne
         };
 
         var nameOption = new Option<bool>("-n")
         {
             Description = "Use Key/Essence names instead of hex keys (use with -d)",
             Required = false,
-            DefaultValueFactory = _ => false
+            DefaultValueFactory = _ => false,
+            Arity = ArgumentArity.ZeroOrOne
         };
 
         var klvOption = new Option<bool>("--klv")
         {
             Description = "Include key and length bytes in output files, use .klv extension",
             Required = false,
-            DefaultValueFactory = _ => false
+            DefaultValueFactory = _ => false,
+            Arity = ArgumentArity.ZeroOrOne
         };
 
         var verboseOption = new Option<bool>("-V")
@@ -181,7 +289,8 @@ public class Commands
             Aliases = { "--verbose" },
             Description = "Enable verbose output",
             Required = false,
-            DefaultValueFactory = _ => false
+            DefaultValueFactory = _ => false,
+            Arity = ArgumentArity.ZeroOrOne
         };
 
         extractCommand.Arguments.Add(inputOption);
@@ -215,20 +324,32 @@ public class Commands
         return await Task.FromResult(extractCommand);
     }
 
+    /// <summary>
+    /// Creates the restripe command for restriping MXF files with a new start timecode.
+    /// This command allows specifying an input MXF file and a new start timecode in HH:MM:SS:FF format.
+    /// It also supports options for verbose output and printing progress during parsing.
+    /// The command will validate the input file and timecode, then execute the restriping operation
+    /// using the provided parameters.
+    /// </summary>
+    /// <returns>A Command object representing the restripe command.</returns>
+    /// <exception cref="ArgumentException">Thrown if the input file does not exist or is invalid, or if the timecode is not provided.</exception>
     public static async Task<Command> CreateRestripeCommand()
     {
         var restripeCommand = new Command("restripe", "Restripe MXF file with new start timecode");
 
         var inputOption = new Argument<FileInfo>("input")
         {
-            Description = "Input MXF file path"
+            Description = "Input MXF file path",
+            Arity = ArgumentArity.ExactlyOne
         };
 
+        // TODO: Change this to default to 00:00:00:00 if not provided
         var timecodeOption = new Option<string>("-t")
         {
             Aliases = { "--timecode" },
             Description = "New start timecode (HH:MM:SS:FF)",
-            Required = true
+            Required = true,
+            Arity = ArgumentArity.ExactlyOne
         };
 
         var verboseOption = new Option<bool>("-V")
@@ -236,7 +357,8 @@ public class Commands
             Aliases = { "--verbose" },
             Description = "Enable verbose output",
             Required = false,
-            DefaultValueFactory = _ => false
+            DefaultValueFactory = _ => false,
+            Arity = ArgumentArity.ZeroOrOne
         };
 
         var printProgressOption = new Option<bool>("-pp")
@@ -244,7 +366,8 @@ public class Commands
             Aliases = { "--print-progress" },
             Description = "Print progress during parsing",
             Required = false,
-            DefaultValueFactory = _ => false
+            DefaultValueFactory = _ => false,
+            Arity = ArgumentArity.ZeroOrOne
         };
 
         restripeCommand.Arguments.Add(inputOption);
@@ -279,14 +402,48 @@ public class Commands
         return await Task.FromResult(restripeCommand);
     }
 
+    /// <summary>
+    /// Creates the convert command for converting between different teletext data formats.
+    /// This command allows specifying input and output file paths, input and output formats,
+    /// magazine numbers, rows to filter, line count for timecode incrementation, and options
+    /// for using caption rows and keeping blank bytes.
+    /// It also supports verbose output and reading from stdin if no input file is specified.
+    /// The command will validate the input file, parse the specified options, and execute the
+    /// conversion operation using the provided parameters.
+    /// </summary>
+    /// <returns>A Command object representing the convert command.</returns>
+    /// <exception cref="ArgumentException">Thrown if the input file does not exist or is invalid.</exception>
+    /// <exception cref="FormatException">Thrown if the input or output format is invalid.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown if the magazine number or rows are out of range.</exception>
+    /// <exception cref="Exception">Thrown if an error occurs during the conversion process.</exception>
+    /// <remarks>
+    /// This command is designed to handle various teletext data formats, including VBI, T42, and MXF.
+    /// It provides flexibility in specifying input and output formats, allowing for conversion between
+    /// different representations of teletext data. The command also supports filtering by magazine and
+    /// rows, enabling users to focus on specific parts of the teletext data.
+    /// The command is intended for use in scenarios where teletext data needs to be converted or
+    /// processed for further analysis or display. It is particularly useful for developers and users
+    /// working with teletext data in various formats, providing a command-line interface for easy
+    /// conversion and manipulation of teletext streams.
+    /// </remarks>
     public static async Task<Command> CreateConvertCommand()
     {
         var convertCommand = new Command("convert", "Convert between different teletext data formats");
 
-        var inputOption = new Argument<FileInfo?>("input")
+        var inputOption = new Option<string?>("-i")
         {
-            Description = "Input file path (reads from stdin if not specified)",
-            DefaultValueFactory = null
+            Aliases = { "--input", "--input-file" },
+            Description = "Input file path",
+            Required = false,
+            DefaultValueFactory = _ => "stdin"
+        };
+
+        var outputOption = new Option<string?>("-o")
+        {
+            Aliases = { "--output", "--output-file" },
+            Description = "Output file path",
+            Required = false,
+            DefaultValueFactory = _ => "stdout"
         };
 
         var inputFormatOption = new Option<string?>("-if")
@@ -295,6 +452,7 @@ public class Commands
             Description = "Input format (auto-detected from file extension if not specified)",
             Required = false
         };
+
         inputFormatOption.CompletionSources.Add(ctx =>
         {
             return
@@ -314,6 +472,7 @@ public class Commands
             Required = false,
             DefaultValueFactory = _ => "t42"
         };
+
         outputFormatOption.CompletionSources.Add(ctx =>
         {
             return
@@ -324,13 +483,6 @@ public class Commands
             ];
         });
 
-        var outputFileOption = new Option<string?>("-o")
-        {
-            Aliases = { "--output-file" },
-            Description = "Output file path (writes to stdout if not specified)",
-            Required = false
-        };
-
         var magazineOption = new Option<int?>("-m")
         {
             Aliases = { "--magazine" },
@@ -338,32 +490,33 @@ public class Commands
             DefaultValueFactory = _ => Constants.DEFAULT_MAGAZINE,
             Required = false
         };
+
         magazineOption.CompletionSources.Add(ctx =>
         {
             List<CompletionItem> magazines = [];
             for (int i = 1; i <= 8; i++)
             {
                 magazines.Add(new CompletionItem(
-                    label: i.ToString(),
+                    label: i.ToString("D2"),
                     sortText: i.ToString("D2")));
             }
             return magazines;
         });
 
-        var rowsOption = new Option<int[]?>("-r")
+        var rowsOption = new Option<string?>("-r")
         {
             Aliases = { "--rows" },
-            Description = "Filter by number of rows (comma-separated)",
-            DefaultValueFactory = _ => Constants.DEFAULT_ROWS,
+            Description = "Filter by number of rows (comma-separated or hyphen ranges, e.g., 1,2,5-8,15)",
             Required = false
         };
+
         rowsOption.CompletionSources.Add(ctx =>
         {
             List<CompletionItem> rows = [];
             for (int i = 0; i <= 24; i++)
             {
                 rows.Add(new CompletionItem(
-                    label: i.ToString(),
+                    label: i.ToString("D2"),
                     sortText: i.ToString("D2")));
             }
             return rows;
@@ -377,6 +530,22 @@ public class Commands
             DefaultValueFactory = _ => 2
         };
 
+        var capsOption = new Option<bool>("-c")
+        {
+            Aliases = { "--caps" },
+            Description = "Use caption rows (1-24) instead of default rows (0-24)",
+            Required = false,
+            DefaultValueFactory = _ => false
+        };
+
+        var keepOption = new Option<bool>("-k")
+        {
+            Aliases = { "--keep" },
+            Description = "Write blank bytes if rows or magazine doesn't match",
+            Required = false,
+            DefaultValueFactory = _ => false
+        };
+
         var verboseOption = new Option<bool>("-V")
         {
             Aliases = { "--verbose" },
@@ -385,24 +554,55 @@ public class Commands
             DefaultValueFactory = _ => false
         };
 
-        convertCommand.Arguments.Add(inputOption);
+        convertCommand.Options.Add(inputOption);
+        convertCommand.Options.Add(outputOption);
         convertCommand.Options.Add(inputFormatOption);
         convertCommand.Options.Add(outputFormatOption);
-        convertCommand.Options.Add(outputFileOption);
         convertCommand.Options.Add(magazineOption);
         convertCommand.Options.Add(rowsOption);
         convertCommand.Options.Add(lineCountOption);
+        convertCommand.Options.Add(capsOption);
+        convertCommand.Options.Add(keepOption);
         convertCommand.Options.Add(verboseOption);
 
         convertCommand.SetAction(async (parseResult) =>
         {
-            FileInfo? inputFile = parseResult.GetValue(inputOption); // Default to stdin if not specified
+            // Get input file and validate it
+            string? inputFilePath = parseResult.GetValue(inputOption);
+            if (string.IsNullOrEmpty(inputFilePath) || inputFilePath.Equals("-", StringComparison.OrdinalIgnoreCase) || inputFilePath.Equals("stdin", StringComparison.OrdinalIgnoreCase))
+            {
+                // If no input file is specified, read from stdin
+                inputFilePath = null;
+            }
+            else
+            {
+                // If input file is specified, ensure it exists
+                inputFilePath = Path.GetFullPath(inputFilePath);
+            }
+            FileInfo? inputFile = inputFilePath != null ? new FileInfo(inputFilePath) : null;
+            string? outputFile = parseResult.GetValue(outputOption);
             string? inputFormatString = parseResult.GetValue(inputFormatOption);
             string? outputFormatString = parseResult.GetValue(outputFormatOption);
-            string? outputFile = parseResult.GetValue(outputFileOption);
             int magazine = parseResult.GetValue(magazineOption) ?? Constants.DEFAULT_MAGAZINE;
-            int[] rows = parseResult.GetValue(rowsOption) ?? Constants.DEFAULT_ROWS;
+            string? rowsString = parseResult.GetValue(rowsOption);
+            bool useCaps = parseResult.GetValue(capsOption);
+            bool keepBlanks = parseResult.GetValue(keepOption);
             int lineCount = parseResult.GetValue(lineCountOption) ?? 2;
+
+            // Determine which rows to use
+            int[] rows;
+            if (!string.IsNullOrEmpty(rowsString))
+            {
+                rows = ParseRowsString(rowsString);
+            }
+            else if (useCaps)
+            {
+                rows = Constants.CAPTION_ROWS;
+            }
+            else
+            {
+                rows = Constants.DEFAULT_ROWS;
+            }
             bool verbose = parseResult.GetValue(verboseOption);
 
             // Validate input file
@@ -443,7 +643,7 @@ public class Commands
                 outputFormat = Format.T42; // Default to T42 if not specified
             }
 
-            await Task.FromResult(Functions.Convert(inputFile, inputFormat, outputFormat, outputFile, magazine, rows, lineCount, verbose));
+            await Task.FromResult(Functions.Convert(inputFile, inputFormat, outputFormat, outputFile, magazine, rows, lineCount, verbose, keepBlanks));
         });
 
         return await Task.FromResult(convertCommand);
