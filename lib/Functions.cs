@@ -317,7 +317,7 @@ public class Functions
     /// <exception cref="ArgumentException">Thrown if an unsupported input or output format is specified.</exception>
     /// <exception cref="FileNotFoundException">Thrown if the specified input file does not exist.</exception>
     /// <exception cref="IOException">Thrown if there is an error reading the input file or writing the output file.</exception>
-    public static int Convert(FileInfo? input, Format inputFormat, Format outputFormat, string? output, int magazine, int[] rows, int lineCount, bool verbose)
+    public static int Convert(FileInfo? input, Format inputFormat, Format outputFormat, string? output, int magazine, int[] rows, int lineCount, bool verbose, bool keepBlanks = false)
     {
         try
         {
@@ -360,11 +360,20 @@ public class Functions
                         : new BIN(Console.OpenStandardInput());
                     bin.OutputFormat = outputFormat;
                     bin.SetOutput(outputStream);
-                    foreach (var packet in bin.Parse(magazine, rows))
+                    foreach (var packet in bin.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
                     {
                         foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
                         {
-                            bin.Output.Write(line.Data);
+                            if (keepBlanks && (line.Magazine != magazine || !rows.Contains(line.Row)))
+                            {
+                                // Write blank line with same format/length
+                                var blankData = new byte[line.Data.Length];
+                                bin.Output.Write(blankData);
+                            }
+                            else if (!keepBlanks || (line.Magazine == magazine && rows.Contains(line.Row)))
+                            {
+                                bin.Output.Write(line.Data);
+                            }
                         }
                     }
                     return 0;
@@ -377,9 +386,18 @@ public class Functions
                         vbi.OutputFormat = outputFormat;
                         vbi.LineCount = lineCount;
                         vbi.SetOutput(outputStream);
-                        foreach (var line in vbi.Parse(magazine, rows))
+                        foreach (var line in vbi.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
                         {
-                            vbi.Output.Write(line.Data);
+                            if (keepBlanks && (line.Magazine != magazine || !rows.Contains(line.Row)))
+                            {
+                                // Write blank line with same format/length
+                                var blankData = new byte[line.Data.Length];
+                                vbi.Output.Write(blankData);
+                            }
+                            else if (!keepBlanks || (line.Magazine == magazine && rows.Contains(line.Row)))
+                            {
+                                vbi.Output.Write(line.Data);
+                            }
                         }
                         return 0;
 
@@ -390,9 +408,18 @@ public class Functions
                         t42.OutputFormat = outputFormat;
                         t42.LineCount = lineCount;
                         t42.SetOutput(outputStream);
-                        foreach (var line in t42.Parse(magazine, rows))
+                        foreach (var line in t42.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
                         {
-                            t42.Output.Write(line.Data);
+                            if (keepBlanks && (line.Magazine != magazine || !rows.Contains(line.Row)))
+                            {
+                                // Write blank line with same format/length
+                                var blankData = new byte[line.Data.Length];
+                                t42.Output.Write(blankData);
+                            }
+                            else if (!keepBlanks || (line.Magazine == magazine && rows.Contains(line.Row)))
+                            {
+                                t42.Output.Write(line.Data);
+                            }
                         }
                         return 0;
 
@@ -409,11 +436,20 @@ public class Functions
                         };
                         mxf.OutputFormat = outputFormat;
                         mxf.SetOutput(outputStream);
-                        foreach (var packet in mxf.Parse(magazine, rows))
+                        foreach (var packet in mxf.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
                         {
                             foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
                             {
-                                mxf.Output.Write(line.Data);
+                                if (keepBlanks && (line.Magazine != magazine || !rows.Contains(line.Row)))
+                                {
+                                    // Write blank line with same format/length
+                                    var blankData = new byte[line.Data.Length];
+                                    mxf.Output.Write(blankData);
+                                }
+                                else if (!keepBlanks || (line.Magazine == magazine && rows.Contains(line.Row)))
+                                {
+                                    mxf.Output.Write(line.Data);
+                                }
                             }
                         }
                         return 0;
