@@ -1,0 +1,144 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+    
+    - name: Test
+      run: dotnet test --configuration Release --no-build --verbosity normal
+
+  publish-nuget:
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+    
+    - name: Pack NuGet package
+      run: dotnet pack lib/libopx.csproj --configuration Release --no-build --output ./nupkg
+    
+    - name: Publish to NuGet
+      run: dotnet nuget push ./nupkg/*.nupkg --skip-duplicate --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+      if: github.repository == 'nathanpbutler/libopx' && env.NUGET_API_KEY != ''
+      env:
+        NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+    
+    - name: Publish to GitHub Packages
+      run: dotnet nuget push ./nupkg/*.nupkg --skip-duplicate --source github
+      if: github.repository == 'nathanpbutler/libopx'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-binaries:
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            runtime: win-x64
+            extension: .exe
+          - os: windows-latest
+            runtime: win-arm64
+            extension: .exe
+          - os: ubuntu-latest
+            runtime: linux-x64
+            extension: ''
+          - os: ubuntu-latest
+            runtime: linux-arm64
+            extension: ''
+          - os: macos-latest
+            runtime: osx-x64
+            extension: ''
+          - os: macos-latest
+            runtime: osx-arm64
+            extension: ''
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+    
+    - name: Publish
+      run: dotnet publish apps/opx/opx.csproj -c Release -r ${{ matrix.runtime }} --self-contained -p:PublishSingleFile=true -p:PublishReadyToRun=true -o ./publish
+    
+    - name: Create archive
+      shell: bash
+      run: |
+        cd publish
+        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          7z a ../opx-${{ matrix.runtime }}.zip opx${{ matrix.extension }}
+        else
+          tar -czf ../opx-${{ matrix.runtime }}.tar.gz opx${{ matrix.extension }}
+        fi
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: opx-${{ matrix.runtime }}
+        path: |
+          opx-${{ matrix.runtime }}.*
+
+  create-release:
+    needs: [test, publish-nuget, build-binaries]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./artifacts
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          artifacts/opx-win-x64/opx-win-x64.zip
+          artifacts/opx-win-arm64/opx-win-arm64.zip
+          artifacts/opx-linux-x64/opx-linux-x64.tar.gz
+          artifacts/opx-linux-arm64/opx-linux-arm64.tar.gz
+          artifacts/opx-osx-x64/opx-osx-x64.tar.gz
+          artifacts/opx-osx-arm64/opx-osx-arm64.tar.gz
+        generate_release_notes: true
+        draft: false
+        prerelease: false
+        token: ${{ secrets.GITHUB_TOKEN }}

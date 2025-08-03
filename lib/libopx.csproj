@@ -6,6 +6,24 @@
     <Nullable>enable</Nullable>
     <RootNamespace>nathanbutlerDEV.libopx</RootNamespace>
     <Version>1.0.0</Version>
+    
+    <!-- Package Information -->
+    <PackageId>libopx</PackageId>
+    <Title>libopx - MXF and Teletext Processing Library</Title>
+    <Authors>Nathan Butler</Authors>
+    <Description>A .NET 9 C# library for parsing and extracting data from MXF (Material Exchange Format), BIN, VBI (Vertical Blanking Interval), and T42 (Teletext packet stream) files, with SMPTE timecode and Teletext caption support (OP-42 &amp; OP-47 in particular).</Description>
+    <PackageProjectUrl>https://github.com/nathanpbutler/libopx</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/nathanpbutler/libopx</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>mxf;teletext;vbi;smpte;timecode;caption;subtitles;broadcast</PackageTags>
+    <Copyright>Copyright (c) 2025 Nathan Butler</Copyright>
+    <PackageReleaseNotes>Initial release with MXF parsing, VBI/T42 conversion, and teletext filtering capabilities.</PackageReleaseNotes>
+    
+    <!-- Documentation -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml</DocumentationFile>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
@@ -15,6 +33,11 @@
 
   <ItemGroup>
     <Folder Include="Keys/" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../LICENSE" Pack="true" PackagePath="/" />
+    <None Include="../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
 </Project>
