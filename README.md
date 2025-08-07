@@ -2,9 +2,17 @@
 
 A .NET 9 C# library for parsing and extracting data from MXF (Material Exchange Format), BIN (MXF caption data stream), VBI (Vertical Blanking Interval), and T42 (Teletext packet stream) files, with SMPTE timecode and Teletext caption support (OP-42 & OP-47 in particular).
 
+## Key Features
+
+**ANSI Escaped Teletext**: Supports parsing and filtering of teletext data with ANSI escape sequences:
+
+<!-- assets/filtering.png -->
+![VHS Teletext Comparison](assets/filtering.png)
+
 ## Table of Contents
 
 - [libopx - an MXF and Teletext caption processing library](#libopx---an-mxf-and-teletext-caption-processing-library)
+  - [Key Features](#key-features)
   - [Table of Contents](#table-of-contents)
   - [Features](#features)
   - [Installation](#installation)

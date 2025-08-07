@@ -415,4 +415,6 @@ FodyWeavers.xsd
 *.msp
 
 .vscode/
+publish/
 .DS_Store
+*.tar.gz
