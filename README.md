@@ -165,6 +165,9 @@ opx filter -m 8 -c input.t42
 
 # Filter MXF data for magazine 8, rows 5-8 and 15
 opx filter -m 8 -r 5-8,15 input.mxf
+
+# Pipe a D10 MXF from FFmpeg to opx and filter teletext data
+ffmpeg -v error -i input.mxf -vf crop=720:2:0:28 -f rawvideo -pix_fmt gray - | opx filter -c -i -
 ```
 
 ### convert - Convert between MXF data and teletext formats

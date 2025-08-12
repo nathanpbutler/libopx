@@ -43,7 +43,6 @@ public class VBI : IDisposable
         });
 
         Input = InputFile.OpenRead();
-        Input.Seek(0, SeekOrigin.Begin); // Reset stream position to the beginning
     }
 
     /// <summary>
@@ -188,6 +187,9 @@ public class VBI : IDisposable
         }
     }
 
+    /// <summary>
+    /// Disposes the resources used by the VBI parser.
+    /// </summary>
     public void Dispose()
     {
         GC.SuppressFinalize(this);

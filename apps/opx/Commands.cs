@@ -61,11 +61,10 @@ public class Commands
     {
         var filterCommand = new Command("filter", "Filter teletext data by magazine and rows");
 
-        var inputOption = new Option<string?>("-i")
+        var inputOption = new Argument<string?>("input")
         {
-            Aliases = { "--input", "--input-file" },
             Description = "Input file path (reads from stdin if not specified)",
-            Required = false
+            Arity = ArgumentArity.ZeroOrOne
         };
 
         var magazineOption = new Option<int?>("-m")
@@ -150,7 +149,7 @@ public class Commands
             DefaultValueFactory = _ => false
         };
 
-        filterCommand.Options.Add(inputOption);
+        filterCommand.Arguments.Add(inputOption);
         filterCommand.Options.Add(inputFormatOption);
         filterCommand.Options.Add(magazineOption);
         filterCommand.Options.Add(rowsOption);
@@ -430,20 +429,18 @@ public class Commands
     {
         var convertCommand = new Command("convert", "Convert between different teletext data formats");
 
-        var inputOption = new Option<string?>("-i")
+        var inputOption = new Argument<string?>("input")
         {
-            Aliases = { "--input", "--input-file" },
             Description = "Input file path",
-            Required = false,
-            DefaultValueFactory = _ => "stdin"
+            DefaultValueFactory = _ => "stdin",
+            Arity = ArgumentArity.ZeroOrOne
         };
 
-        var outputOption = new Option<string?>("-o")
+        var outputOption = new Argument<string?>("output")
         {
-            Aliases = { "--output", "--output-file" },
             Description = "Output file path",
-            Required = false,
-            DefaultValueFactory = _ => "stdout"
+            DefaultValueFactory = _ => "stdout",
+            Arity = ArgumentArity.ZeroOrOne
         };
 
         var inputFormatOption = new Option<string?>("-if")
@@ -554,8 +551,8 @@ public class Commands
             DefaultValueFactory = _ => false
         };
 
-        convertCommand.Options.Add(inputOption);
-        convertCommand.Options.Add(outputOption);
+        convertCommand.Arguments.Add(inputOption);
+        convertCommand.Arguments.Add(outputOption);
         convertCommand.Options.Add(inputFormatOption);
         convertCommand.Options.Add(outputFormatOption);
         convertCommand.Options.Add(magazineOption);
