@@ -4,6 +4,17 @@ A .NET 9 C# library for parsing and extracting data from MXF (Material Exchange 
 
 ## Key Features
 
+**Format conversions**: Convert between HD and SD T42 and VBI formats or vice versa. You can even pipe that data to other applications like `ffmpeg` or `mpv`.
+
+Example:
+
+```powershell
+opx convert -of vbi "samples/NOVA-BOMB-XDCAM.mxf" | mpv --window-scale=2 --demuxer=rawvideo --demuxer-rawvideo-mp-format=gray --demuxer-rawvideo-w=720 --demuxer-rawvideo-h=2 --lavfi-complex="[vid1]pad=720:32:0:28,format=yuv422p[v1];movie='samples/NOVA-BOMB-XDCAM.mxf',scale=720:576:flags=lanczos[v2];[v1][v2]vstack,setsar=608:405,setdar=1.7777[vo];amovie='NOVA-BOMB-XDCAM.mxf'[ao]" -
+```
+
+<!-- assets/piping.png -->
+![Piping Example](assets/mpv-piping-example.jpg)
+
 **ANSI Escaped Teletext**: Supports parsing and filtering of teletext data with ANSI escape sequences:
 
 <!-- assets/filtering.png -->

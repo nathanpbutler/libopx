@@ -4,6 +4,9 @@ using nathanbutlerDEV.libopx.Formats;
 
 namespace nathanbutlerDEV.libopx;
 
+/// <summary>
+/// Contains general utility functions for processing teletext data.
+/// </summary>
 public class Functions
 {
     #region General Functions
@@ -75,7 +78,7 @@ public class Functions
                     }
                     return 0;
                 case Format.MXF:
-                // Only Filter if file exists, otherwise return 1
+                    // Only Filter if file exists, otherwise return 1
                     if (input is FileInfo inputMXF && inputMXF.Exists)
                     {
                         // Implement MXF processing logic
@@ -109,6 +112,11 @@ public class Functions
         }
     }
 
+    /// <summary>
+    /// Parses the input format string and returns the corresponding Format enum value.
+    /// </summary>
+    /// <param name="format"></param>
+    /// <returns></returns>
     public static Format ParseFormat(string format)
     {
         return format.TrimStart('.').ToLowerInvariant() switch
@@ -122,7 +130,7 @@ public class Functions
             _ => Format.VBI // Default to VBI if unknown format
         };
     }
-    
+
     /// <summary>
     /// Extracts essence from an MXF file based on specified parameters.
     /// </summary>
@@ -247,17 +255,16 @@ public class Functions
     /// <summary>
     /// Restripes an MXF file with a new start timecode.
     /// </summary>
-    /// <param name="inputFile">The input MXF file to restripe.</param>
+    /// <param name="inputFileInfo">The input MXF file to restripe.</param>
     /// <param name="timecodeString">The new start timecode in HH:MM:SS:FF format.</param>
-    /// <param name="fps">The frame rate (25 or 50).</param>
-    /// <param name="outputPath">The output file path. If null, defaults to input_restriped.mxf.</param>
     /// <param name="verbose">If true, enables verbose output during processing.</param>
+    /// <param name="printProgress">If true, prints progress information during processing.</param>
     /// <returns>An integer indicating the result of the restripe operation (0 for success, 1 for failure).</returns>
     public static int Restripe(FileInfo inputFileInfo, string timecodeString, bool verbose, bool printProgress = false)
     {
         try
         {
-            
+
             if (verbose)
             {
                 Console.WriteLine($"        Input file: {inputFileInfo.FullName}");
@@ -295,7 +302,7 @@ public class Functions
             return 1;
         }
     }
-    
+
     /// <summary>
     /// Convert function to transform input files between different teletext formats.
     /// </summary>
@@ -307,6 +314,7 @@ public class Functions
     /// <param name="rows">The rows to filter by.</param>
     /// <param name="lineCount">The number of lines per frame for timecode incrementation.</param>
     /// <param name="verbose">Whether to enable verbose output.</param>
+    /// <param name="keepBlanks">Whether to keep blank lines in the output.</param>
     /// <returns>An integer indicating the result of the conversion operation.</returns>
     /// <remarks>
     /// This function reads from the specified input file or stdin, converts the data from the input format
@@ -317,7 +325,7 @@ public class Functions
     /// <exception cref="ArgumentException">Thrown if an unsupported input or output format is specified.</exception>
     /// <exception cref="FileNotFoundException">Thrown if the specified input file does not exist.</exception>
     /// <exception cref="IOException">Thrown if there is an error reading the input file or writing the output file.</exception>
-    public static int Convert(FileInfo? input, Format inputFormat, Format outputFormat, string? output, int magazine, int[] rows, int lineCount, bool verbose, bool keepBlanks = false)
+    public static int Convert(FileInfo? input, Format inputFormat, Format outputFormat, FileInfo? output, int magazine, int[] rows, int lineCount, bool verbose, bool keepBlanks = false)
     {
         try
         {
@@ -336,8 +344,8 @@ public class Functions
                     Console.WriteLine("Reading from stdin");
                 Console.WriteLine($" Input format: {inputFormat}");
                 Console.WriteLine($"Output format: {outputFormat}");
-                if (!string.IsNullOrEmpty(output))
-                    Console.WriteLine($"  Output file: {Path.GetFileName(output)}");
+                if (output != null && output.Exists)
+                    Console.WriteLine($"  Output file: {output.FullName}");
                 else
                     Console.WriteLine("Writing to stdout");
                 Console.WriteLine($"     Magazine: {magazine}");
@@ -347,36 +355,36 @@ public class Functions
 
             // Set up output stream
             Stream outputStream = output != null
-                ? new FileStream(output, FileMode.Create, FileAccess.Write, FileShare.None)
+                ? new FileStream(output.FullName, FileMode.Create, FileAccess.Write, FileShare.None)
                 : Console.OpenStandardOutput();
-            
+
             try
             {
                 switch (inputFormat)
                 {
                     case Format.BIN:
-                    var bin = input is FileInfo inputBIN && inputBIN.Exists
-                        ? new BIN(inputBIN.FullName)
-                        : new BIN(Console.OpenStandardInput());
-                    bin.OutputFormat = outputFormat;
-                    bin.SetOutput(outputStream);
-                    foreach (var packet in bin.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
-                    {
-                        foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
+                        var bin = input is FileInfo inputBIN && inputBIN.Exists
+                            ? new BIN(inputBIN.FullName)
+                            : new BIN(Console.OpenStandardInput());
+                        bin.OutputFormat = outputFormat;
+                        bin.SetOutput(outputStream);
+                        foreach (var packet in bin.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
                         {
-                            if (keepBlanks && (line.Magazine != magazine || !rows.Contains(line.Row)))
+                            foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
                             {
-                                // Write blank line with same format/length
-                                var blankData = new byte[line.Data.Length];
-                                bin.Output.Write(blankData);
-                            }
-                            else if (!keepBlanks || (line.Magazine == magazine && rows.Contains(line.Row)))
-                            {
-                                bin.Output.Write(line.Data);
+                                if (keepBlanks && (line.Magazine != magazine || !rows.Contains(line.Row)))
+                                {
+                                    // Write blank line with same format/length
+                                    var blankData = new byte[line.Data.Length];
+                                    bin.Output.Write(blankData);
+                                }
+                                else if (!keepBlanks || (line.Magazine == magazine && rows.Contains(line.Row)))
+                                {
+                                    bin.Output.Write(line.Data);
+                                }
                             }
                         }
-                    }
-                    return 0;
+                        return 0;
 
                     case Format.VBI:
                     case Format.VBI_DOUBLE:
@@ -710,7 +718,7 @@ public class Functions
     #endregion
 
     #region BIN
-    
+
     /// <summary>
     /// Get the count of the bytes
     /// </summary>
@@ -721,6 +729,6 @@ public class Functions
         // Return the first byte shifted left by 8 bits OR the second byte
         return bytes[0] << 8 | bytes[1];
     }
-    
+
     #endregion
 }
