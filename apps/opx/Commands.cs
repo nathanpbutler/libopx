@@ -576,8 +576,21 @@ public class Commands
                 // If input file is specified, ensure it exists
                 inputFilePath = Path.GetFullPath(inputFilePath);
             }
+
+            string? outputFilePath = parseResult.GetValue(outputOption);
+            if (string.IsNullOrEmpty(outputFilePath) || outputFilePath.Equals("-", StringComparison.OrdinalIgnoreCase) || outputFilePath.Equals("stdout", StringComparison.OrdinalIgnoreCase))
+            {
+                // If no output file is specified, write to stdout
+                outputFilePath = null;
+            }
+            else
+            {
+                // If output file is specified, ensure it exists
+                outputFilePath = Path.GetFullPath(outputFilePath);
+            }
+
             FileInfo? inputFile = inputFilePath != null ? new FileInfo(inputFilePath) : null;
-            string? outputFile = parseResult.GetValue(outputOption);
+            FileInfo? outputFile = outputFilePath != null ? new FileInfo(outputFilePath) : null;
             string? inputFormatString = parseResult.GetValue(inputFormatOption);
             string? outputFormatString = parseResult.GetValue(outputFormatOption);
             int magazine = parseResult.GetValue(magazineOption) ?? Constants.DEFAULT_MAGAZINE;
@@ -627,13 +640,13 @@ public class Commands
 
             // Parse output format
             Format outputFormat;
-            if (!string.IsNullOrEmpty(outputFile))
-            {
-                outputFormat = Functions.ParseFormat(Path.GetExtension(outputFile).ToLowerInvariant());
-            }
-            else if (!string.IsNullOrEmpty(outputFormatString))
+            if (!string.IsNullOrEmpty(outputFormatString))
             {
                 outputFormat = Functions.ParseFormat(outputFormatString);
+            }
+            else if (outputFile != null && outputFile.Exists)
+            {
+                outputFormat = Functions.ParseFormat(Path.GetExtension(outputFile.Name).ToLowerInvariant());
             }
             else
             {
