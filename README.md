@@ -9,7 +9,7 @@ A .NET 9 C# library for parsing and extracting data from MXF (Material Exchange 
 Example:
 
 ```powershell
-opx convert -of vbi "samples/NOVA-BOMB-XDCAM.mxf" | mpv --window-scale=2 --demuxer=rawvideo --demuxer-rawvideo-mp-format=gray --demuxer-rawvideo-w=720 --demuxer-rawvideo-h=2 --lavfi-complex="[vid1]pad=720:32:0:28,format=yuv422p[v1];movie='samples/NOVA-BOMB-XDCAM.mxf',scale=720:576:flags=lanczos[v2];[v1][v2]vstack,setsar=608:405,setdar=1.7777[vo];amovie='NOVA-BOMB-XDCAM.mxf'[ao]" -
+opx convert -of vbi "NOVA-BOMB-XDCAM.mxf" | mpv --window-scale=2 --demuxer=rawvideo --demuxer-rawvideo-mp-format=gray --demuxer-rawvideo-w=720 --demuxer-rawvideo-h=2 --lavfi-complex="[vid1]pad=720:32:0:28,format=yuv422p[v1];movie='NOVA-BOMB-XDCAM.mxf',scale=720:576:flags=lanczos[v2];[v1][v2]vstack,setsar=608:405,setdar=1.7777[vo];amovie='NOVA-BOMB-XDCAM.mxf'[ao]" -
 ```
 
 <!-- assets/piping.png -->
@@ -77,13 +77,16 @@ dotnet test
 
 ```bash
 # Filter teletext data by magazine and rows
-dotnet run --project apps/opx -- filter -m 8 -r 20 -r 22 <input>
+opx filter -m 8 -r 20 -r 22 <input>
 
-# Extract streams from MXF files
-dotnet run --project apps/opx -- extract -k d,v input.mxf
+# Convert from one format to another
+opx convert <input> <output>
+
+# Extract specific streams from MXF files
+opx extract -k d,v input.mxf
 
 # Restripe MXF with new timecode
-dotnet run --project apps/opx -- restripe -t 10:00:00:00 input.mxf
+opx restripe -t 10:00:00:00 input.mxf
 ```
 
 ### Using the Library
