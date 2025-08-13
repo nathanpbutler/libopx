@@ -2,13 +2,35 @@ using System;
 
 namespace nathanbutlerDEV.libopx;
 
+/// <summary>
+/// Represents a SMPTE timecode component parsed from MXF metadata.
+/// Contains timecode initialization parameters and frame rate information.
+/// </summary>
 public class TimecodeComponent
 {
+    /// <summary>
+    /// Gets or sets the unique instance identifier for this timecode component.
+    /// </summary>
     public byte[] InstanceID { get; set; } = new byte[16];
+    /// <summary>
+    /// Gets or sets the data definition identifier that describes the component format.
+    /// </summary>
     public byte[] ComponentDataDefinition { get; set; } = new byte[16];
+    /// <summary>
+    /// Gets or sets the length of the component in frames.
+    /// </summary>
     public int ComponentLength { get; set; }
+    /// <summary>
+    /// Gets or sets the starting timecode value as a frame number.
+    /// </summary>
     public int StartTimecode { get; set; }
+    /// <summary>
+    /// Gets the rounded timecode timebase (frames per second).
+    /// </summary>
     public int RoundedTimecodeTimebase { get; private set; }
+    /// <summary>
+    /// Gets a value indicating whether drop frame mode is enabled.
+    /// </summary>
     public bool DropFrame { get; private set; }
 
     /// <summary>

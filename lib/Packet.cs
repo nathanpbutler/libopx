@@ -5,6 +5,10 @@ using nathanbutlerDEV.libopx.Enums;
 
 namespace nathanbutlerDEV.libopx;
 
+/// <summary>
+/// Represents a data packet containing multiple lines with header information and timecode data.
+/// Used for parsing structured teletext and VBI data from various formats.
+/// </summary>
 public class Packet : IDisposable
 {
     /// <summary>
@@ -15,13 +19,33 @@ public class Packet : IDisposable
     /// The timecode of the packet
     /// </summary>
     public Timecode Timecode { get; set; } = new Timecode(0);
+    /// <summary>
+    /// Gets the number of lines in this packet, derived from the first two header bytes.
+    /// </summary>
     public int LineCount => Header[0] << 8 | Header[1];
-    public int Magazine { get; set; } = Constants.DEFAULT_MAGAZINE; // Default magazine for T42
-    public int[] Row { get; set; } = Constants.DEFAULT_ROWS; // Default rows for T42
-    public List<Line> Lines { get; set; } = []; // 0 or more lines
+    /// <summary>
+    /// Gets or sets the teletext magazine number for this packet. Default is 8.
+    /// </summary>
+    public int Magazine { get; set; } = Constants.DEFAULT_MAGAZINE;
+    /// <summary>
+    /// Gets or sets the array of teletext row numbers for filtering. Default includes all rows.
+    /// </summary>
+    public int[] Row { get; set; } = Constants.DEFAULT_ROWS;
+    /// <summary>
+    /// Gets or sets the collection of lines contained within this packet.
+    /// </summary>
+    public List<Line> Lines { get; set; } = [];
 
-    public Packet() {} // Default constructor
+    /// <summary>
+    /// Initializes a new instance of the Packet class with default values.
+    /// </summary>
+    public Packet() {}
 
+    /// <summary>
+    /// Initializes a new instance of the Packet class with the specified header data.
+    /// </summary>
+    /// <param name="header">The 2-byte header containing packet information</param>
+    /// <exception cref="ArgumentException">Thrown when header is not exactly 2 bytes long</exception>
     public Packet(byte[] header)
     {
         if (header.Length != Constants.PACKET_HEADER_SIZE)
@@ -32,6 +56,9 @@ public class Packet : IDisposable
         Lines = new List<Line>(LineCount);
     }
 
+    /// <summary>
+    /// Releases all resources used by the packet and disposes of all contained lines.
+    /// </summary>
     public void Dispose()
     {
         GC.SuppressFinalize(this);
@@ -43,6 +70,11 @@ public class Packet : IDisposable
         Lines.Clear();
     }
 
+    /// <summary>
+    /// Parses raw data bytes into a collection of line objects.
+    /// </summary>
+    /// <param name="data">The raw data bytes to parse into lines</param>
+    /// <returns>A list of parsed line objects</returns>
     public static List<Line> ParseLines(byte[] data)
     {
         var lines = new List<Line>();
@@ -113,13 +145,21 @@ public class Packet : IDisposable
         return lines;
     }
 
-    // ToString override (prints out the parsed data if text is not null or empty)
+    /// <summary>
+    /// Returns a string representation of the packet using default magazine and row filters.
+    /// </summary>
+    /// <returns>A formatted string containing packet information</returns>
     public override string ToString()
     {
         return ToString(Magazine, Row);
     }
 
-    // ToString but with magazine and row filters
+    /// <summary>
+    /// Returns a string representation of the packet filtered by the specified magazine and rows.
+    /// </summary>
+    /// <param name="magazine">The magazine number to filter by</param>
+    /// <param name="row">The array of row numbers to include in the output</param>
+    /// <returns>A formatted string containing filtered packet information</returns>
     public string ToString(int magazine, int[] row)
     {
         var sb = new StringBuilder();

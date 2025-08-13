@@ -60,11 +60,26 @@ public class Line : IDisposable
     /// The Data is stored after the header.
     /// </summary>
     public byte[] Data { get; set; } = [];
-    public Timecode? LineTimecode { get; set; } // Optional timecode for Filtering lines
-    public int LineNumber { get; set; } // Optional line number/timecode for Filtering lines
+    /// <summary>
+    /// Gets or sets the optional timecode associated with this line for filtering operations.
+    /// </summary>
+    public Timecode? LineTimecode { get; set; }
+    /// <summary>
+    /// Gets or sets the optional line number for filtering and sequencing operations.
+    /// </summary>
+    public int LineNumber { get; set; }
+    /// <summary>
+    /// Gets or sets the teletext magazine number. Default is -1 for non-teletext data.
+    /// </summary>
     public int Magazine { get; set; } = -1;
+    /// <summary>
+    /// Gets or sets the teletext row number. Default is -1 for non-teletext data.
+    /// </summary>
     public int Row { get; set; } = -1;
-    public string Text { get; set; } = Constants.T42_BLANK_LINE; // Default text for T42 lines
+    /// <summary>
+    /// Gets or sets the decoded teletext content as formatted text with ANSI colors.
+    /// </summary>
+    public string Text { get; set; } = Constants.T42_BLANK_LINE;
 
     // Cache the type calculation to avoid repeated computation
     private Format? _cachedType;
@@ -247,6 +262,11 @@ public class Line : IDisposable
         ParseLine(data, outputFormat);
     }
 
+    /// <summary>
+    /// Parses line data from a byte array and converts it to the specified output format.
+    /// </summary>
+    /// <param name="data">The raw line data bytes to parse</param>
+    /// <param name="outputFormat">The desired output format for conversion</param>
     public void ParseLine(byte[] data, Format outputFormat = Format.Unknown)
     {
         // Determine the input format first
@@ -404,7 +424,10 @@ public class Line : IDisposable
         }
     }
 
-    // ToString override
+    /// <summary>
+    /// Returns a string representation of the line including timecode, magazine, row, and text content.
+    /// </summary>
+    /// <returns>A formatted string containing line information</returns>
     public override string ToString()
     {
         var sb = new StringBuilder();

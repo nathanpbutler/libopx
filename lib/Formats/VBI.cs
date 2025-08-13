@@ -5,19 +5,53 @@ using nathanbutlerDEV.libopx.Enums;
 
 namespace nathanbutlerDEV.libopx.Formats;
 
+/// <summary>
+/// Parser for VBI (Vertical Blanking Interval) format files with support for conversion to T42 teletext format.
+/// Handles both single and double-line VBI data with automatic format detection and filtering capabilities.
+/// </summary>
 public class VBI : IDisposable
 {
-    public FileInfo? InputFile { get; set; } = null; // If null, read from stdin
-    public FileInfo? OutputFile { get; set; } = null; // If null, write to stdout
+    /// <summary>
+    /// Gets or sets the input file. If null, reads from stdin.
+    /// </summary>
+    public FileInfo? InputFile { get; set; } = null;
+    /// <summary>
+    /// Gets or sets the output file. If null, writes to stdout.
+    /// </summary>
+    public FileInfo? OutputFile { get; set; } = null;
     private Stream? _outputStream;
+    /// <summary>
+    /// Gets or sets the input stream for reading VBI data.
+    /// </summary>
     public required Stream Input { get; set; }
+    /// <summary>
+    /// Gets the output stream for writing processed data.
+    /// </summary>
     public Stream Output => _outputStream ??= OutputFile == null ? Console.OpenStandardOutput() : OutputFile.Open(FileMode.Create, FileAccess.Write, FileShare.Read);
-    public Format InputFormat { get; set; } = Format.VBI; // Default input format is VBI
-    public Format? OutputFormat { get; set; } = Format.T42; // Default output format is T42
-    public int LineLength => InputFormat == Format.VBI_DOUBLE ? Constants.VBI_DOUBLE_LINE_SIZE : Constants.VBI_LINE_SIZE; // Length of the line based on input format
+    /// <summary>
+    /// Gets or sets the input format. Default is VBI.
+    /// </summary>
+    public Format InputFormat { get; set; } = Format.VBI;
+    /// <summary>
+    /// Gets or sets the output format for processed data. Default is T42.
+    /// </summary>
+    public Format? OutputFormat { get; set; } = Format.T42;
+    /// <summary>
+    /// Gets the length of the VBI line based on the input format (single or double).
+    /// </summary>
+    public int LineLength => InputFormat == Format.VBI_DOUBLE ? Constants.VBI_DOUBLE_LINE_SIZE : Constants.VBI_LINE_SIZE;
+    /// <summary>
+    /// Gets the array of valid output formats supported by the VBI parser.
+    /// </summary>
     public static readonly Format[] ValidOutputs = [Format.VBI, Format.VBI_DOUBLE, Format.T42];
-    public Function Function { get; set; } = Function.Filter; // Default function is Filter
-    public int LineCount { get; set; } = 2; // For Timecode incementation, default is 2 lines
+    /// <summary>
+    /// Gets or sets the function mode for processing. Default is Filter.
+    /// </summary>
+    public Function Function { get; set; } = Function.Filter;
+    /// <summary>
+    /// Gets or sets the number of lines per frame for timecode incrementation. Default is 2.
+    /// </summary>
+    public int LineCount { get; set; } = 2;
 
     /// <summary>
     /// Constructor for VBI format from file
@@ -87,6 +121,12 @@ public class VBI : IDisposable
         _outputStream = outputStream ?? throw new ArgumentNullException(nameof(outputStream), "Output stream cannot be null.");
     }
 
+    /// <summary>
+    /// Parses the VBI file and returns an enumerable of lines with optional filtering.
+    /// </summary>
+    /// <param name="magazine">Optional magazine number filter for teletext data (default: 8)</param>
+    /// <param name="rows">Optional array of row numbers to filter (default: all rows)</param>
+    /// <returns>An enumerable of parsed lines matching the filter criteria</returns>
     public IEnumerable<Line> Parse(int? magazine = 8, int[]? rows = null)
     {
         // Use default rows if not specified
@@ -204,7 +244,13 @@ public class VBI : IDisposable
         }
     }
 
-    // ToT42 method
+    /// <summary>
+    /// Converts VBI line data to T42 teletext format using signal processing and bit extraction.
+    /// </summary>
+    /// <param name="lineData">The VBI line data to convert (720 or 1440 bytes)</param>
+    /// <param name="debug">Whether to enable debug output during conversion</param>
+    /// <returns>A 42-byte T42 teletext line, or empty array if conversion fails</returns>
+    /// <exception cref="ArgumentException">Thrown when line data is not the correct size</exception>
     public static byte[] ToT42(byte[] lineData, bool debug = false)
     {
         if (lineData.Length != Constants.VBI_LINE_SIZE && lineData.Length != Constants.VBI_DOUBLE_LINE_SIZE)

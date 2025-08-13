@@ -1,4 +1,9 @@
 namespace nathanbutlerDEV.libopx.SMPTE;
+
+/// <summary>
+/// Contains SMPTE metadata element definitions and constants for MXF processing.
+/// This class provides element identifiers, types, and structure definitions used in SMPTE standards.
+/// </summary>
 public class Elements
 {
     /// <summary>

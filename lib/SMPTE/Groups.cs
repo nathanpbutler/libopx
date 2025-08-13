@@ -1,4 +1,9 @@
 namespace nathanbutlerDEV.libopx.SMPTE;
+
+/// <summary>
+/// Contains SMPTE group definitions and descriptors for MXF metadata organization.
+/// This class provides group identifiers and structures used for organizing SMPTE metadata sets.
+/// </summary>
 public class Groups
 {
     /// <summary>

@@ -4,29 +4,84 @@ using nathanbutlerDEV.libopx.SMPTE;
 
 namespace nathanbutlerDEV.libopx.Formats;
 
+/// <summary>
+/// Parser for MXF (Material Exchange Format) files with support for stream extraction, filtering, and timecode restriping.
+/// Handles KLV (Key-Length-Value) packets and SMPTE timecode processing.
+/// </summary>
 public class MXF : IDisposable
 {
     // Reusable buffers to reduce allocations
     private readonly byte[] _keyBuffer = new byte[Constants.KLV_KEY_SIZE];
     private readonly byte[] _smpteBuffer = new byte[Constants.SMPTE_TIMECODE_SIZE];
+    /// <summary>
+    /// Gets or sets the input MXF file to be processed.
+    /// </summary>
     public required FileInfo InputFile { get; set; }
-    public FileInfo? OutputFile { get; set; } = null; // If null, write to stdout
+    /// <summary>
+    /// Gets or sets the output file. If null, writes to stdout.
+    /// </summary>
+    public FileInfo? OutputFile { get; set; } = null;
     private Stream? _outputStream;
+    /// <summary>
+    /// Gets or sets the input stream for reading MXF data.
+    /// </summary>
     public required Stream Input { get; set; }
+    /// <summary>
+    /// Gets the output stream for writing processed data.
+    /// </summary>
     public Stream Output => _outputStream ??= OutputFile == null ? Console.OpenStandardOutput() : OutputFile.Open(FileMode.Create, FileAccess.Write, FileShare.Read);
-    public Timecode StartTimecode { get; set; } = new Timecode(0); // Start timecode of the MXF file
-    public List<Timecode> SMPTETimecodes { get; set; } = []; // List of SMPTE timecodes per-frame in the MXF file
-    public List<Packet> Packets { get; set; } = []; // List of packets parsed from the MXF data stream
-    public List<KeyType> RequiredKeys { get; set; } = []; // List of required keys for parsing
-    public bool CheckSequential { get; set; } = true; // Check if SMPTE timecodes are sequential
-    public Format? OutputFormat { get; set; } = Format.T42; // Default output format
-    public Function Function { get; set; } = Function.Filter; // Default function is Filter (outputting to console)
-    public bool DemuxMode { get; set; } = false; // Extract all keys found, output as separate files
-    public bool UseKeyNames { get; set; } = false; // Use Key/Essence names instead of hex keys (use with DemuxMode)
-    public bool KlvMode { get; set; } = false; // Include key and length bytes in output files
-    public string? OutputBasePath { get; set; } // Base path for extracted files
-    public bool Verbose { get; set; } = false; // Verbose output for debugging
-    public bool PrintProgress { get; set; } = false; // Print progress during parsing
+    /// <summary>
+    /// Gets or sets the start timecode extracted from the MXF file.
+    /// </summary>
+    public Timecode StartTimecode { get; set; } = new Timecode(0);
+    /// <summary>
+    /// Gets or sets the list of SMPTE timecodes per-frame in the MXF file.
+    /// </summary>
+    public List<Timecode> SMPTETimecodes { get; set; } = [];
+    /// <summary>
+    /// Gets or sets the list of packets parsed from the MXF data stream.
+    /// </summary>
+    public List<Packet> Packets { get; set; } = [];
+    /// <summary>
+    /// Gets or sets the list of required key types for filtering during parsing.
+    /// </summary>
+    public List<KeyType> RequiredKeys { get; set; } = [];
+    /// <summary>
+    /// Gets or sets whether to validate that SMPTE timecodes are sequential.
+    /// </summary>
+    public bool CheckSequential { get; set; } = true;
+    /// <summary>
+    /// Gets or sets the output format for processed data. Default is T42.
+    /// </summary>
+    public Format? OutputFormat { get; set; } = Format.T42;
+    /// <summary>
+    /// Gets or sets the function mode for processing. Default is Filter.
+    /// </summary>
+    public Function Function { get; set; } = Function.Filter;
+    /// <summary>
+    /// Gets or sets whether to extract all keys found as separate output files.
+    /// </summary>
+    public bool DemuxMode { get; set; } = false;
+    /// <summary>
+    /// Gets or sets whether to use Key/Essence names instead of hex keys for output filenames.
+    /// </summary>
+    public bool UseKeyNames { get; set; } = false;
+    /// <summary>
+    /// Gets or sets whether to include key and length bytes in output files.
+    /// </summary>
+    public bool KlvMode { get; set; } = false;
+    /// <summary>
+    /// Gets or sets the base path for extracted files.
+    /// </summary>
+    public string? OutputBasePath { get; set; }
+    /// <summary>
+    /// Gets or sets whether to enable verbose output for debugging.
+    /// </summary>
+    public bool Verbose { get; set; } = false;
+    /// <summary>
+    /// Gets or sets whether to print progress updates during parsing.
+    /// </summary>
+    public bool PrintProgress { get; set; } = false;
     private readonly Dictionary<KeyType, string> _keyTypeToExtension = new()
     {
         { KeyType.Data, "_d.raw" },
@@ -45,6 +100,13 @@ public class MXF : IDisposable
     private readonly List<byte> _berLengthBuffer = [];
     private readonly HashSet<string> _foundKeys = [];
 
+    /// <summary>
+    /// Initializes a new instance of the MXF parser with the specified input file path.
+    /// </summary>
+    /// <param name="inputFile">Path to the MXF file to be processed</param>
+    /// <exception cref="FileNotFoundException">Thrown when the specified file does not exist</exception>
+    /// <exception cref="InvalidDataException">Thrown when the file is not a valid MXF file</exception>
+    /// <exception cref="InvalidOperationException">Thrown when unable to retrieve start timecode</exception>
     [SetsRequiredMembers]
     public MXF(string inputFile)
     {
@@ -71,7 +133,13 @@ public class MXF : IDisposable
     }
 
 
-    // Constructor that accepts a FileInfo object for the input file that is read and written to
+    /// <summary>
+    /// Initializes a new instance of the MXF parser with the specified FileInfo object for read/write operations.
+    /// </summary>
+    /// <param name="inputFileInfo">FileInfo object representing the MXF file to be processed</param>
+    /// <exception cref="FileNotFoundException">Thrown when the specified file does not exist</exception>
+    /// <exception cref="InvalidDataException">Thrown when the file is not a valid MXF file</exception>
+    /// <exception cref="InvalidOperationException">Thrown when unable to retrieve start timecode</exception>
     [SetsRequiredMembers]
     public MXF(FileInfo inputFileInfo)
     {
@@ -97,6 +165,9 @@ public class MXF : IDisposable
         Input.Seek(0, SeekOrigin.Begin); // Reset stream position to the beginning
     }
 
+    /// <summary>
+    /// Releases all resources used by the MXF parser including streams and file handles.
+    /// </summary>
     public void Dispose()
     {
         GC.SuppressFinalize(this);
@@ -143,6 +214,10 @@ public class MXF : IDisposable
         return bytesRead == header.Length && header.SequenceEqual(Keys.FourCc);
     }
 
+    /// <summary>
+    /// Adds a key type to the list of required keys for filtering during parsing.
+    /// </summary>
+    /// <param name="keyType">The key type to add to the required keys list</param>
     public void AddRequiredKey(KeyType keyType)
     {
         if (!RequiredKeys.Contains(keyType))
@@ -151,6 +226,11 @@ public class MXF : IDisposable
         }
     }
 
+    /// <summary>
+    /// Adds a key type to the list of required keys using a string representation.
+    /// </summary>
+    /// <param name="keyType">String representation of the key type to add</param>
+    /// <exception cref="ArgumentException">Thrown when the key type string is invalid</exception>
     public void AddRequiredKey(string keyType)
     {
         if (Enum.TryParse<KeyType>(keyType, true, out var parsedKeyType))
@@ -163,16 +243,28 @@ public class MXF : IDisposable
         }
     }
 
+    /// <summary>
+    /// Clears all required keys from the filtering list.
+    /// </summary>
     public void ClearRequiredKeys()
     {
         RequiredKeys.Clear();
     }
 
+    /// <summary>
+    /// Removes a specific key type from the required keys list.
+    /// </summary>
+    /// <param name="keyType">The key type to remove from the required keys list</param>
     public void RemoveRequiredKey(KeyType keyType)
     {
         RequiredKeys.Remove(keyType);
     }
 
+    /// <summary>
+    /// Removes a key type from the required keys list using a string representation.
+    /// </summary>
+    /// <param name="keyType">String representation of the key type to remove</param>
+    /// <exception cref="ArgumentException">Thrown when the key type string is invalid</exception>
     public void RemoveRequiredKey(string keyType)
     {
         if (Enum.TryParse<KeyType>(keyType, true, out var parsedKeyType))
@@ -225,7 +317,14 @@ public class MXF : IDisposable
         return false;
     }
 
-    // General Parse method which parses all types of streams in the MXF file
+    /// <summary>
+    /// Parses the MXF file and returns an enumerable of packets with optional filtering.
+    /// Supports multiple operation modes including filtering, extraction, and restriping.
+    /// </summary>
+    /// <param name="magazine">Optional magazine number filter for teletext data (default: 8)</param>
+    /// <param name="rows">Optional array of row numbers to filter (default: all rows)</param>
+    /// <param name="startTimecode">Optional starting timecode override as string (HH:MM:SS:FF format)</param>
+    /// <returns>An enumerable of parsed packets matching the filter criteria</returns>
     public IEnumerable<Packet> Parse(int? magazine = 8, int[]? rows = null, string? startTimecode = null)
     {
         Input.Seek(0, SeekOrigin.Begin);
@@ -476,6 +575,10 @@ public class MXF : IDisposable
         return packet;
     }
 
+    /// <summary>
+    /// Parses and extracts all SMPTE timecodes from the MXF file's System metadata packets.
+    /// </summary>
+    /// <returns>True if timecodes were successfully parsed, false otherwise</returns>
     public bool ParseSMPTETimecodes()
     {
         Input.Seek(0, SeekOrigin.Begin);
