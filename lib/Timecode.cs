@@ -2,6 +2,10 @@ using System;
 
 namespace nathanbutlerDEV.libopx;
 
+/// <summary>
+/// Represents SMPTE timecode with support for various frame rates, drop frame mode, and frame calculations.
+/// Provides arithmetic operations and conversion between different timecode representations.
+/// </summary>
 public class Timecode
 {
     /// <summary>
@@ -56,6 +60,9 @@ public class Timecode
         _ => 2160000
     };
 
+    /// <summary>
+    /// Gets the total frame number since the start of the day, accounting for drop frame calculations.
+    /// </summary>
     public long FrameNumber
     {
         get
@@ -118,16 +125,20 @@ public class Timecode
         }
     }
 
+    /// <summary>
+    /// Initializes a new instance of the Timecode class with default values (00:00:00:00 at 25fps).
+    /// </summary>
     public Timecode() {}
 
     /// <summary>
-    /// Constructor for the Timecode class
+    /// Initializes a new instance of the Timecode class with the specified time components.
     /// </summary>
-    /// <param name="hours">The hours component of the timecode</param>
-    /// <param name="minutes">The minutes component of the timecode</param>
-    /// <param name="seconds">The seconds component of the timecode</param>
-    /// <param name="frames">The frames component of the timecode</param>
-    /// <param name="field">The field component of the timecode</param>
+    /// <param name="hours">The hours component of the timecode (0-23)</param>
+    /// <param name="minutes">The minutes component of the timecode (0-59)</param>
+    /// <param name="seconds">The seconds component of the timecode (0-59)</param>
+    /// <param name="frames">The frames component of the timecode (0 to timebase-1)</param>
+    /// <param name="timebase">The frame rate timebase (24, 25, 30, 48, 50, or 60)</param>
+    /// <param name="dropFrame">Whether to use drop frame mode (only valid for 30 and 60 fps)</param>
     public Timecode(int hours, int minutes, int seconds, int frames, int timebase = 25, bool dropFrame = false)
     {
         if (hours < 0 || hours >= 24) throw new ArgumentException("Hours must be between 0 and 23");
@@ -146,11 +157,12 @@ public class Timecode
     }
 
     /// <summary>
-    /// Constructor for the Timecode class
+    /// Initializes a new instance of the Timecode class from a string representation.
     /// </summary>
-    /// <param name="timecode">The timecode as a string</param>
-    /// <param name="timebase">The timebase of the timecode</param>
-    /// <param name="dropFrame">Whether the timecode is a drop frame timecode</param>
+    /// <param name="timecode">The timecode as a string in HH:MM:SS:FF or HH:MM:SS;FF format</param>
+    /// <param name="timebase">The frame rate timebase (24, 25, 30, 48, 50, or 60)</param>
+    /// <param name="dropFrame">Whether to use drop frame mode (only valid for 30 and 60 fps)</param>
+    /// <param name="field">The field component (unused, kept for backward compatibility)</param>
     public Timecode(string timecode, int timebase = 25, bool dropFrame = false, int field = 0)
     {
         string[] parts;
@@ -175,12 +187,11 @@ public class Timecode
     }
 
     /// <summary>
-    /// Constructor for the Timecode class
+    /// Initializes a new instance of the Timecode class from a total frame count.
     /// </summary>
-    /// <param name="totalFrames">The total number of frames in the timecode</param>
-    /// <param name="timebase">The timebase of the timecode</param>
-    /// <param name="dropFrame">Whether the timecode is a drop frame timecode</param>
-    /// <param name="field">The field component of the timecode</param>
+    /// <param name="totalFrames">The total number of frames since start of day</param>
+    /// <param name="timebase">The frame rate timebase (24, 25, 30, 48, 50, or 60)</param>
+    /// <param name="dropFrame">Whether to use drop frame mode (only valid for 30 and 60 fps)</param>
     /// <exception cref="ArgumentException">Thrown when the timebase is not 30 or 60 and dropFrame is true</exception>
     /// <exception cref="ArgumentException">Thrown when the frames are not between 0 and the timebase</exception>
     /// <exception cref="ArgumentException">Thrown when the total frames are not between 0 and the maximum number of frames</exception>
@@ -486,7 +497,11 @@ public class Timecode
         return $"{Hours:D2}:{Minutes:D2}:{Seconds:D2}:{Frames:D2}{field}";
     }
 
-    // ++ Operator
+    /// <summary>
+    /// Increments the timecode by one frame.
+    /// </summary>
+    /// <param name="timecode">The timecode to increment</param>
+    /// <returns>The incremented timecode</returns>
     public static Timecode operator ++(Timecode timecode)
     {
         ArgumentNullException.ThrowIfNull(timecode);
@@ -499,7 +514,11 @@ public class Timecode
         return timecode;
     }
 
-    // -- Operator
+    /// <summary>
+    /// Decrements the timecode by one frame.
+    /// </summary>
+    /// <param name="timecode">The timecode to decrement</param>
+    /// <returns>The decremented timecode</returns>
     public static Timecode operator --(Timecode timecode)
     {
         ArgumentNullException.ThrowIfNull(timecode);
@@ -512,7 +531,12 @@ public class Timecode
         return timecode;
     }
 
-    // + Operator
+    /// <summary>
+    /// Adds the specified number of frames to the timecode.
+    /// </summary>
+    /// <param name="timecode">The source timecode</param>
+    /// <param name="frames">The number of frames to add</param>
+    /// <returns>A new timecode with the added frames</returns>
     public static Timecode operator +(Timecode timecode, int frames)
     {
         ArgumentNullException.ThrowIfNull(timecode);
@@ -524,7 +548,12 @@ public class Timecode
         return result;
     }
 
-    // - Operator
+    /// <summary>
+    /// Subtracts the specified number of frames from the timecode.
+    /// </summary>
+    /// <param name="timecode">The source timecode</param>
+    /// <param name="frames">The number of frames to subtract</param>
+    /// <returns>A new timecode with the subtracted frames</returns>
     public static Timecode operator -(Timecode timecode, int frames)
     {
         ArgumentNullException.ThrowIfNull(timecode);
@@ -536,7 +565,13 @@ public class Timecode
         return result;
     }
 
-    // + Operator for two timecodes
+    /// <summary>
+    /// Adds two timecodes together.
+    /// </summary>
+    /// <param name="left">The first timecode</param>
+    /// <param name="right">The second timecode</param>
+    /// <returns>A new timecode representing the sum</returns>
+    /// <exception cref="ArgumentException">Thrown when timecodes have different timebases or drop frame settings</exception>
     public static Timecode operator +(Timecode left, Timecode right)
     {
         ArgumentNullException.ThrowIfNull(left);
@@ -552,7 +587,13 @@ public class Timecode
         return result;
     }
 
-    // - Operator for two timecodes
+    /// <summary>
+    /// Subtracts the second timecode from the first.
+    /// </summary>
+    /// <param name="left">The first timecode</param>
+    /// <param name="right">The second timecode</param>
+    /// <returns>A new timecode representing the difference</returns>
+    /// <exception cref="ArgumentException">Thrown when timecodes have different timebases or drop frame settings</exception>
     public static Timecode operator -(Timecode left, Timecode right)
     {
         ArgumentNullException.ThrowIfNull(left);
@@ -568,7 +609,12 @@ public class Timecode
         return result;
     }
 
-    // Equality operators
+    /// <summary>
+    /// Determines whether two timecodes are equal.
+    /// </summary>
+    /// <param name="left">The first timecode to compare</param>
+    /// <param name="right">The second timecode to compare</param>
+    /// <returns>True if the timecodes are equal; otherwise, false</returns>
     public static bool operator ==(Timecode? left, Timecode? right)
     {
         if (ReferenceEquals(left, right)) return true;
@@ -576,12 +622,24 @@ public class Timecode
         return left.FrameNumber == right.FrameNumber && left.Timebase == right.Timebase && left.DropFrame == right.DropFrame;
     }
 
+    /// <summary>
+    /// Determines whether two timecodes are not equal.
+    /// </summary>
+    /// <param name="left">The first timecode to compare</param>
+    /// <param name="right">The second timecode to compare</param>
+    /// <returns>True if the timecodes are not equal; otherwise, false</returns>
     public static bool operator !=(Timecode? left, Timecode? right)
     {
         return !(left == right);
     }
 
-    // Comparison operators
+    /// <summary>
+    /// Determines whether the first timecode is less than the second.
+    /// </summary>
+    /// <param name="left">The first timecode to compare</param>
+    /// <param name="right">The second timecode to compare</param>
+    /// <returns>True if the first timecode is less than the second; otherwise, false</returns>
+    /// <exception cref="ArgumentException">Thrown when timecodes have different timebases or drop frame settings</exception>
     public static bool operator <(Timecode? left, Timecode? right)
     {
         if (left is null || right is null)
@@ -591,6 +649,13 @@ public class Timecode
         return left.FrameNumber < right.FrameNumber;
     }
 
+    /// <summary>
+    /// Determines whether the first timecode is greater than the second.
+    /// </summary>
+    /// <param name="left">The first timecode to compare</param>
+    /// <param name="right">The second timecode to compare</param>
+    /// <returns>True if the first timecode is greater than the second; otherwise, false</returns>
+    /// <exception cref="ArgumentException">Thrown when timecodes have different timebases or drop frame settings</exception>
     public static bool operator >(Timecode? left, Timecode? right)
     {
         if (left is null || right is null)
@@ -600,22 +665,42 @@ public class Timecode
         return left.FrameNumber > right.FrameNumber;
     }
 
+    /// <summary>
+    /// Determines whether the first timecode is less than or equal to the second.
+    /// </summary>
+    /// <param name="left">The first timecode to compare</param>
+    /// <param name="right">The second timecode to compare</param>
+    /// <returns>True if the first timecode is less than or equal to the second; otherwise, false</returns>
     public static bool operator <=(Timecode? left, Timecode? right)
     {
         return left < right || left == right;
     }
 
+    /// <summary>
+    /// Determines whether the first timecode is greater than or equal to the second.
+    /// </summary>
+    /// <param name="left">The first timecode to compare</param>
+    /// <param name="right">The second timecode to compare</param>
+    /// <returns>True if the first timecode is greater than or equal to the second; otherwise, false</returns>
     public static bool operator >=(Timecode? left, Timecode? right)
     {
         return left > right || left == right;
     }
 
-    // Override Equals and GetHashCode
+    /// <summary>
+    /// Determines whether the specified object is equal to the current timecode.
+    /// </summary>
+    /// <param name="obj">The object to compare with the current timecode</param>
+    /// <returns>True if the specified object is equal to the current timecode; otherwise, false</returns>
     public override bool Equals(object? obj)
     {
         return obj is Timecode other && this == other;
     }
 
+    /// <summary>
+    /// Returns a hash code for the current timecode.
+    /// </summary>
+    /// <returns>A hash code for the current timecode</returns>
     public override int GetHashCode()
     {
         return HashCode.Combine(FrameNumber, Timebase, DropFrame);

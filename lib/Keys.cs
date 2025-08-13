@@ -3,6 +3,10 @@ using nathanbutlerDEV.libopx.SMPTE;
 
 namespace nathanbutlerDEV.libopx;
 
+/// <summary>
+/// Contains MXF key definitions and provides key type identification for stream processing.
+/// Maps various MXF essence elements and metadata keys to their corresponding types.
+/// </summary>
 public class Keys
 {
     #region MXF Keys
@@ -147,6 +151,12 @@ public class Keys
         { Essence.OrganizationallyRegisteredforPublicUse.AsMemory(), KeyType.System },
     };
 
+    /// <summary>
+    /// Determines the key type from an MXF key byte sequence.
+    /// </summary>
+    /// <param name="key">The MXF key bytes to analyze</param>
+    /// <returns>The identified key type, or Unknown if not recognized</returns>
+    /// <exception cref="IOException">Thrown when the key doesn't start with valid MXF FourCC</exception>
     public static KeyType GetKeyType(ReadOnlySpan<byte> key)
     {
         // Initial check to see if our time is being wasted on a non-MXF file :D
@@ -168,12 +178,33 @@ public class Keys
     }
 }
 
-public enum KeyType
+/// <summary>
+/// Enumeration of MXF key types for categorizing essence elements and metadata.
+/// </summary>
+ public enum KeyType
 {
+    /// <summary>
+    /// Data essence elements including VBI, ANC, and auxiliary data.
+    /// </summary>
     Data,
+    /// <summary>
+    /// Video essence elements including various codecs and picture formats.
+    /// </summary>
     Video,
+    /// <summary>
+    /// System metadata elements and organizational keys.
+    /// </summary>
     System,
-    TimecodeComponent, // TODO: Change this to metadata?
+    /// <summary>
+    /// Timecode component metadata for temporal synchronization.
+    /// </summary>
+    TimecodeComponent,
+    /// <summary>
+    /// Audio essence elements including various audio formats and codecs.
+    /// </summary>
     Audio,
+    /// <summary>
+    /// Unknown or unrecognized key type.
+    /// </summary>
     Unknown
 }

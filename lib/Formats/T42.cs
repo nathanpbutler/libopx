@@ -6,18 +6,49 @@ using nathanbutlerDEV.libopx.Enums;
 
 namespace nathanbutlerDEV.libopx.Formats;
 
+/// <summary>
+/// Parser for T42 teletext format files with support for conversion to VBI formats and teletext content extraction.
+/// Provides Hamming error correction and ANSI color formatting for teletext display.
+/// </summary>
 public class T42 : IDisposable
 {
-    public FileInfo? InputFile { get; set; } = null; // If null, read from stdin
-    public FileInfo? OutputFile { get; set; } = null; // If null, write to stdout
+    /// <summary>
+    /// Gets or sets the input file. If null, reads from stdin.
+    /// </summary>
+    public FileInfo? InputFile { get; set; } = null;
+    /// <summary>
+    /// Gets or sets the output file. If null, writes to stdout.
+    /// </summary>
+    public FileInfo? OutputFile { get; set; } = null;
     private Stream? _outputStream;
+    /// <summary>
+    /// Gets or sets the input stream for reading T42 data.
+    /// </summary>
     public required Stream Input { get; set; }
+    /// <summary>
+    /// Gets the output stream for writing processed data.
+    /// </summary>
     public Stream Output => _outputStream ??= OutputFile == null ? Console.OpenStandardOutput() : OutputFile.Open(FileMode.Create, FileAccess.Write, FileShare.Read);
-    public Format InputFormat { get; set; } = Format.T42; // Default input format is T42
-    public Format? OutputFormat { get; set; } = Format.T42; // Default output format is T42
-    public static int LineLength => Constants.T42_LINE_SIZE; // Length of the T42 line
-    public Function Function { get; set; } = Function.Filter; // Default function is Filter
-    public int LineCount { get; set; } = 2; // For Timecode incementation, default is 2 lines
+    /// <summary>
+    /// Gets or sets the input format. Default is T42.
+    /// </summary>
+    public Format InputFormat { get; set; } = Format.T42;
+    /// <summary>
+    /// Gets or sets the output format for processed data. Default is T42.
+    /// </summary>
+    public Format? OutputFormat { get; set; } = Format.T42;
+    /// <summary>
+    /// Gets the standard length of a T42 teletext line in bytes.
+    /// </summary>
+    public static int LineLength => Constants.T42_LINE_SIZE;
+    /// <summary>
+    /// Gets or sets the function mode for processing. Default is Filter.
+    /// </summary>
+    public Function Function { get; set; } = Function.Filter;
+    /// <summary>
+    /// Gets or sets the number of lines per frame for timecode incrementation. Default is 2.
+    /// </summary>
+    public int LineCount { get; set; } = 2;
 
     /// <summary>
     /// Valid outputs: t42/vbi/vbi_double
@@ -81,6 +112,12 @@ public class T42 : IDisposable
         _outputStream = outputStream ?? throw new ArgumentNullException(nameof(outputStream), "Output stream cannot be null.");
     }
 
+    /// <summary>
+    /// Parses the T42 file and returns an enumerable of lines with optional filtering.
+    /// </summary>
+    /// <param name="magazine">Optional magazine number filter (default: 8)</param>
+    /// <param name="rows">Optional array of row numbers to filter (default: all rows)</param>
+    /// <returns>An enumerable of parsed lines matching the filter criteria</returns>
     public IEnumerable<Line> Parse(int? magazine = 8, int[]? rows = null)
     {
         // Use default rows if not specified
