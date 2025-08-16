@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>nathanbutlerDEV.libopx</RootNamespace>
-    <Version>1.2.0</Version>
+    <Version>1.3.0</Version>
     
     <!-- Package Information -->
     <PackageId>libopx</PackageId>
@@ -17,9 +17,9 @@
     <RepositoryType>git</RepositoryType>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageTags>mxf;teletext;vbi;smpte;timecode;caption;subtitles;broadcast</PackageTags>
+    <PackageTags>mxf;teletext;vbi;t42;smpte;timecode;caption;subtitles;broadcast;video;parsing;extraction;conversion;op42;op47;cli;dotnet</PackageTags>
     <Copyright>Copyright (c) 2025 Nathan Butler</Copyright>
-    <PackageReleaseNotes>v1.2.0: Refactored CLI commands with improved default behavior - magazine filtering now defaults to all magazines instead of magazine 8. Added CommandHelpers class for better code organization and standardized validation logic.</PackageReleaseNotes>
+    <PackageReleaseNotes>v1.3.0: Enhanced T42.GetText parsing to handle header rows and improve SMPTE XML documentation to reduce warnings.</PackageReleaseNotes>
     
     <!-- Documentation -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>

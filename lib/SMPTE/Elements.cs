@@ -1349,7 +1349,7 @@ public class Elements
     /// ARRI
     /// </summary>
     /// <remarks>
-    /// Metadata registered by Arnold & Richter Cine Technik GmbH for private use
+    /// Metadata registered by Arnold &amp; Richter Cine Technik GmbH for private use
     /// </remarks>
     private static readonly byte[] ARRI = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x01, 0x01, 0x0D, 0x0E, 0x17, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
     /// <summary>
@@ -3633,7 +3633,7 @@ public class Elements
     /// Audio Track  Configuration
     /// </summary>
     /// <remarks>
-    /// A description of the audio track configuration (e.g. R48 & R123 EBU)
+    /// A description of the audio track configuration (e.g. R48 &amp; R123 EBU)
     /// </remarks>
     private static readonly byte[] audioTrackConfiguration = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x01, 0x01, 0x01, 0x0D, 0x02, 0x01, 0x33, 0x05, 0x00, 0x00, 0x00];
     /// <summary>
@@ -4172,7 +4172,7 @@ public class Elements
     /// Qlty Basic Data
     /// </summary>
     /// <remarks>
-    /// Basic Capture Data from the BWF <qlty> chunk
+    /// Basic Capture Data from the BWF &lt;qlty&gt; chunk
     /// </remarks>
     private static readonly byte[] BasicData = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x01, 0x01, 0x05, 0x04, 0x02, 0x05, 0x02, 0x02, 0x00, 0x00, 0x00];
     /// <summary>
@@ -4228,7 +4228,7 @@ public class Elements
     /// Bext Coding History
     /// </summary>
     /// <remarks>
-    /// The Coding History from the BWF <bext> chunk
+    /// The Coding History from the BWF &lt;bext&gt; chunk
     /// </remarks>
     private static readonly byte[] BextCodingHistory = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x01, 0x01, 0x05, 0x04, 0x02, 0x05, 0x02, 0x01, 0x01, 0x00, 0x00];
     /// <summary>
@@ -4487,7 +4487,7 @@ public class Elements
     /// Buffer Delay
     /// </summary>
     /// <remarks>
-    /// Buffer delay per definition in SDTI-CP (E&M)
+    /// Buffer delay per definition in SDTI-CP (E&amp;M)
     /// </remarks>
     private static readonly byte[] BufferDelay = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x01, 0x01, 0x01, 0x07, 0x02, 0x03, 0x01, 0x03, 0x01, 0x00, 0x00];
     /// <summary>
@@ -5242,7 +5242,7 @@ public class Elements
     /// Codec Delay
     /// </summary>
     /// <remarks>
-    /// Information about combined delay in encoding & decoding processes
+    /// Information about combined delay in encoding &amp; decoding processes
     /// </remarks>
     private static readonly byte[] CodecDelay = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x01, 0x01, 0x01, 0x07, 0x02, 0x03, 0x01, 0x01, 0x00, 0x00, 0x00];
     /// <summary>
@@ -5319,7 +5319,7 @@ public class Elements
     /// Bext Coding History
     /// </summary>
     /// <remarks>
-    /// The Coding History from the BWF <bext> chunk
+    /// The Coding History from the BWF &lt;bext&gt; chunk
     /// </remarks>
     private static readonly byte[] CodingHistory = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x01, 0x01, 0x05, 0x04, 0x02, 0x05, 0x02, 0x01, 0x00, 0x00, 0x00];
     /// <summary>
@@ -6711,7 +6711,7 @@ public class Elements
     /// Qlty Cue Sheet
     /// </summary>
     /// <remarks>
-    /// String of cue points, timestamps and descriptions from the BWF <qlty> chunk
+    /// String of cue points, timestamps and descriptions from the BWF &lt;qlty&gt; chunk
     /// </remarks>
     private static readonly byte[] CueSheet = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x01, 0x01, 0x05, 0x04, 0x02, 0x05, 0x02, 0x08, 0x00, 0x00, 0x00];
     /// <summary>
@@ -8871,7 +8871,7 @@ public class Elements
     /// Electrospatial Formulation
     /// </summary>
     /// <remarks>
-    /// Mono, Dual mono, Stereo A+B,  Stereo M&S, Dolby surround,  MPEG BC/NBC etc
+    /// Mono, Dual mono, Stereo A+B,  Stereo M&amp;S, Dolby surround,  MPEG BC/NBC etc
     /// </remarks>
     private static readonly byte[] ElectrospatialFormulation = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x01, 0x01, 0x01, 0x04, 0x02, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00];
     /// <summary>
@@ -16523,7 +16523,7 @@ public class Elements
     /// Qlty Operator Comment
     /// </summary>
     /// <remarks>
-    /// String of Operator comments concerning the capturing of the sound signal, from the BWF <qlty> chunk
+    /// String of Operator comments concerning the capturing of the sound signal, from the BWF &lt;qlty&gt; chunk
     /// </remarks>
     private static readonly byte[] OperatorComment = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x01, 0x01, 0x05, 0x04, 0x02, 0x05, 0x02, 0x07, 0x00, 0x00, 0x00];
     /// <summary>
@@ -18951,14 +18951,14 @@ public class Elements
     /// Qlty Basic Data
     /// </summary>
     /// <remarks>
-    /// Basic Capture Data from the BWF <qlty> chunk
+    /// Basic Capture Data from the BWF &lt;qlty&gt; chunk
     /// </remarks>
     private static readonly byte[] QltyBasicData = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x01, 0x01, 0x05, 0x04, 0x02, 0x05, 0x02, 0x02, 0x01, 0x00, 0x00];
     /// <summary>
     /// Qlty Cue Sheet
     /// </summary>
     /// <remarks>
-    /// String of cue points, timestamps and descriptions from the BWF <qlty> chunk
+    /// String of cue points, timestamps and descriptions from the BWF &lt;qlty&gt; chunk
     /// </remarks>
     private static readonly byte[] QltyCueSheet = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x01, 0x01, 0x05, 0x04, 0x02, 0x05, 0x02, 0x08, 0x01, 0x00, 0x00];
     /// <summary>
@@ -18986,21 +18986,21 @@ public class Elements
     /// Qlty Operator Comment
     /// </summary>
     /// <remarks>
-    /// String of Operator comments concerning the capturing of the sound signal, from the BWF <qlty> chunk
+    /// String of Operator comments concerning the capturing of the sound signal, from the BWF &lt;qlty&gt; chunk
     /// </remarks>
     private static readonly byte[] QltyOperatorComment = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x01, 0x01, 0x05, 0x04, 0x02, 0x05, 0x02, 0x07, 0x01, 0x00, 0x00];
     /// <summary>
     /// Qlty Quality Event
     /// </summary>
     /// <remarks>
-    /// Information from the BWF <qlty> chunk describing each Quality event in the sound signal.  One string is used for each event.
+    /// Information from the BWF &lt;qlty&gt; chunk describing each Quality event in the sound signal.  One string is used for each event.
     /// </remarks>
     private static readonly byte[] QltyQualityEvent = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x01, 0x01, 0x05, 0x04, 0x02, 0x05, 0x02, 0x04, 0x01, 0x00, 0x00];
     /// <summary>
     /// Qlty Quality Parameter
     /// </summary>
     /// <remarks>
-    /// String of Quality Parameters affecting the sound signal, from the BWF <qlty> chunk
+    /// String of Quality Parameters affecting the sound signal, from the BWF &lt;qlty&gt; chunk
     /// </remarks>
     private static readonly byte[] QltyQualityParameter = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x01, 0x01, 0x05, 0x04, 0x02, 0x05, 0x02, 0x06, 0x01, 0x00, 0x00];
     /// <summary>
@@ -19021,7 +19021,7 @@ public class Elements
     /// Qlty Quality Event
     /// </summary>
     /// <remarks>
-    /// Information from the BWF <qlty> chunk describing each Quality event in the sound signal.  One string is used for each event.
+    /// Information from the BWF &lt;qlty&gt; chunk describing each Quality event in the sound signal.  One string is used for each event.
     /// </remarks>
     private static readonly byte[] QualityEvent = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x01, 0x01, 0x05, 0x04, 0x02, 0x05, 0x02, 0x04, 0x00, 0x00, 0x00];
     /// <summary>
@@ -19035,7 +19035,7 @@ public class Elements
     /// Qlty Quality Parameter
     /// </summary>
     /// <remarks>
-    /// String of Quality Parameters affecting the sound signal, from the BWF <qlty> chunk
+    /// String of Quality Parameters affecting the sound signal, from the BWF &lt;qlty&gt; chunk
     /// </remarks>
     private static readonly byte[] QualityParameter = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x01, 0x01, 0x05, 0x04, 0x02, 0x05, 0x02, 0x06, 0x00, 0x00, 0x00];
     /// <summary>
@@ -21349,10 +21349,10 @@ public class Elements
     /// </remarks>
     private static readonly byte[] SMSOMBCommunicationsProtocol = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x01, 0x01, 0x0E, 0x02, 0x40, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00];
     /// <summary>
-    /// Snell & Wilcox
+    /// Snell &amp; Wilcox
     /// </summary>
     /// <remarks>
-    /// Metadata registered by Snell & Wilcox for private use
+    /// Metadata registered by Snell &amp; Wilcox for private use
     /// </remarks>
     private static readonly byte[] Snell_and_Wilcox = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x01, 0x01, 0x08, 0x0E, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
     /// <summary>
@@ -21522,7 +21522,7 @@ public class Elements
     /// Splicing Metadata
     /// </summary>
     /// <remarks>
-    /// MPEG-2 splicing metadata as defined in SDTI-CP (E&M) and SMPTE 312M
+    /// MPEG-2 splicing metadata as defined in SDTI-CP (E&amp;M) and SMPTE 312M
     /// </remarks>
     private static readonly byte[] SplicingMetadata = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x01, 0x01, 0x01, 0x05, 0x02, 0x01, 0x02, 0x01, 0x01, 0x00, 0x00];
     /// <summary>

@@ -1,4 +1,11 @@
 namespace nathanbutlerDEV.libopx.SMPTE;
+
+/// <summary>
+/// SMPTE type definitions containing key values for various data types and organizational structures
+/// </summary>
+/// <remarks>
+/// Provides static byte array definitions for SMPTE data types used in MXF metadata type identification
+/// </remarks>
 public class Types
 {
     /// <summary>
@@ -187,7 +194,7 @@ public class Types
     /// ARRI
     /// </summary>
     /// <remarks>
-    /// Metadata registered by Arnold & Richter Cine Technik GmbH for private use
+    /// Metadata registered by Arnold &amp; Richter Cine Technik GmbH for private use
     /// </remarks>
     private static readonly byte[] ARRI = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x04, 0x01, 0x01, 0x0E, 0x17, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
     /// <summary>
@@ -3287,10 +3294,10 @@ public class Types
     /// </remarks>
     private static readonly byte[] SingleFloatArray = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x04, 0x01, 0x01, 0x04, 0x01, 0x17, 0x00, 0x00, 0x00, 0x00, 0x00];
     /// <summary>
-    /// Snell & Wilcox
+    /// Snell &amp; Wilcox
     /// </summary>
     /// <remarks>
-    /// Metadata registered by Snell & Wilcox for private use
+    /// Metadata registered by Snell &amp; Wilcox for private use
     /// </remarks>
     private static readonly byte[] Snell_and_Wilcox = [0x06, 0x0E, 0x2B, 0x34, 0x01, 0x04, 0x01, 0x01, 0x0E, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
     /// <summary>

@@ -1,4 +1,11 @@
 namespace nathanbutlerDEV.libopx.SMPTE;
+
+/// <summary>
+/// SMPTE label definitions containing key values for various metadata labels and identifiers
+/// </summary>
+/// <remarks>
+/// Provides static byte array definitions for SMPTE labels used in MXF metadata identification and classification
+/// </remarks>
 public class Labels
 {
     /// <summary>
@@ -348,7 +355,7 @@ public class Labels
     /// ARRI
     /// </summary>
     /// <remarks>
-    /// Metadata registered by Arnold & Richter Cine Technik GmbH for private use
+    /// Metadata registered by Arnold &amp; Richter Cine Technik GmbH for private use
     /// </remarks>
     private static readonly byte[] ARRI = [0x06, 0x0E, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x0C, 0x0E, 0x17, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
     /// <summary>
@@ -715,14 +722,14 @@ public class Labels
     /// Audio Description Studio Signal
     /// </summary>
     /// <remarks>
-    /// Identifies an Soundfield Group carrying a Visually Impaired Narrative Audio Channel and an Audio Description Studio Signal Data Channel - this is the two-channel Audio Description Studio Signal defined by BBC R&D White Paper WHP 198
+    /// Identifies an Soundfield Group carrying a Visually Impaired Narrative Audio Channel and an Audio Description Studio Signal Data Channel - this is the two-channel Audio Description Studio Signal defined by BBC R&amp;D White Paper WHP 198
     /// </remarks>
     private static readonly byte[] AudioDescriptionStudioSignal = [0x06, 0x0E, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0D, 0x01, 0x08, 0x01, 0x01, 0x02, 0x01, 0x00];
     /// <summary>
     /// Audio Description Studio Signal Data Channel
     /// </summary>
     /// <remarks>
-    /// Identifies an Audio Channel carrying a data signal in the format defined by BBC R&D White Paper WHP 198, intended to be used to control the fade and pan of the Main Program audio when it is being mixed with a Visually Impaired Narrative Audio Channel
+    /// Identifies an Audio Channel carrying a data signal in the format defined by BBC R&amp;D White Paper WHP 198, intended to be used to control the fade and pan of the Main Program audio when it is being mixed with a Visually Impaired Narrative Audio Channel
     /// </remarks>
     private static readonly byte[] AudioDescriptionStudioSignalDataChannel = [0x06, 0x0E, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x01, 0x0D, 0x01, 0x08, 0x01, 0x01, 0x01, 0x01, 0x00];
     /// <summary>
@@ -26374,10 +26381,10 @@ public class Labels
     /// </remarks>
     private static readonly byte[] SMPTEVC3ID1274 = [0x06, 0x0E, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x0D, 0x04, 0x01, 0x02, 0x02, 0x71, 0x28, 0x00, 0x00];
     /// <summary>
-    /// Snell & Wilcox
+    /// Snell &amp; Wilcox
     /// </summary>
     /// <remarks>
-    /// Metadata registered by Snell & Wilcox for private use
+    /// Metadata registered by Snell &amp; Wilcox for private use
     /// </remarks>
     private static readonly byte[] Snell_and_Wilcox = [0x06, 0x0E, 0x2B, 0x34, 0x04, 0x01, 0x01, 0x05, 0x0E, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
     /// <summary>
