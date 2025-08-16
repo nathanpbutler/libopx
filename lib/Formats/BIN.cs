@@ -107,11 +107,11 @@ public class BIN : IDisposable
     /// <summary>
     /// Parses the BIN file and returns an enumerable of packets with optional filtering.
     /// </summary>
-    /// <param name="magazine">Optional magazine number filter (default: 8)</param>
+    /// <param name="magazine">Optional magazine number filter (default: all magazines)</param>
     /// <param name="rows">Optional array of row numbers to filter (default: all rows)</param>
     /// <param name="startTimecode">Optional starting timecode for packet numbering</param>
     /// <returns>An enumerable of parsed packets matching the filter criteria</returns>
-    public IEnumerable<Packet> Parse(int? magazine = 8, int[]? rows = null, Timecode? startTimecode = null)
+    public IEnumerable<Packet> Parse(int? magazine = null, int[]? rows = null, Timecode? startTimecode = null)
     {
         // Use default rows if not specified
         rows ??= Constants.DEFAULT_ROWS;

@@ -60,7 +60,7 @@ dotnet run --project apps/opx -- filter [options] <input-file?>
 
 **Options:**
 
-- `-m, --magazine <int>`: Filter by magazine number (default: 8)
+- `-m, --magazine <int>`: Filter by magazine number (default: all magazines)
 - `-r, --rows <int[]>`: Filter by number of rows (comma-separated, default: caption rows)
 - `-f, --format <bin|vbi|vbid|t42>`: Input format override (default: vbi)
 - `-l, --line-count <int>`: Number of lines per frame for timecode incrementation (default: 2)
@@ -104,7 +104,7 @@ dotnet run --project apps/opx -- convert [options] <input-file?>
 - `-i, --input-format <bin|vbi|vbid|t42|mxf>`: Input format (auto-detected from file extension if not specified)
 - `-o, --output-format <vbi|vbid|t42>`: Output format [required]
 - `-f, --output-file <file>`: Output file path (writes to stdout if not specified)
-- `-m, --magazine <int>`: Filter by magazine number (default: 8)
+- `-m, --magazine <int>`: Filter by magazine number (default: all magazines)
 - `-r, --rows <int[]>`: Filter by number of rows (comma-separated, default: all rows)
 - `-l, --line-count <int>`: Number of lines per frame for timecode incrementation (default: 2)
 - `-V, --verbose`: Enable verbose output
@@ -112,7 +112,7 @@ dotnet run --project apps/opx -- convert [options] <input-file?>
 **Usage examples:**
 
 ```bash
-# Filter stdin for magazine 8, caption rows only
+# Filter stdin for all magazines, caption rows only
 cat input.vbi | dotnet run --project apps/opx -- filter
 
 # Filter specific file for magazine 1, rows 0 and 23
@@ -141,14 +141,14 @@ dotnet run --project apps/opx -- convert -i t42 -o vbi -m 8 -r 20,22 -V input.t4
 ```csharp
 // Parse VBI file with magazine and row filtering, converting to T42 format
 using var vbi = new VBI("input.vbi");
-foreach (var line in vbi.Parse(magazine: 8, rows: Constants.CAPTION_ROWS))
+foreach (var line in vbi.Parse(magazine: null, rows: Constants.CAPTION_ROWS))
 {
     Console.WriteLine(line);
 }
 
 // Parse T42 file with filtering
 using var t42 = new T42("input.t42");
-foreach (var line in t42.Parse(magazine: 8, rows: Constants.CAPTION_ROWS))
+foreach (var line in t42.Parse(magazine: null, rows: Constants.CAPTION_ROWS))
 {
     Console.WriteLine(line);
 }

@@ -99,21 +99,21 @@ using nathanbutlerDEV.libopx.Formats;
 
 // Parse MXF file with filtering
 using var mxf = new MXF("input.mxf");
-foreach (var line in mxf.Parse(magazine: 8, rows: Constants.CAPTION_ROWS))
+foreach (var line in mxf.Parse(magazine: null, rows: Constants.CAPTION_ROWS))
 {
     Console.WriteLine(line);
 }
 
 // Parse VBI file with filtering
 using var vbi = new VBI("input.vbi");
-foreach (var line in vbi.Parse(magazine: 8, rows: Constants.CAPTION_ROWS))
+foreach (var line in vbi.Parse(magazine: null, rows: Constants.CAPTION_ROWS))
 {
     Console.WriteLine(line);
 }
 
 // Parse T42 file
 using var t42 = new T42("input.t42");
-foreach (var line in t42.Parse(magazine: 8))
+foreach (var line in t42.Parse(magazine: null))
 {
     Console.WriteLine(line);
 }
@@ -134,13 +134,13 @@ using var parser = new VBI("input.vbi") // or T42, BIN, MXF
 parser.SetOutput("output.t42");
 
 // For VBI/T42 (returns IEnumerable<Line>)
-foreach (var line in parser.Parse(magazine: 8, rows: Constants.DEFAULT_ROWS))
+foreach (var line in parser.Parse(magazine: null, rows: Constants.DEFAULT_ROWS))
 {
     parser.Output.Write(line.Data);
 }
 
 // For BIN/MXF (returns IEnumerable<Packet>)
-foreach (var packet in parser.Parse(magazine: 8, rows: Constants.DEFAULT_ROWS))
+foreach (var packet in parser.Parse(magazine: null, rows: Constants.DEFAULT_ROWS))
 {
     foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
     {
@@ -161,7 +161,7 @@ opx filter [options] <input-file?>
 
 **Options:**
 
-- `-m, --magazine <int>`: Filter by magazine number (default: 8)
+- `-m, --magazine <int>`: Filter by magazine number (default: all magazines)
 - `-r, --rows <string>`: Filter by rows (comma-separated or hyphen ranges, e.g., 1,2,5-8,15)
 - `-f, --format <bin|vbi|vbid|t42>`: Input format override
 - `-c, --caps`: Use caption rows (1-24) instead of default rows (0-24)
@@ -174,8 +174,8 @@ opx filter [options] <input-file?>
 # Filter VBI data for magazine 8, rows 20 and 22
 opx filter -m 8 -r 20,22 input.vbi
 
-# Filter T42 data for magazine 8, caption rows only
-opx filter -m 8 -c input.t42
+# Filter T42 data for all magazines, caption rows only
+opx filter -c input.t42
 
 # Filter MXF data for magazine 8, rows 5-8 and 15
 opx filter -m 8 -r 5-8,15 input.mxf
@@ -195,7 +195,7 @@ opx convert [options] <input-file?>
 - `-i, --input-format <bin|vbi|vbid|t42|mxf>`: Input format (auto-detected if not specified)
 - `-o, --output-format <vbi|vbid|t42>`: Output format [required]
 - `-f, --output-file <file>`: Output file path (writes to stdout if not specified)
-- `-m, --magazine <int>`: Filter by magazine number (default: 8)
+- `-m, --magazine <int>`: Filter by magazine number (default: all magazines)
 - `-r, --rows <string>`: Filter by rows (comma-separated or hyphen ranges, e.g., 1,2,5-8,15)
 - `-c, --caps`: Use caption rows (1-24) instead of default rows (0-24)
 - `-k, --keep`: Write blank bytes if rows or magazine doesn't match
