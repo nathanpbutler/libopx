@@ -12,13 +12,11 @@ Example:
 opx convert -of vbi "NOVA-BOMB-XDCAM.mxf" | mpv --window-scale=2 --demuxer=rawvideo --demuxer-rawvideo-mp-format=gray --demuxer-rawvideo-w=720 --demuxer-rawvideo-h=2 --lavfi-complex="[vid1]pad=720:32:0:28,format=yuv422p[v1];movie='NOVA-BOMB-XDCAM.mxf',scale=720:576:flags=lanczos[v2];[v1][v2]vstack,setsar=608:405,setdar=1.7777[vo];amovie='NOVA-BOMB-XDCAM.mxf'[ao]" -
 ```
 
-<!-- assets/piping.png -->
-![Piping Example](assets/mpv-piping-example.jpg)
+![Piping Example](https://raw.githubusercontent.com/nathanpbutler/libopx/main/assets/mpv-piping-example.jpg)
 
 **ANSI Escaped Teletext**: Supports parsing and filtering of teletext data with ANSI escape sequences:
 
-<!-- assets/filtering.png -->
-![VHS Teletext Comparison](assets/filtering.png)
+![VHS Teletext Comparison](https://raw.githubusercontent.com/nathanpbutler/libopx/main/assets/filtering.png)
 
 ## Table of Contents
 

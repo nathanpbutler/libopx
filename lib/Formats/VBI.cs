@@ -178,7 +178,7 @@ public class VBI : IDisposable
                     {
                         line.Magazine = T42.GetMagazine(t42Data[0]);
                         line.Row = T42.GetRow([.. t42Data.Take(2)]);
-                        line.Text = T42.GetText([.. t42Data.Skip(2)]);
+                        line.Text = T42.GetText([.. t42Data.Skip(2)], line.Row == 0);
                     }
                     else
                     {

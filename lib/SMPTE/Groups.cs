@@ -292,7 +292,7 @@ public class Groups
     /// ARRI
     /// </summary>
     /// <remarks>
-    /// Metadata registered by Arnold & Richter Cine Technik GmbH for private use
+    /// Metadata registered by Arnold &amp; Richter Cine Technik GmbH for private use
     /// </remarks>
     private static readonly byte[] ARRI = [0x06, 0x0E, 0x2B, 0x34, 0x02, 0x7F, 0x01, 0x01, 0x0E, 0x17, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
     /// <summary>
@@ -2346,7 +2346,7 @@ public class Groups
     /// </remarks>
     private static readonly byte[] Identification = [0x06, 0x0E, 0x2B, 0x34, 0x02, 0x7F, 0x01, 0x01, 0x0D, 0x01, 0x01, 0x01, 0x01, 0x01, 0x30, 0x00];
     /// <summary>
-    /// IDENTIFICATION & LOCATION
+    /// IDENTIFICATION &amp; LOCATION
     /// </summary>
     /// <remarks>
     /// Identification and location metadata groups
@@ -3523,10 +3523,10 @@ public class Groups
     /// </remarks>
     private static readonly byte[] SMSOMBCommunicationsProtocol = [0x06, 0x0E, 0x2B, 0x34, 0x02, 0x7F, 0x01, 0x01, 0x0C, 0x03, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00];
     /// <summary>
-    /// Snell & Wilcox
+    /// Snell &amp; Wilcox
     /// </summary>
     /// <remarks>
-    /// Metadata registered by Snell & Wilcox for private use
+    /// Metadata registered by Snell &amp; Wilcox for private use
     /// </remarks>
     private static readonly byte[] Snell_and_Wilcox = [0x06, 0x0E, 0x2B, 0x34, 0x02, 0x7F, 0x01, 0x01, 0x0E, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
     /// <summary>

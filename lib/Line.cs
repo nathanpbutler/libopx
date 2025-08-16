@@ -398,7 +398,7 @@ public class Line : IDisposable
                 {
                     Magazine = T42.GetMagazine(Data[0]);
                     Row = T42.GetRow([.. Data.Take(2)]);
-                    Text = T42.GetText([.. Data.Skip(2)]);
+                    Text = T42.GetText([.. Data.Skip(2)], Row == 0);
                 }
                 else
                 {

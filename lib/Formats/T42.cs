@@ -154,7 +154,7 @@ public class T42 : IDisposable
             {
                 line.Magazine = GetMagazine(t42Buffer[0]);
                 line.Row = GetRow([.. t42Buffer.Take(2)]);
-                line.Text = GetText([.. t42Buffer.Skip(2)]);
+                line.Text = GetText([.. t42Buffer.Skip(2)], line.Row == 0);
             }
             else
             {
@@ -378,8 +378,9 @@ public class T42 : IDisposable
     /// Parses teletext data to ANSI colored text for terminal display
     /// </summary>
     /// <param name="bytes">The raw teletext data bytes</param>
-    /// <returns>ANSI formatted text string, or null if no valid text block found</returns>
-    public static string GetText(byte[] bytes)
+    /// <param name="isHeaderRow">True if this is a header row (row 0)</param>
+    /// <returns>ANSI formatted text string</returns>
+    public static string GetText(byte[] bytes, bool isHeaderRow = false)
     {
         if (bytes == null || bytes.Length == 0)
             return Constants.T42_BLANK_LINE;
@@ -387,27 +388,55 @@ public class T42 : IDisposable
         // Strip parity bits (keep only 7 bits)
         var processedBytes = bytes.Select(b => (byte)(b & 0x7F)).ToArray();
 
-        // Find the start of the text block
-        var blockStart = FindBlockStart(processedBytes);
-        if (blockStart == -1)
-            return Constants.T42_BLANK_LINE; // No valid block found
+        if (isHeaderRow)
+        {
+            // For header rows: Parse() already skipped first 2 bytes (magazine/row)
+            // Now skip the next 8 bytes of header metadata, then process remaining 32 bytes as text
+            var headerTextBytes = processedBytes.Length >= 8 ? [.. processedBytes.Skip(8)] : processedBytes;
+            
+            // Find the start of actual displayable text within the header text portion
+            var textStart = 0;
+            for (var i = 0; i < headerTextBytes.Length; i++)
+            {
+                if (headerTextBytes[i] >= 32 && headerTextBytes[i] <= 126)
+                {
+                    textStart = i;
+                    break;
+                }
+            }
+            
+            var textBytes = headerTextBytes.Skip(textStart).ToArray();
+            
+            // Process header text content directly
+            var result = new string[textBytes.Length];
+            ProcessTextContent(textBytes, result);
 
-        // Create result array for processed characters
-        var result = new string[processedBytes.Length];
+            // Combine with ANSI formatting and add 8 spaces at start to make up for skipped metadata
+            return Constants.T42_DEFAULT_COLORS + "        " + string.Join("", result) + Constants.T42_ANSI_RESET;
+        }
+        else
+        {
+            // For caption rows: use existing logic to find block start
+            var blockStart = FindBlockStart(processedBytes);
+            
+            // Create result array for processed characters
+            var result = new string[processedBytes.Length];
 
-        // Process the text content
-        ProcessTextContent(processedBytes, result);
+            // Process the text content
+            ProcessTextContent(processedBytes, result);
 
-        // Apply teletext control characters and formatting
-        ApplyTeletextFormatting(processedBytes, result, blockStart);
+            // Apply teletext control characters and formatting
+            ApplyTeletextFormatting(processedBytes, result, blockStart);
 
-        // Combine with ANSI formatting
-        return Constants.T42_DEFAULT_COLORS + string.Join("", result) + Constants.T42_ANSI_RESET;
+            // Combine with ANSI formatting
+            return Constants.T42_DEFAULT_COLORS + string.Join("", result) + Constants.T42_ANSI_RESET;
+        }
     }
 
     #endregion
 
     #region Private Methods
+
 
     /// <summary>
     /// Decodes a single byte using Hamming 8/4 error correction
@@ -458,12 +487,13 @@ public class T42 : IDisposable
     }
 
     /// <summary>
-    /// Finds the start of a teletext block by looking for the block start sequence
+    /// Finds the start of a teletext block by looking for various teletext patterns
     /// </summary>
     /// <param name="bytes">The processed teletext data</param>
     /// <returns>Index of block start, or -1 if not found</returns>
     private static int FindBlockStart(byte[] bytes)
     {
+        // Priority 1: Look for consecutive block start bytes (double-height text)
         for (var i = 0; i < bytes.Length - 1; i++)
         {
             if (bytes[i] == Constants.T42_BLOCK_START_BYTE && bytes[i + 1] == Constants.T42_BLOCK_START_BYTE)
@@ -471,7 +501,27 @@ public class T42 : IDisposable
                 return i;
             }
         }
-        return -1;
+
+        // Priority 2: Look for single block start byte (single-height text)
+        for (var i = 0; i < bytes.Length; i++)
+        {
+            if (bytes[i] == Constants.T42_BLOCK_START_BYTE)
+            {
+                return i;
+            }
+        }
+
+        // Priority 3: Look for start of displayable content (ASCII range)
+        for (var i = 0; i < bytes.Length; i++)
+        {
+            if (bytes[i] >= 32 && bytes[i] <= 126)
+            {
+                return i;
+            }
+        }
+
+        // Priority 4: If no patterns found, start from beginning
+        return 0;
     }
 
     /// <summary>

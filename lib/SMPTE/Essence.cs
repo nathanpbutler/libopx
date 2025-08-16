@@ -1,4 +1,11 @@
 namespace nathanbutlerDEV.libopx.SMPTE;
+
+/// <summary>
+/// SMPTE essence element definitions containing key values for various essence types and formats
+/// </summary>
+/// <remarks>
+/// Provides static byte array definitions for MXF essence element identification keys as defined by SMPTE standards
+/// </remarks>
 public class Essence
 {
     /// <summary>
