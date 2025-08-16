@@ -205,13 +205,17 @@ public class Constants
 
     #region Default Values
     /// <summary>
-    /// Default magazine number used across the library when no specific magazine is specified.
+    /// Default magazine number used across the library when no specific magazine is specified (for backward compatibility).
     /// </summary>
     public const int DEFAULT_MAGAZINE = 8;
     /// <summary>
-    /// Array containing all valid teletext row numbers (0-24) for processing.
+    /// Array containing all valid teletext magazine numbers (1-8) for processing.
     /// </summary>
-    public static readonly int[] DEFAULT_ROWS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24];
+    public static readonly int[] DEFAULT_MAGAZINES = [1, 2, 3, 4, 5, 6, 7, 8];
+    /// <summary>
+    /// Array containing all valid teletext row numbers (0-31) for processing, including extended range per teletext specification.
+    /// </summary>
+    public static readonly int[] DEFAULT_ROWS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31];
     /// <summary>
     /// Array containing caption row numbers (1-24) used for subtitle and caption processing, excluding header row 0.
     /// </summary>

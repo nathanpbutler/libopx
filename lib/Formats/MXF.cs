@@ -321,11 +321,11 @@ public class MXF : IDisposable
     /// Parses the MXF file and returns an enumerable of packets with optional filtering.
     /// Supports multiple operation modes including filtering, extraction, and restriping.
     /// </summary>
-    /// <param name="magazine">Optional magazine number filter for teletext data (default: 8)</param>
+    /// <param name="magazine">Optional magazine number filter for teletext data (default: all magazines)</param>
     /// <param name="rows">Optional array of row numbers to filter (default: all rows)</param>
     /// <param name="startTimecode">Optional starting timecode override as string (HH:MM:SS:FF format)</param>
     /// <returns>An enumerable of parsed packets matching the filter criteria</returns>
-    public IEnumerable<Packet> Parse(int? magazine = 8, int[]? rows = null, string? startTimecode = null)
+    public IEnumerable<Packet> Parse(int? magazine = null, int[]? rows = null, string? startTimecode = null)
     {
         Input.Seek(0, SeekOrigin.Begin);
         _lastTimecode = null; // Reset sequential checking
