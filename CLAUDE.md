@@ -61,8 +61,9 @@ dotnet run --project apps/opx -- filter [options] <input-file?>
 **Options:**
 
 - `-m, --magazine <int>`: Filter by magazine number (default: all magazines)
-- `-r, --rows <int[]>`: Filter by number of rows (comma-separated, default: caption rows)
-- `-f, --format <bin|vbi|vbid|t42>`: Input format override (default: vbi)
+- `-r, --rows <string>`: Filter by rows (comma-separated or hyphen ranges, e.g., `1,2,5-8,15`)
+- `-c, --caps`: Use caption rows (1-24) instead of default rows (0-24)
+- `-f, --format <bin|vbi|vbid|t42>`: Input format override (auto-detected from file extension)
 - `-l, --line-count <int>`: Number of lines per frame for timecode incrementation (default: 2)
 - `-V, --verbose`: Enable verbose output
 
@@ -105,7 +106,9 @@ dotnet run --project apps/opx -- convert [options] <input-file?>
 - `-o, --output-format <vbi|vbid|t42>`: Output format [required]
 - `-f, --output-file <file>`: Output file path (writes to stdout if not specified)
 - `-m, --magazine <int>`: Filter by magazine number (default: all magazines)
-- `-r, --rows <int[]>`: Filter by number of rows (comma-separated, default: all rows)
+- `-r, --rows <string>`: Filter by rows (comma-separated or hyphen ranges)
+- `-c, --caps`: Use caption rows (1-24) instead of default rows (0-24)
+- `-k, --keep`: Write blank bytes if rows or magazine doesn't match
 - `-l, --line-count <int>`: Number of lines per frame for timecode incrementation (default: 2)
 - `-V, --verbose`: Enable verbose output
 
@@ -113,10 +116,13 @@ dotnet run --project apps/opx -- convert [options] <input-file?>
 
 ```bash
 # Filter stdin for all magazines, caption rows only
-cat input.vbi | dotnet run --project apps/opx -- filter
+cat input.vbi | dotnet run --project apps/opx -- filter -c
 
 # Filter specific file for magazine 1, rows 0 and 23
 dotnet run --project apps/opx -- filter -m 1 -r 0,23 input.vbi
+
+# Filter VBI data for magazine 8, rows 20-22 range
+dotnet run --project apps/opx -- filter -m 8 -r 20-22 input.vbi
 
 # Extract data and video streams from MXF
 dotnet run --project apps/opx -- extract -k d,v input.mxf
@@ -131,7 +137,13 @@ dotnet run --project apps/opx -- convert -o t42 input.vbi
 dotnet run --project apps/opx -- convert -i mxf -o t42 -f output.t42 input.mxf
 
 # Convert T42 to VBI with filtering and verbose output
-dotnet run --project apps/opx -- convert -i t42 -o vbi -m 8 -r 20,22 -V input.t42
+dotnet run --project apps/opx -- convert -i t42 -o vbi -m 8 -r 20-22 -V input.t42
+
+# Convert VBI to T42 with caption rows only
+dotnet run --project apps/opx -- convert -o t42 -c input.vbi
+
+# Convert MXF to VBI preserving structure with blank bytes
+dotnet run --project apps/opx -- convert -i mxf -o vbi -k input.mxf
 ```
 
 **Note:** For filter command, if input file is not specified, reads from stdin. Format is auto-detected from file extension or can be overridden with -f option.
@@ -146,11 +158,21 @@ foreach (var line in vbi.Parse(magazine: null, rows: Constants.CAPTION_ROWS))
     Console.WriteLine(line);
 }
 
-// Parse T42 file with filtering
+// Parse T42 file with filtering using default magazines
 using var t42 = new T42("input.t42");
 foreach (var line in t42.Parse(magazine: null, rows: Constants.CAPTION_ROWS))
 {
     Console.WriteLine(line);
+}
+
+// Parse with specific magazine from default set
+foreach (var mag in Constants.DEFAULT_MAGAZINES)
+{
+    using var vbi = new VBI("input.vbi");
+    foreach (var line in vbi.Parse(magazine: mag, rows: Constants.DEFAULT_ROWS))
+    {
+        Console.WriteLine($"Magazine {mag}: {line}");
+    }
 }
 ```
 
