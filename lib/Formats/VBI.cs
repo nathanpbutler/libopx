@@ -43,7 +43,7 @@ public class VBI : IDisposable
     /// <summary>
     /// Gets the array of valid output formats supported by the VBI parser.
     /// </summary>
-    public static readonly Format[] ValidOutputs = [Format.VBI, Format.VBI_DOUBLE, Format.T42];
+    public static readonly Format[] ValidOutputs = [Format.VBI, Format.VBI_DOUBLE, Format.T42, Format.RCWT];
     /// <summary>
     /// Gets or sets the function mode for processing. Default is Filter.
     /// </summary>

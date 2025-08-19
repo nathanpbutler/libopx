@@ -42,6 +42,8 @@ public enum Format
     MXF,
     /// RCWT (Raw Caption With Timing)
     RCWT,
+    /// EBU STL (Subtitle Exchange Format)
+    STL,
     /// TODO: mp4, ts, mpeg, etc...
     /// None
     Unknown

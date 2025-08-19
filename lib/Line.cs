@@ -377,6 +377,10 @@ public class Line : IDisposable
             // VBI_DOUBLE to VBI conversion (take every other byte)
             (Format.VBI_DOUBLE, Format.VBI) => [.. data.Where((b, i) => i % 2 == 0)],
 
+            // STL conversions - STL is primarily an output format, so these are placeholder conversions
+            // Actual STL conversion happens in the STL class WriteTeletext method
+            (Format.T42, Format.STL) or (Format.VBI, Format.STL) or (Format.VBI_DOUBLE, Format.STL) => data,
+            
             // Same format - no conversion needed
             _ when inputFormat == outputFormat => data,
 
@@ -414,6 +418,11 @@ public class Line : IDisposable
                 Magazine = -1;
                 Row = -1;
                 Text = Constants.T42_BLANK_LINE;
+                break;
+                
+            case Format.STL:
+                // STL metadata is handled in the STL parser
+                // For conversion purposes, preserve existing metadata
                 break;
                 
             default:

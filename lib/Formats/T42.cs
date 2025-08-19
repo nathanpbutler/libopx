@@ -51,9 +51,9 @@ public class T42 : IDisposable
     public int LineCount { get; set; } = 2;
 
     /// <summary>
-    /// Valid outputs: t42/vbi/vbi_double
+    /// Valid outputs: t42/vbi/vbi_double/stl
     /// </summary>
-    public static readonly Format[] ValidOutputs = [Format.T42, Format.VBI, Format.VBI_DOUBLE];
+    public static readonly Format[] ValidOutputs = [Format.T42, Format.VBI, Format.VBI_DOUBLE, Format.STL, Format.RCWT];
 
     /// <summary>
     /// Constructor for T42 format from file

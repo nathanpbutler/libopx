@@ -127,6 +127,7 @@ public class Functions
             "t42" => Format.T42,
             "mxf" => Format.MXF,
             "rcwt" => Format.RCWT,
+            "stl" => Format.STL,
             _ => Format.VBI // Default to VBI if unknown format
         };
     }
@@ -330,9 +331,9 @@ public class Functions
         try
         {
             // Validate output format - only data formats allowed
-            if (outputFormat != Format.VBI && outputFormat != Format.VBI_DOUBLE && outputFormat != Format.T42)
+            if (outputFormat != Format.VBI && outputFormat != Format.VBI_DOUBLE && outputFormat != Format.T42 && outputFormat != Format.STL && outputFormat != Format.RCWT)
             {
-                Console.Error.WriteLine($"Error: Unsupported output format '{outputFormat}'. Supported formats: VBI, VBI_DOUBLE, T42");
+                Console.Error.WriteLine($"Error: Unsupported output format '{outputFormat}'. Supported formats: VBI, VBI_DOUBLE, T42, STL, RCWT");
                 return 1;
             }
 
@@ -360,6 +361,84 @@ public class Functions
 
             try
             {
+                // Special handling for STL and RCWT output formats - collect all lines first
+                if (outputFormat == Format.STL || outputFormat == Format.RCWT)
+                {
+                    var allLines = new List<Line>();
+                    
+                    switch (inputFormat)
+                    {
+                        case Format.BIN:
+                            var bin = input is FileInfo inputBIN && inputBIN.Exists
+                                ? new BIN(inputBIN.FullName)
+                                : new BIN(Console.OpenStandardInput());
+                            foreach (var packet in bin.Parse(magazine, rows))
+                            {
+                                allLines.AddRange(packet.Lines.Where(l => l.Type != Format.Unknown));
+                            }
+                            break;
+
+                        case Format.VBI:
+                        case Format.VBI_DOUBLE:
+                            var vbi = input is FileInfo inputVBI && inputVBI.Exists
+                                ? new VBI(inputVBI.FullName, inputFormat)
+                                : new VBI(Console.OpenStandardInput(), inputFormat);
+                            vbi.LineCount = lineCount;
+                            allLines.AddRange(vbi.Parse(magazine, rows));
+                            break;
+
+                        case Format.T42:
+                            var t42 = input is FileInfo inputT42 && inputT42.Exists
+                                ? new T42(inputT42.FullName)
+                                : new T42(Console.OpenStandardInput());
+                            t42.LineCount = lineCount;
+                            allLines.AddRange(t42.Parse(magazine, rows));
+                            break;
+
+                        case Format.RCWT:
+                            var rcwt = input is FileInfo inputRCWT && inputRCWT.Exists
+                                ? new RCWT(inputRCWT.FullName)
+                                : new RCWT(Console.OpenStandardInput());
+                            rcwt.LineCount = lineCount;
+                            allLines.AddRange(rcwt.Parse(magazine, rows));
+                            break;
+
+                        case Format.MXF:
+                            if (input == null || !input.Exists)
+                            {
+                                Console.Error.WriteLine("Error: Input file must be specified and exist for MXF format conversion.");
+                                return 1;
+                            }
+                            var mxf = new MXF(input.FullName) { Verbose = verbose };
+                            foreach (var packet in mxf.Parse(magazine, rows))
+                            {
+                                allLines.AddRange(packet.Lines.Where(l => l.Type != Format.Unknown));
+                            }
+                            break;
+
+                        default:
+                            Console.Error.WriteLine($"Error: Unsupported input format '{inputFormat}'.");
+                            return 1;
+                    }
+
+                    // Write as STL or RCWT file
+                    if (outputFormat == Format.STL)
+                    {
+                        var stl = new STL();
+                        stl.SetOutput(outputStream);
+                        var programTitle = input?.Name ?? "Teletext Subtitles";
+                        stl.WriteTeletext(allLines.Where(l => l.Magazine > 0 && l.Row > 0), programTitle);
+                    }
+                    else if (outputFormat == Format.RCWT)
+                    {
+                        var rcwtWriter = new RCWT();
+                        rcwtWriter.SetOutput(outputStream);
+                        rcwtWriter.WriteTeletext(allLines).Wait();
+                    }
+                    return 0;
+                }
+
+                // Standard handling for other output formats
                 switch (inputFormat)
                 {
                     case Format.BIN:
@@ -427,6 +506,28 @@ public class Functions
                             else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
                             {
                                 t42.Output.Write(line.Data);
+                            }
+                        }
+                        return 0;
+
+                    case Format.RCWT:
+                        var rcwt = input is FileInfo inputRCWT && inputRCWT.Exists
+                            ? new RCWT(inputRCWT.FullName)
+                            : new RCWT(Console.OpenStandardInput());
+                        rcwt.OutputFormat = outputFormat;
+                        rcwt.LineCount = lineCount;
+                        rcwt.SetOutput(outputStream);
+                        foreach (var line in rcwt.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
+                        {
+                            if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
+                            {
+                                // Write blank line with same format/length
+                                var blankData = new byte[line.Data.Length];
+                                rcwt.Output.Write(blankData);
+                            }
+                            else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
+                            {
+                                rcwt.Output.Write(line.Data);
                             }
                         }
                         return 0;

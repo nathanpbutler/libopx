@@ -203,6 +203,80 @@ public class Constants
     public const string T42_BLANK_LINE = "\x1b[37m\x1b[40m                                        \x1b[0m";
     #endregion
 
+    #region STL Constants
+    /// <summary>
+    /// Size of the EBU STL file header in bytes (GSI block).
+    /// </summary>
+    public const int STL_HEADER_SIZE = 1024;
+    /// <summary>
+    /// Size of each EBU STL subtitle block in bytes (TTI block).
+    /// </summary>
+    public const int STL_BLOCK_SIZE = 128;
+    /// <summary>
+    /// Default EBU STL code page number (850 - Multilingual Latin I).
+    /// </summary>
+    public const string STL_DEFAULT_CODE_PAGE = "850";
+    /// <summary>
+    /// Default EBU STL disk format code (STL25.01 for 25fps).
+    /// </summary>
+    public const string STL_DEFAULT_DISK_FORMAT = "STL25.01";
+    /// <summary>
+    /// Default EBU STL display standard code (0 - Open subtitling).
+    /// </summary>
+    public const byte STL_DEFAULT_DISPLAY_STANDARD = 0;
+    /// <summary>
+    /// Default EBU STL language code (0x09 - English).
+    /// </summary>
+    public const byte STL_DEFAULT_LANGUAGE_CODE = 0x09;
+    /// <summary>
+    /// Default EBU STL country of origin (GBR - Great Britain).
+    /// </summary>
+    public const string STL_DEFAULT_COUNTRY = "GBR";
+    /// <summary>
+    /// EBU STL subtitle group number for teletext data.
+    /// </summary>
+    public const byte STL_SUBTITLE_GROUP = 1;
+    /// <summary>
+    /// EBU STL comment flag for non-displayed text.
+    /// </summary>
+    public const byte STL_COMMENT_FLAG = 0;
+    /// <summary>
+    /// Maximum number of characters per STL subtitle line.
+    /// </summary>
+    public const int STL_MAX_CHARS_PER_LINE = 40;
+    /// <summary>
+    /// Maximum number of rows in STL subtitle display.
+    /// </summary>
+    public const int STL_MAX_ROWS = 23;
+    #endregion
+
+    #region RCWT Constants
+    /// <summary>
+    /// RCWT packet type byte (unknown purpose).
+    /// </summary>
+    public const byte RCWT_PACKET_TYPE_UNKNOWN = 0x03;
+    /// <summary>
+    /// RCWT framing code byte for packet synchronization.
+    /// </summary>
+    public const byte RCWT_FRAMING_CODE = 0x27;
+    /// <summary>
+    /// RCWT field 0 marker byte.
+    /// </summary>
+    public const byte RCWT_FIELD_0_MARKER = 0xAF;
+    /// <summary>
+    /// RCWT field 1 marker byte.
+    /// </summary>
+    public const byte RCWT_FIELD_1_MARKER = 0xAB;
+    /// <summary>
+    /// Size of RCWT FTS (Frame Time Stamp) value in bytes.
+    /// </summary>
+    public const int RCWT_FTS_BYTE_SIZE = 8;
+    /// <summary>
+    /// RCWT file header signature bytes.
+    /// </summary>
+    public static readonly byte[] RCWT_HEADER = [204, 204, 237, 204, 0, 80, 0, 2, 0, 0, 0];
+    #endregion
+
     #region Default Values
     /// <summary>
     /// Default magazine number used across the library when no specific magazine is specified (for backward compatibility).

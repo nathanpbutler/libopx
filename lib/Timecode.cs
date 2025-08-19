@@ -705,4 +705,19 @@ public class Timecode
     {
         return HashCode.Combine(FrameNumber, Timebase, DropFrame);
     }
+
+    /// <summary>
+    /// Converts the timecode to total milliseconds since midnight.
+    /// </summary>
+    /// <returns>The total number of milliseconds represented by this timecode</returns>
+    public int TotalMilliseconds()
+    {
+        // Calculate total milliseconds from H:M:S:F
+        var totalMs = Hours * 3600 * 1000;       // Hours to milliseconds
+        totalMs += Minutes * 60 * 1000;          // Minutes to milliseconds
+        totalMs += Seconds * 1000;               // Seconds to milliseconds
+        totalMs += (int)(Frames * 1000.0 / Timebase);  // Frames to milliseconds based on frame rate
+        
+        return totalMs;
+    }
 }
