@@ -197,6 +197,30 @@ public class MXF : IDisposable
     }
 
     /// <summary>
+    /// Writes data to the output stream
+    /// </summary>
+    /// <param name="data">The data bytes to write</param>
+    public void Write(byte[] data)
+    {
+        Output.Write(data, 0, data.Length);
+    }
+
+    /// <summary>
+    /// Writes blank data based on the output format
+    /// </summary>
+    public void WriteBlank()
+    {
+        var blankData = (OutputFormat ?? Format.T42) switch
+        {
+            Format.T42 => new byte[Constants.T42_LINE_SIZE],
+            Format.VBI => new byte[Constants.VBI_LINE_SIZE], 
+            Format.VBI_DOUBLE => new byte[Constants.VBI_DOUBLE_LINE_SIZE],
+            _ => new byte[Constants.T42_LINE_SIZE]
+        };
+        Output.Write(blankData, 0, blankData.Length);
+    }
+
+    /// <summary>
     /// Checks if the file is a valid MXF file by reading the first 4 bytes.
     /// </summary>
     /// <returns>True if the file is a valid MXF file, otherwise false.</returns>

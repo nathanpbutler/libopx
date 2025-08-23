@@ -113,6 +113,24 @@ public class T42 : IDisposable
     }
 
     /// <summary>
+    /// Writes blank data with the correct size for T42 format
+    /// </summary>
+    /// <param name="data">The data bytes to write</param>
+    public void Write(byte[] data)
+    {
+        Output.Write(data, 0, data.Length);
+    }
+
+    /// <summary>
+    /// Writes blank T42 data (42 zero bytes)
+    /// </summary>
+    public void WriteBlank()
+    {
+        var blankData = new byte[Constants.T42_LINE_SIZE];
+        Output.Write(blankData, 0, blankData.Length);
+    }
+
+    /// <summary>
     /// Parses the T42 file and returns an enumerable of lines with optional filtering.
     /// </summary>
     /// <param name="magazine">Optional magazine number filter (default: all magazines)</param>

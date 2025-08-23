@@ -122,6 +122,25 @@ public class VBI : IDisposable
     }
 
     /// <summary>
+    /// Writes data to the output stream
+    /// </summary>
+    /// <param name="data">The data bytes to write</param>
+    public void Write(byte[] data)
+    {
+        Output.Write(data, 0, data.Length);
+    }
+
+    /// <summary>
+    /// Writes blank VBI data with the correct size based on format
+    /// </summary>
+    public void WriteBlank()
+    {
+        var blankSize = InputFormat == Format.VBI_DOUBLE ? Constants.VBI_DOUBLE_LINE_SIZE : Constants.VBI_LINE_SIZE;
+        var blankData = new byte[blankSize];
+        Output.Write(blankData, 0, blankData.Length);
+    }
+
+    /// <summary>
     /// Parses the VBI file and returns an enumerable of lines with optional filtering.
     /// </summary>
     /// <param name="magazine">Optional magazine number filter for teletext data (default: all magazines)</param>

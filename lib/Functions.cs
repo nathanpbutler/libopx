@@ -315,6 +315,7 @@ public class Functions
     /// <param name="lineCount">The number of lines per frame for timecode incrementation.</param>
     /// <param name="verbose">Whether to enable verbose output.</param>
     /// <param name="keepBlanks">Whether to keep blank lines in the output.</param>
+    /// <param name="rcwtHeaderSet">If true, writes the RCWT header if not already set. (TODO: EBU STL header)</param>
     /// <returns>An integer indicating the result of the conversion operation.</returns>
     /// <remarks>
     /// This function reads from the specified input file or stdin, converts the data from the input format
@@ -325,14 +326,14 @@ public class Functions
     /// <exception cref="ArgumentException">Thrown if an unsupported input or output format is specified.</exception>
     /// <exception cref="FileNotFoundException">Thrown if the specified input file does not exist.</exception>
     /// <exception cref="IOException">Thrown if there is an error reading the input file or writing the output file.</exception>
-    public static int Convert(FileInfo? input, Format inputFormat, Format outputFormat, FileInfo? output, int? magazine, int[] rows, int lineCount, bool verbose, bool keepBlanks = false)
+    public static int Convert(FileInfo? input, Format inputFormat, Format outputFormat, FileInfo? output, int? magazine, int[] rows, int lineCount, bool verbose, bool keepBlanks = false, bool rcwtHeaderSet = false)
     {
         try
         {
             // Validate output format - only data formats allowed
-            if (outputFormat != Format.VBI && outputFormat != Format.VBI_DOUBLE && outputFormat != Format.T42)
+            if (outputFormat != Format.VBI && outputFormat != Format.VBI_DOUBLE && outputFormat != Format.T42 && outputFormat != Format.RCWT)
             {
-                Console.Error.WriteLine($"Error: Unsupported output format '{outputFormat}'. Supported formats: VBI, VBI_DOUBLE, T42");
+                Console.Error.WriteLine($"Error: Unsupported output format '{outputFormat}'. Supported formats: VBI, VBI_DOUBLE, T42, RCWT");
                 return 1;
             }
 
@@ -368,22 +369,9 @@ public class Functions
                             : new BIN(Console.OpenStandardInput());
                         bin.OutputFormat = outputFormat;
                         bin.SetOutput(outputStream);
-                        foreach (var packet in bin.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
-                        {
-                            foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
-                            {
-                                if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
-                                {
-                                    // Write blank line with same format/length
-                                    var blankData = new byte[line.Data.Length];
-                                    bin.Output.Write(blankData);
-                                }
-                                else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
-                                {
-                                    bin.Output.Write(line.Data);
-                                }
-                            }
-                        }
+                        // When keepBlanks is true, disable parser-level magazine filtering to allow writer-level filtering and blank substitution
+                        var binPackets = bin.Parse(keepBlanks ? null : magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows);
+                        ProcessAndWritePackets(binPackets, magazine, rows, keepBlanks, bin);
                         return 0;
 
                     case Format.VBI:
@@ -394,19 +382,9 @@ public class Functions
                         vbi.OutputFormat = outputFormat;
                         vbi.LineCount = lineCount;
                         vbi.SetOutput(outputStream);
-                        foreach (var line in vbi.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
-                        {
-                            if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
-                            {
-                                // Write blank line with same format/length
-                                var blankData = new byte[line.Data.Length];
-                                vbi.Output.Write(blankData);
-                            }
-                            else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
-                            {
-                                vbi.Output.Write(line.Data);
-                            }
-                        }
+                        // When keepBlanks is true, disable parser-level magazine filtering to allow writer-level filtering and blank substitution
+                        var vbiLines = vbi.Parse(keepBlanks ? null : magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows);
+                        ProcessAndWriteLines(vbiLines, magazine, rows, keepBlanks, vbi);
                         return 0;
 
                     case Format.T42:
@@ -416,19 +394,9 @@ public class Functions
                         t42.OutputFormat = outputFormat;
                         t42.LineCount = lineCount;
                         t42.SetOutput(outputStream);
-                        foreach (var line in t42.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
-                        {
-                            if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
-                            {
-                                // Write blank line with same format/length
-                                var blankData = new byte[line.Data.Length];
-                                t42.Output.Write(blankData);
-                            }
-                            else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
-                            {
-                                t42.Output.Write(line.Data);
-                            }
-                        }
+                        // When keepBlanks is true, disable parser-level magazine filtering to allow writer-level filtering and blank substitution
+                        var t42Lines = t42.Parse(keepBlanks ? null : magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows);
+                        ProcessAndWriteLines(t42Lines, magazine, rows, keepBlanks, t42);
                         return 0;
 
                     case Format.MXF:
@@ -442,24 +410,10 @@ public class Functions
                             OutputFormat = outputFormat,
                             Verbose = verbose
                         };
-                        mxf.OutputFormat = outputFormat;
                         mxf.SetOutput(outputStream);
-                        foreach (var packet in mxf.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
-                        {
-                            foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
-                            {
-                                if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
-                                {
-                                    // Write blank line with same format/length
-                                    var blankData = new byte[line.Data.Length];
-                                    mxf.Output.Write(blankData);
-                                }
-                                else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
-                                {
-                                    mxf.Output.Write(line.Data);
-                                }
-                            }
-                        }
+                        // When keepBlanks is true, disable parser-level magazine filtering to allow writer-level filtering and blank substitution
+                        var mxfPackets = mxf.Parse(keepBlanks ? null : magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows);
+                        ProcessAndWritePackets(mxfPackets, magazine, rows, keepBlanks, mxf);
                         return 0;
 
                     default:
@@ -479,6 +433,127 @@ public class Functions
         {
             Console.Error.WriteLine($"Error: {ex.Message}");
             return 1;
+        }
+    }
+
+    #endregion
+
+    #region Output Writer
+
+
+
+    /// <summary>
+    /// Processes and writes packet lines using format-specific writer (BIN format)
+    /// </summary>
+    /// <param name="packets">The packets containing lines to process and write.</param>
+    /// <param name="magazine">The magazine filter (null for all magazines).</param>
+    /// <param name="rows">The rows to include in output.</param>
+    /// <param name="keepBlanks">Whether to write blank data for filtered lines.</param>
+    /// <param name="writer">The BIN format writer instance.</param>
+    private static void ProcessAndWritePackets(IEnumerable<Packet> packets, int? magazine, int[] rows, bool keepBlanks, BIN writer)
+    {
+        foreach (var packet in packets)
+        {
+            foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
+            {
+                if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
+                {
+                    writer.WriteBlank();
+                }
+                else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
+                {
+                    writer.Write(line.Data);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Processes and writes packet lines using format-specific writer (MXF format)
+    /// </summary>
+    /// <param name="packets">The packets containing lines to process and write.</param>
+    /// <param name="magazine">The magazine filter (null for all magazines).</param>
+    /// <param name="rows">The rows to include in output.</param>
+    /// <param name="keepBlanks">Whether to write blank data for filtered lines.</param>
+    /// <param name="writer">The MXF format writer instance.</param>
+    private static void ProcessAndWritePackets(IEnumerable<Packet> packets, int? magazine, int[] rows, bool keepBlanks, MXF writer)
+    {
+        foreach (var packet in packets)
+        {
+            foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
+            {
+                if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
+                {
+                    writer.WriteBlank();
+                }
+                else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
+                {
+                    writer.Write(line.Data);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Processes and writes lines using format-specific writer (VBI format)
+    /// </summary>
+    /// <param name="lines">The lines to process and write.</param>
+    /// <param name="magazine">The magazine filter (null for all magazines).</param>
+    /// <param name="rows">The rows to include in output.</param>
+    /// <param name="keepBlanks">Whether to write blank data for filtered lines.</param>
+    /// <param name="writer">The VBI format writer instance.</param>
+    private static void ProcessAndWriteLines(IEnumerable<Line> lines, int? magazine, int[] rows, bool keepBlanks, VBI writer)
+    {
+        foreach (var line in lines.Where(l => l.Type != Format.Unknown))
+        {
+            if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
+            {
+                writer.WriteBlank();
+            }
+            else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
+            {
+                writer.Write(line.Data);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Processes and writes lines using format-specific writer (T42 format)
+    /// </summary>
+    /// <param name="lines">The lines to process and write.</param>
+    /// <param name="magazine">The magazine filter (null for all magazines).</param>
+    /// <param name="rows">The rows to include in output.</param>
+    /// <param name="keepBlanks">Whether to write blank data for filtered lines.</param>
+    /// <param name="writer">The T42 format writer instance.</param>
+    private static void ProcessAndWriteLines(IEnumerable<Line> lines, int? magazine, int[] rows, bool keepBlanks, T42 writer)
+    {
+        foreach (var line in lines.Where(l => l.Type != Format.Unknown))
+        {
+            if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
+            {
+                writer.WriteBlank();
+            }
+            else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
+            {
+                writer.Write(line.Data);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Writes output data to the specified stream.
+    /// </summary>
+    /// <param name="output"></param>
+    /// <param name="data"></param>
+    /// <param name="magazine"></param>
+    /// <param name="row"></param>
+    /// <param name="format">The format of the output data.</param>
+    /// <param name="headerSet">Writes the RCWT header if not already set. (TODO: EBU STL header)</param>
+    public static void WriteOutput(Stream output, byte[] data, int? magazine = null, int? row = null, Format format = Format.Unknown, bool headerSet = false)
+    {
+        if (output == null || data == null || data.Length == 0)
+        {
+            return; // Nothing to write
         }
     }
 
