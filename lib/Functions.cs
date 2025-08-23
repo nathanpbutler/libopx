@@ -316,6 +316,7 @@ public class Functions
     /// <param name="lineCount">The number of lines per frame for timecode incrementation.</param>
     /// <param name="verbose">Whether to enable verbose output.</param>
     /// <param name="keepBlanks">Whether to keep blank lines in the output.</param>
+    /// <param name="startTimecode">Optional starting timecode override as string (HH:MM:SS:FF format).</param>
     /// <returns>An integer indicating the result of the conversion operation.</returns>
     /// <remarks>
     /// This function reads from the specified input file or stdin, converts the data from the input format
@@ -326,7 +327,7 @@ public class Functions
     /// <exception cref="ArgumentException">Thrown if an unsupported input or output format is specified.</exception>
     /// <exception cref="FileNotFoundException">Thrown if the specified input file does not exist.</exception>
     /// <exception cref="IOException">Thrown if there is an error reading the input file or writing the output file.</exception>
-    public static int Convert(FileInfo? input, Format inputFormat, Format outputFormat, FileInfo? output, int? magazine, int[] rows, int lineCount, bool verbose, bool keepBlanks = false)
+    public static int Convert(FileInfo? input, Format inputFormat, Format outputFormat, FileInfo? output, int? magazine, int[] rows, int lineCount, bool verbose, bool keepBlanks = false, string? startTimecode = null)
     {
         try
         {
@@ -365,6 +366,8 @@ public class Functions
                 if (outputFormat == Format.STL || outputFormat == Format.RCWT)
                 {
                     var allLines = new List<Line>();
+                    Timecode timecode;
+                    int lineNumber = 0;
                     
                     switch (inputFormat)
                     {
@@ -372,9 +375,21 @@ public class Functions
                             var bin = input is FileInfo inputBIN && inputBIN.Exists
                                 ? new BIN(inputBIN.FullName)
                                 : new BIN(Console.OpenStandardInput());
+                            // BIN starts at specified timecode or defaults to 00:00:00:00
+                            timecode = startTimecode != null ? new Timecode(startTimecode) : new Timecode(0);
                             foreach (var packet in bin.Parse(magazine, rows))
                             {
-                                allLines.AddRange(packet.Lines.Where(l => l.Type != Format.Unknown));
+                                foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
+                                {
+                                    // Set timecode based on lineCount for individual lines
+                                    if (lineNumber % lineCount == 0 && lineNumber != 0)
+                                    {
+                                        timecode = timecode.GetNext();
+                                    }
+                                    line.LineTimecode = timecode;
+                                    allLines.Add(line);
+                                    lineNumber++;
+                                }
                             }
                             break;
 
@@ -384,7 +399,25 @@ public class Functions
                                 ? new VBI(inputVBI.FullName, inputFormat)
                                 : new VBI(Console.OpenStandardInput(), inputFormat);
                             vbi.LineCount = lineCount;
-                            allLines.AddRange(vbi.Parse(magazine, rows));
+                            // VBI/VBI_DOUBLE formats have line-level timecode handling, but respect override if provided
+                            if (startTimecode != null)
+                            {
+                                timecode = new Timecode(startTimecode);
+                                foreach (var line in vbi.Parse(magazine, rows))
+                                {
+                                    if (lineNumber % lineCount == 0 && lineNumber != 0)
+                                    {
+                                        timecode = timecode.GetNext();
+                                    }
+                                    line.LineTimecode = timecode;
+                                    allLines.Add(line);
+                                    lineNumber++;
+                                }
+                            }
+                            else
+                            {
+                                allLines.AddRange(vbi.Parse(magazine, rows));
+                            }
                             break;
 
                         case Format.T42:
@@ -392,7 +425,25 @@ public class Functions
                                 ? new T42(inputT42.FullName)
                                 : new T42(Console.OpenStandardInput());
                             t42.LineCount = lineCount;
-                            allLines.AddRange(t42.Parse(magazine, rows));
+                            // T42 format has line-level timecode handling, but respect override if provided
+                            if (startTimecode != null)
+                            {
+                                timecode = new Timecode(startTimecode);
+                                foreach (var line in t42.Parse(magazine, rows))
+                                {
+                                    if (lineNumber % lineCount == 0 && lineNumber != 0)
+                                    {
+                                        timecode = timecode.GetNext();
+                                    }
+                                    line.LineTimecode = timecode;
+                                    allLines.Add(line);
+                                    lineNumber++;
+                                }
+                            }
+                            else
+                            {
+                                allLines.AddRange(t42.Parse(magazine, rows));
+                            }
                             break;
 
                         case Format.RCWT:
@@ -400,7 +451,25 @@ public class Functions
                                 ? new RCWT(inputRCWT.FullName)
                                 : new RCWT(Console.OpenStandardInput());
                             rcwt.LineCount = lineCount;
-                            allLines.AddRange(rcwt.Parse(magazine, rows));
+                            // RCWT format has line-level timecode handling, but respect override if provided
+                            if (startTimecode != null)
+                            {
+                                timecode = new Timecode(startTimecode);
+                                foreach (var line in rcwt.Parse(magazine, rows))
+                                {
+                                    if (lineNumber % lineCount == 0 && lineNumber != 0)
+                                    {
+                                        timecode = timecode.GetNext();
+                                    }
+                                    line.LineTimecode = timecode;
+                                    allLines.Add(line);
+                                    lineNumber++;
+                                }
+                            }
+                            else
+                            {
+                                allLines.AddRange(rcwt.Parse(magazine, rows));
+                            }
                             break;
 
                         case Format.MXF:
@@ -410,9 +479,23 @@ public class Functions
                                 return 1;
                             }
                             var mxf = new MXF(input.FullName) { Verbose = verbose };
+                            // MXF uses its StartTimecode unless overridden
+                            timecode = startTimecode != null 
+                                ? new Timecode(startTimecode, mxf.StartTimecode.Timebase, mxf.StartTimecode.DropFrame)
+                                : mxf.StartTimecode;
                             foreach (var packet in mxf.Parse(magazine, rows))
                             {
-                                allLines.AddRange(packet.Lines.Where(l => l.Type != Format.Unknown));
+                                foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
+                                {
+                                    // Set timecode based on lineCount for individual lines
+                                    if (lineNumber % lineCount == 0 && lineNumber != 0)
+                                    {
+                                        timecode = timecode.GetNext();
+                                    }
+                                    line.LineTimecode = timecode;
+                                    allLines.Add(line);
+                                    lineNumber++;
+                                }
                             }
                             break;
 

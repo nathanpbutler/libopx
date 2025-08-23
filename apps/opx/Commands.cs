@@ -350,6 +350,12 @@ public class Commands
             DefaultValueFactory = _ => 2
         };
 
+        var timecodeOption = new Option<string?>("-t")
+        {
+            Aliases = { "--timecode" },
+            Description = "Starting timecode (HH:MM:SS:FF) - overrides source timecode"
+        };
+
         var capsOption = new Option<bool>("-c")
         {
             Aliases = { "--caps" },
@@ -374,6 +380,7 @@ public class Commands
         convertCommand.Options.Add(magazineOption);
         convertCommand.Options.Add(rowsOption);
         convertCommand.Options.Add(lineCountOption);
+        convertCommand.Options.Add(timecodeOption);
         convertCommand.Options.Add(capsOption);
         convertCommand.Options.Add(keepOption);
         convertCommand.Options.Add(verboseOption);
@@ -395,6 +402,7 @@ public class Commands
                 bool useCaps = parseResult.GetValue(capsOption);
                 bool keepBlanks = parseResult.GetValue(keepOption);
                 int lineCount = parseResult.GetValue(lineCountOption) ?? 2;
+                string? timecodeString = parseResult.GetValue(timecodeOption);
                 bool verbose = parseResult.GetValue(verboseOption);
 
                 int[] rows = CommandHelpers.DetermineRows(rowsString, useCaps);
@@ -402,7 +410,7 @@ public class Commands
                 Format inputFormat = CommandHelpers.DetermineFormat(inputFormatString, inputFile, Format.VBI);
                 Format outputFormat = CommandHelpers.DetermineFormat(outputFormatString, outputFile, Format.T42);
 
-                return Functions.Convert(inputFile, inputFormat, outputFormat, outputFile, magazine, rows, lineCount, verbose, keepBlanks);
+                return Functions.Convert(inputFile, inputFormat, outputFormat, outputFile, magazine, rows, lineCount, verbose, keepBlanks, timecodeString);
             }
             catch (Exception ex)
             {

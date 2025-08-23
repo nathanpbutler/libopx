@@ -63,7 +63,7 @@ dotnet run --project apps/opx -- filter [options] <input-file?>
 - `-m, --magazine <int>`: Filter by magazine number (default: all magazines)
 - `-r, --rows <string>`: Filter by rows (comma-separated or hyphen ranges, e.g., `1,2,5-8,15`)
 - `-c, --caps`: Use caption rows (1-24) instead of default rows (0-24)
-- `-f, --format <bin|vbi|vbid|t42>`: Input format override (auto-detected from file extension)
+- `-if, --input-format <bin|vbi|vbid|t42>`: Input format override (auto-detected from file extension)
 - `-l, --line-count <int>`: Number of lines per frame for timecode incrementation (default: 2)
 - `-V, --verbose`: Enable verbose output
 
@@ -102,14 +102,14 @@ dotnet run --project apps/opx -- convert [options] <input-file?>
 
 **Options:**
 
-- `-i, --input-format <bin|vbi|vbid|t42|mxf>`: Input format (auto-detected from file extension if not specified)
-- `-o, --output-format <vbi|vbid|t42>`: Output format [required]
-- `-f, --output-file <file>`: Output file path (writes to stdout if not specified)
+- `-if, --input-format <bin|vbi|vbid|t42|mxf>`: Input format (auto-detected from file extension if not specified)
+- `-of, --output-format <vbi|vbid|t42|rcwt|stl>`: Output format (auto-detected from output file extension if not specified)
 - `-m, --magazine <int>`: Filter by magazine number (default: all magazines)
 - `-r, --rows <string>`: Filter by rows (comma-separated or hyphen ranges)
 - `-c, --caps`: Use caption rows (1-24) instead of default rows (0-24)
-- `-k, --keep`: Write blank bytes if rows or magazine doesn't match
+- `--keep`: Write blank bytes if rows or magazine doesn't match
 - `-l, --line-count <int>`: Number of lines per frame for timecode incrementation (default: 2)
+- `-t, --timecode <string>`: Starting timecode (HH:MM:SS:FF) - overrides source timecode
 - `-V, --verbose`: Enable verbose output
 
 **Usage examples:**
@@ -130,23 +130,35 @@ dotnet run --project apps/opx -- extract -k d,v input.mxf
 # Restripe MXF with new timecode
 dotnet run --project apps/opx -- restripe -t 10:00:00:00 input.mxf
 
-# Convert VBI to T42 format (auto-detect input format)
-dotnet run --project apps/opx -- convert -o t42 input.vbi
+# Convert VBI to T42 format (formats auto-detected from file extensions)
+dotnet run --project apps/opx -- convert input.vbi output.t42
 
-# Convert MXF data stream to T42 with file output
-dotnet run --project apps/opx -- convert -i mxf -o t42 -f output.t42 input.mxf
+# Convert MXF data stream to T42 with explicit format specification
+dotnet run --project apps/opx -- convert -if mxf -of t42 input.mxf output.t42
 
 # Convert T42 to VBI with filtering and verbose output
-dotnet run --project apps/opx -- convert -i t42 -o vbi -m 8 -r 20-22 -V input.t42
+dotnet run --project apps/opx -- convert -m 8 -r 20-22 -V input.t42 output.vbi
 
 # Convert VBI to T42 with caption rows only
-dotnet run --project apps/opx -- convert -o t42 -c input.vbi
+dotnet run --project apps/opx -- convert -c input.vbi output.t42
 
 # Convert MXF to VBI preserving structure with blank bytes
-dotnet run --project apps/opx -- convert -i mxf -o vbi -k input.mxf
+dotnet run --project apps/opx -- convert --keep input.mxf output.vbi
+
+# Convert BIN to RCWT with custom starting timecode
+dotnet run --project apps/opx -- convert -t 10:00:00:00 input.bin output.rcwt
+
+# Convert MXF to RCWT overriding source timecode
+dotnet run --project apps/opx -- convert -t 01:30:45:12 input.mxf output.rcwt
+
+# Convert to stdout (auto-detect input format from extension, specify output format)
+dotnet run --project apps/opx -- convert -of t42 input.vbi
+
+# Convert from stdin (specify input format, auto-detect output from extension)
+cat input.bin | dotnet run --project apps/opx -- convert -if bin output.t42
 ```
 
-**Note:** For filter command, if input file is not specified, reads from stdin. Format is auto-detected from file extension or can be overridden with -f option.
+**Note:** For filter and convert commands, if input file is not specified, reads from stdin. Input and output formats are auto-detected from file extensions or can be overridden with -if and -of options respectively.
 
 ### Parse VBI and T42 files
 
