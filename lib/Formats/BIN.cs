@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 using nathanbutlerDEV.libopx.Enums;
+using nathanbutlerDEV.libopx.Interfaces;
 
 namespace nathanbutlerDEV.libopx.Formats;
 
@@ -8,7 +9,7 @@ namespace nathanbutlerDEV.libopx.Formats;
 /// Parser for BIN format files containing teletext data packets with line headers.
 /// Supports streaming parsing with magazine and row filtering capabilities.
 /// </summary>
-public class BIN : IDisposable
+public class BIN : IDisposable, IFormatWriter
 {
     private readonly byte[] _packetHeader = new byte[Constants.PACKET_HEADER_SIZE];
     private readonly byte[] _lineHeader = new byte[Constants.LINE_HEADER_SIZE];

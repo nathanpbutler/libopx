@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using nathanbutlerDEV.libopx.Enums;
+using nathanbutlerDEV.libopx.Interfaces;
 
 namespace nathanbutlerDEV.libopx.Formats;
 
@@ -9,7 +10,7 @@ namespace nathanbutlerDEV.libopx.Formats;
 /// Parser for VBI (Vertical Blanking Interval) format files with support for conversion to T42 teletext format.
 /// Handles both single and double-line VBI data with automatic format detection and filtering capabilities.
 /// </summary>
-public class VBI : IDisposable
+public class VBI : IDisposable, IFormatWriter
 {
     /// <summary>
     /// Gets or sets the input file. If null, reads from stdin.

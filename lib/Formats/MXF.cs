@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using nathanbutlerDEV.libopx.Enums;
+using nathanbutlerDEV.libopx.Interfaces;
 using nathanbutlerDEV.libopx.SMPTE;
 
 namespace nathanbutlerDEV.libopx.Formats;
@@ -8,7 +9,7 @@ namespace nathanbutlerDEV.libopx.Formats;
 /// Parser for MXF (Material Exchange Format) files with support for stream extraction, filtering, and timecode restriping.
 /// Handles KLV (Key-Length-Value) packets and SMPTE timecode processing.
 /// </summary>
-public class MXF : IDisposable
+public class MXF : IDisposable, IFormatWriter
 {
     // Reusable buffers to reduce allocations
     private readonly byte[] _keyBuffer = new byte[Constants.KLV_KEY_SIZE];
@@ -215,6 +216,7 @@ public class MXF : IDisposable
             Format.T42 => new byte[Constants.T42_LINE_SIZE],
             Format.VBI => new byte[Constants.VBI_LINE_SIZE], 
             Format.VBI_DOUBLE => new byte[Constants.VBI_DOUBLE_LINE_SIZE],
+            Format.BIN => new byte[Constants.PACKET_HEADER_SIZE + Constants.LINE_HEADER_SIZE + Constants.T42_LINE_SIZE],
             _ => new byte[Constants.T42_LINE_SIZE]
         };
         Output.Write(blankData, 0, blankData.Length);

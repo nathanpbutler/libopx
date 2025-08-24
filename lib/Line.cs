@@ -16,7 +16,7 @@ public class Line : IDisposable
     /// Header of the line.
     /// The header is a byte array that contains the first 14 bytes of the line.
     /// </summary>
-    private byte[] Header { get; } = [];
+    public byte[] Header { get; } = [];
 
     /// <summary>
     /// Number of the line.
@@ -269,6 +269,18 @@ public class Line : IDisposable
     /// <param name="outputFormat">The desired output format for conversion</param>
     public void ParseLine(byte[] data, Format outputFormat = Format.Unknown)
     {
+        // For BIN output format, preserve raw data without any format conversion or validation
+        if (outputFormat == Format.BIN)
+        {
+            Data = data;
+            Length = data.Length;
+            Magazine = -1;
+            Row = -1;
+            Text = Constants.T42_BLANK_LINE;
+            _cachedType = Format.BIN;
+            return;
+        }
+
         // Determine the input format first
         Format inputFormat = GetFormat(data);
         

@@ -72,7 +72,8 @@ public static class CommandHelpers
             [
                 new CompletionItem("vbi", "VBI format"),
                 new CompletionItem("vbid", "VBI format (double width)"),
-                new CompletionItem("t42", "T42 format")
+                new CompletionItem("t42", "T42 format"),
+                new CompletionItem("bin", "BIN format (MXF data)")
             ];
         };
     }

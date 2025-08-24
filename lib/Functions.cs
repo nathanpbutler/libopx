@@ -1,6 +1,7 @@
 using System.Collections;
 using nathanbutlerDEV.libopx.Enums;
 using nathanbutlerDEV.libopx.Formats;
+using nathanbutlerDEV.libopx.Interfaces;
 
 namespace nathanbutlerDEV.libopx;
 
@@ -331,9 +332,16 @@ public class Functions
         try
         {
             // Validate output format - only data formats allowed
-            if (outputFormat != Format.VBI && outputFormat != Format.VBI_DOUBLE && outputFormat != Format.T42 && outputFormat != Format.RCWT)
+            if (outputFormat != Format.VBI && outputFormat != Format.VBI_DOUBLE && outputFormat != Format.T42 && outputFormat != Format.RCWT && outputFormat != Format.BIN)
             {
-                Console.Error.WriteLine($"Error: Unsupported output format '{outputFormat}'. Supported formats: VBI, VBI_DOUBLE, T42, RCWT");
+                Console.Error.WriteLine($"Error: Unsupported output format '{outputFormat}'. Supported formats: VBI, VBI_DOUBLE, T42, RCWT, BIN");
+                return 1;
+            }
+
+            // Also, outputFormat of BIN is only supported when inputFormat is MXF
+            if (outputFormat == Format.BIN && inputFormat != Format.MXF)
+            {
+                Console.Error.WriteLine($"Error: Output format '{outputFormat}' is only supported when input format is MXF");
                 return 1;
             }
 
@@ -411,9 +419,18 @@ public class Functions
                             Verbose = verbose
                         };
                         mxf.SetOutput(outputStream);
-                        // When keepBlanks is true, disable parser-level magazine filtering to allow writer-level filtering and blank substitution
-                        var mxfPackets = mxf.Parse(keepBlanks ? null : magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows);
-                        ProcessAndWritePackets(mxfPackets, magazine, rows, keepBlanks, mxf);
+                        // For BIN output format, ignore magazine/row filtering entirely
+                        if (outputFormat == Format.BIN)
+                        {
+                            var mxfPacketsBin = mxf.Parse(null, Constants.DEFAULT_ROWS);
+                            ProcessAndWritePackets(mxfPacketsBin, null, Constants.DEFAULT_ROWS, false, mxf);
+                        }
+                        else
+                        {
+                            // When keepBlanks is true, disable parser-level magazine filtering to allow writer-level filtering and blank substitution
+                            var mxfPackets = mxf.Parse(keepBlanks ? null : magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows);
+                            ProcessAndWritePackets(mxfPackets, magazine, rows, keepBlanks, mxf);
+                        }
                         return 0;
 
                     default:
@@ -440,73 +457,59 @@ public class Functions
 
     #region Output Writer
 
-
-
     /// <summary>
-    /// Processes and writes packet lines using format-specific writer (BIN format)
+    /// Unified method to process and write packets containing lines.
     /// </summary>
     /// <param name="packets">The packets containing lines to process and write.</param>
     /// <param name="magazine">The magazine filter (null for all magazines).</param>
     /// <param name="rows">The rows to include in output.</param>
     /// <param name="keepBlanks">Whether to write blank data for filtered lines.</param>
-    /// <param name="writer">The BIN format writer instance.</param>
-    private static void ProcessAndWritePackets(IEnumerable<Packet> packets, int? magazine, int[] rows, bool keepBlanks, BIN writer)
+    /// <param name="writer">The format writer instance.</param>
+    private static void ProcessAndWritePackets(IEnumerable<Packet> packets, int? magazine, int[] rows, bool keepBlanks, IFormatWriter writer)
     {
         foreach (var packet in packets)
         {
-            foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
+            // If writer is MXF and writer.OutputFormat is BIN, then we write packet header
+            if (writer is MXF mxfWriter && mxfWriter.OutputFormat == Format.BIN)
             {
-                if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
-                {
-                    writer.WriteBlank();
-                }
-                else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
-                {
-                    writer.Write(line.Data);
-                }
+                mxfWriter.Write(packet.Header);
             }
+            ProcessLines(packet.Lines.Where(l => l.Type != Format.Unknown), magazine, rows, keepBlanks, writer);
         }
     }
 
     /// <summary>
-    /// Processes and writes packet lines using format-specific writer (MXF format)
-    /// </summary>
-    /// <param name="packets">The packets containing lines to process and write.</param>
-    /// <param name="magazine">The magazine filter (null for all magazines).</param>
-    /// <param name="rows">The rows to include in output.</param>
-    /// <param name="keepBlanks">Whether to write blank data for filtered lines.</param>
-    /// <param name="writer">The MXF format writer instance.</param>
-    private static void ProcessAndWritePackets(IEnumerable<Packet> packets, int? magazine, int[] rows, bool keepBlanks, MXF writer)
-    {
-        foreach (var packet in packets)
-        {
-            foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
-            {
-                if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
-                {
-                    writer.WriteBlank();
-                }
-                else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
-                {
-                    writer.Write(line.Data);
-                }
-            }
-        }
-    }
-
-    /// <summary>
-    /// Processes and writes lines using format-specific writer (VBI format)
+    /// Unified method to process and write lines directly.
     /// </summary>
     /// <param name="lines">The lines to process and write.</param>
     /// <param name="magazine">The magazine filter (null for all magazines).</param>
     /// <param name="rows">The rows to include in output.</param>
     /// <param name="keepBlanks">Whether to write blank data for filtered lines.</param>
-    /// <param name="writer">The VBI format writer instance.</param>
-    private static void ProcessAndWriteLines(IEnumerable<Line> lines, int? magazine, int[] rows, bool keepBlanks, VBI writer)
+    /// <param name="writer">The format writer instance.</param>
+    private static void ProcessAndWriteLines(IEnumerable<Line> lines, int? magazine, int[] rows, bool keepBlanks, IFormatWriter writer)
     {
-        foreach (var line in lines.Where(l => l.Type != Format.Unknown))
+        ProcessLines(lines.Where(l => l.Type != Format.Unknown), magazine, rows, keepBlanks, writer);
+    }
+
+    /// <summary>
+    /// Core processing logic for writing lines with filtering and blank handling.
+    /// </summary>
+    /// <param name="lines">The filtered lines to process.</param>
+    /// <param name="magazine">The magazine filter (null for all magazines).</param>
+    /// <param name="rows">The rows to include in output.</param>
+    /// <param name="keepBlanks">Whether to write blank data for filtered lines.</param>
+    /// <param name="writer">The format writer instance.</param>
+    private static void ProcessLines(IEnumerable<Line> lines, int? magazine, int[] rows, bool keepBlanks, IFormatWriter writer)
+    {
+        foreach (var line in lines)
         {
-            if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
+            if (writer is MXF mxfWriter && mxfWriter.OutputFormat == Format.BIN)
+            {
+                // Write the line header for MXF in BIN format
+                mxfWriter.Write(line.Header);
+                mxfWriter.Write(line.Data);
+            }
+            else if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
             {
                 writer.WriteBlank();
             }
@@ -514,46 +517,6 @@ public class Functions
             {
                 writer.Write(line.Data);
             }
-        }
-    }
-
-    /// <summary>
-    /// Processes and writes lines using format-specific writer (T42 format)
-    /// </summary>
-    /// <param name="lines">The lines to process and write.</param>
-    /// <param name="magazine">The magazine filter (null for all magazines).</param>
-    /// <param name="rows">The rows to include in output.</param>
-    /// <param name="keepBlanks">Whether to write blank data for filtered lines.</param>
-    /// <param name="writer">The T42 format writer instance.</param>
-    private static void ProcessAndWriteLines(IEnumerable<Line> lines, int? magazine, int[] rows, bool keepBlanks, T42 writer)
-    {
-        foreach (var line in lines.Where(l => l.Type != Format.Unknown))
-        {
-            if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
-            {
-                writer.WriteBlank();
-            }
-            else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
-            {
-                writer.Write(line.Data);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Writes output data to the specified stream.
-    /// </summary>
-    /// <param name="output"></param>
-    /// <param name="data"></param>
-    /// <param name="magazine"></param>
-    /// <param name="row"></param>
-    /// <param name="format">The format of the output data.</param>
-    /// <param name="headerSet">Writes the RCWT header if not already set. (TODO: EBU STL header)</param>
-    public static void WriteOutput(Stream output, byte[] data, int? magazine = null, int? row = null, Format format = Format.Unknown, bool headerSet = false)
-    {
-        if (output == null || data == null || data.Length == 0)
-        {
-            return; // Nothing to write
         }
     }
 

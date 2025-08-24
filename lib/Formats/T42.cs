@@ -3,6 +3,7 @@ using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using nathanbutlerDEV.libopx.Enums;
+using nathanbutlerDEV.libopx.Interfaces;
 
 namespace nathanbutlerDEV.libopx.Formats;
 
@@ -10,7 +11,7 @@ namespace nathanbutlerDEV.libopx.Formats;
 /// Parser for T42 teletext format files with support for conversion to VBI formats and teletext content extraction.
 /// Provides Hamming error correction and ANSI color formatting for teletext display.
 /// </summary>
-public class T42 : IDisposable
+public class T42 : IDisposable, IFormatWriter
 {
     /// <summary>
     /// Gets or sets the input file. If null, reads from stdin.
