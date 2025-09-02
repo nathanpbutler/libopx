@@ -74,7 +74,7 @@ public class Commands
         filterCommand.Options.Add(capsOption);
         filterCommand.Options.Add(verboseOption);
 
-        filterCommand.SetAction((parseResult) =>
+        filterCommand.SetAction(async (parseResult, cancellationToken) =>
         {
             try
             {
@@ -91,7 +91,18 @@ public class Commands
                 int[] rows = CommandHelpers.DetermineRows(rowsString, useCaps);
                 Format inputFormat = CommandHelpers.DetermineFormatFromFile(inputFile, inputFormatString, Format.VBI);
 
-                return Functions.Filter(inputFile, magazine, rows, lineCount, inputFormat, verbose);
+                // Use async processing for better performance
+                return inputFormat switch
+                {
+                    Format.VBI or Format.VBI_DOUBLE => await AsyncProcessingHelpers.ProcessVBIAsync(inputFile, magazine, rows, lineCount, inputFormat, verbose, cancellationToken),
+                    Format.T42 => await AsyncProcessingHelpers.ProcessT42Async(inputFile, magazine, rows, lineCount, verbose, cancellationToken),
+                    _ => Functions.Filter(inputFile, magazine, rows, lineCount, inputFormat, verbose) // Fallback to sync method for unsupported formats
+                };
+            }
+            catch (OperationCanceledException)
+            {
+                Console.Error.WriteLine("Operation was cancelled.");
+                return 130;
             }
             catch (Exception ex)
             {

@@ -1,6 +1,8 @@
 using System;
+using System.Buffers;
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using nathanbutlerDEV.libopx.Enums;
 
 namespace nathanbutlerDEV.libopx.Formats;
@@ -224,6 +226,125 @@ public class VBI : IDisposable
 
             yield return line;
             lineNumber++;
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously parses the VBI file and returns an async enumerable of lines with optional filtering.
+    /// Provides better performance for large files with non-blocking I/O operations.
+    /// </summary>
+    /// <param name="magazine">Optional magazine number filter for teletext data (default: all magazines)</param>
+    /// <param name="rows">Optional array of row numbers to filter (default: all rows)</param>
+    /// <param name="cancellationToken">Token to cancel the operation</param>
+    /// <returns>An async enumerable of parsed lines matching the filter criteria</returns>
+    public async IAsyncEnumerable<Line> ParseAsync(
+        int? magazine = null, 
+        int[]? rows = null, 
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        // Use default rows if not specified
+        rows ??= Constants.DEFAULT_ROWS;
+        var outputFormat = OutputFormat ?? Format.T42;
+
+        int lineNumber = 0;
+        var timecode = new Timecode(0);
+
+        // Use ArrayPool for better memory management
+        var arrayPool = ArrayPool<byte>.Shared;
+        var vbiBuffer = arrayPool.Rent(LineLength);
+
+        try
+        {
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                // Use Memory<byte> for async operations
+                var bufferMemory = vbiBuffer.AsMemory(0, LineLength);
+                var bytesRead = await Input.ReadAsync(bufferMemory, cancellationToken);
+
+                if (bytesRead != LineLength)
+                    break; // End of stream or incomplete read
+
+                // Increment timecode if LineCount is reached
+                if (lineNumber % LineCount == 0 && lineNumber != 0)
+                {
+                    timecode = timecode.GetNext();
+                }
+
+                // Create line with efficient buffer copying
+                var line = new Line()
+                {
+                    LineNumber = lineNumber,
+                    Data = vbiBuffer.AsSpan(0, LineLength).ToArray(), // Only copy what we need
+                    Length = LineLength,
+                    SampleCoding = InputFormat == Format.VBI_DOUBLE ? 0x32 : 0x31,
+                    SampleCount = LineLength,
+                    LineTimecode = timecode,
+                };
+
+                // Process the VBI data based on output format
+                if (outputFormat == Format.T42)
+                {
+                    try
+                    {
+                        var t42Data = ToT42(line.Data);
+                        if (t42Data.Length >= Constants.T42_LINE_SIZE && t42Data.Any(b => b != 0))
+                        {
+                            line.Data = t42Data;
+                            line.Length = t42Data.Length;
+                            line.SampleCoding = 0x31;
+                            line.SampleCount = t42Data.Length;
+                            line.Magazine = T42.GetMagazine(t42Data[0]);
+                            line.Row = T42.GetRow([.. t42Data.Take(2)]);
+                            line.Text = T42.GetText([.. t42Data.Skip(2)], line.Row == 0);
+                        }
+                        else
+                        {
+                            lineNumber++;
+                            continue;
+                        }
+                    }
+                    catch
+                    {
+                        lineNumber++;
+                        continue;
+                    }
+                }
+                else if (outputFormat == Format.VBI_DOUBLE && LineLength == Constants.VBI_LINE_SIZE)
+                {
+                    line.Data = Functions.Double(line.Data);
+                    line.Magazine = -1;
+                    line.Row = -1;
+                    line.Text = Constants.T42_BLANK_LINE;
+                }
+                else
+                {
+                    line.Magazine = -1;
+                    line.Row = -1;
+                    line.Text = Constants.T42_BLANK_LINE;
+                }
+
+                // Apply filtering
+                if (magazine.HasValue && line.Magazine != magazine.Value && outputFormat == Format.T42)
+                {
+                    lineNumber++;
+                    continue;
+                }
+
+                if (rows != null && !rows.Contains(line.Row) && outputFormat == Format.T42)
+                {
+                    lineNumber++;
+                    continue;
+                }
+
+                yield return line;
+                lineNumber++;
+            }
+        }
+        finally
+        {
+            arrayPool.Return(vbiBuffer);
         }
     }
 

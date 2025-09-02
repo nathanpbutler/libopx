@@ -4,11 +4,11 @@ namespace nathanbutlerDEV.opx;
 
 class Program
 {
-    static int Main(string[] args)
+    static async Task<int> Main(string[] args)
     {
         try
         {
-            var rootCommand = new RootCommand("OP-42/OP-47 teletext processing utility for VBI, T42, and MXF data stream formats");
+            var rootCommand = new RootCommand("OP-42/OP-47 teletext processing utility for VBI, T42, and MXF data stream formats (Enhanced with Async Support)");
 
             var filterCommand = Commands.CreateFilterCommand();
             var extractCommand = Commands.CreateExtractCommand();
@@ -20,7 +20,20 @@ class Program
             rootCommand.Add(restripeCommand);
             rootCommand.Add(convertCommand);
             
-            return rootCommand.Parse(args).Invoke();
+            // Setup cancellation for Ctrl+C
+            using var cts = new CancellationTokenSource();
+            Console.CancelKeyPress += (_, e) => {
+                e.Cancel = true;
+                cts.Cancel();
+                Console.Error.WriteLine("\nOperation cancelled by user.");
+            };
+
+            return await rootCommand.Parse(args).InvokeAsync(cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            Console.Error.WriteLine("Application was cancelled.");
+            return 130;
         }
         catch (Exception ex)
         {

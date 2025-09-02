@@ -1,6 +1,8 @@
 using System;
+using System.Buffers;
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using System.Text;
 using nathanbutlerDEV.libopx.Enums;
 
@@ -205,6 +207,111 @@ public class T42 : IDisposable
 
             yield return line;
             lineNumber++;
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously parses the T42 file and returns an async enumerable of lines with optional filtering.
+    /// </summary>
+    /// <param name="magazine">Optional magazine number filter (default: all magazines)</param>
+    /// <param name="rows">Optional array of row numbers to filter (default: all rows)</param>
+    /// <param name="cancellationToken">Token to cancel the operation</param>
+    /// <returns>An async enumerable of parsed lines matching the filter criteria</returns>
+    public async IAsyncEnumerable<Line> ParseAsync(
+        int? magazine = null, 
+        int[]? rows = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        rows ??= Constants.DEFAULT_ROWS;
+        var outputFormat = OutputFormat ?? Format.T42;
+
+        int lineNumber = 0;
+        var timecode = new Timecode(0);
+        
+        var arrayPool = ArrayPool<byte>.Shared;
+        var t42Buffer = arrayPool.Rent(LineLength);
+
+        try
+        {
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var bufferMemory = t42Buffer.AsMemory(0, LineLength);
+                var bytesRead = await Input.ReadAsync(bufferMemory, cancellationToken);
+
+                if (bytesRead != LineLength)
+                    break;
+
+                if (lineNumber % LineCount == 0 && lineNumber != 0)
+                {
+                    timecode = timecode.GetNext();
+                }
+
+                var line = new Line()
+                {
+                    LineNumber = lineNumber,
+                    Data = t42Buffer.AsSpan(0, LineLength).ToArray(),
+                    Length = LineLength,
+                    SampleCoding = 0x31,
+                    SampleCount = LineLength,
+                    LineTimecode = timecode,
+                };
+
+                // Extract T42 metadata
+                if (line.Data.Length >= Constants.T42_LINE_SIZE && line.Data.Any(b => b != 0))
+                {
+                    line.Magazine = GetMagazine(line.Data[0]);
+                    line.Row = GetRow([.. line.Data.Take(2)]);
+                    line.Text = GetText([.. line.Data.Skip(2)], line.Row == 0);
+                }
+                else
+                {
+                    lineNumber++;
+                    continue;
+                }
+
+                // Format conversion logic (same as synchronous version)
+                if (outputFormat == Format.VBI || outputFormat == Format.VBI_DOUBLE)
+                {
+                    try
+                    {
+                        var vbiData = ToVBI(line.Data, outputFormat);
+                        line.Data = vbiData;
+                        line.Length = vbiData.Length;
+                        line.SampleCoding = outputFormat == Format.VBI_DOUBLE ? 0x32 : 0x31;
+                        line.SampleCount = vbiData.Length;
+                        line.Magazine = -1;
+                        line.Row = -1;
+                        line.Text = Constants.T42_BLANK_LINE;
+                    }
+                    catch
+                    {
+                        lineNumber++;
+                        continue;
+                    }
+                }
+
+                // Apply filtering
+                if (magazine.HasValue && line.Magazine != magazine.Value && outputFormat == Format.T42)
+                {
+                    lineNumber++;
+                    continue;
+                }
+
+                if (rows != null && !rows.Contains(line.Row) && outputFormat == Format.T42)
+                {
+                    lineNumber++;
+                    continue;
+                }
+
+                yield return line;
+                lineNumber++;
+            }
+        }
+        finally
+        {
+            arrayPool.Return(t42Buffer);
         }
     }
 
