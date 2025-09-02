@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections;
 using System.Text;
 using nathanbutlerDEV.libopx.Enums;
@@ -186,6 +187,37 @@ public class Line : IDisposable
             throw new ArgumentException($"Invalid line length: {Length}");
 
         Data = new byte[Length];
+    }
+
+    /// <summary>
+    /// Asynchronously parses the line data from a stream.
+    /// </summary>
+    /// <param name="input">The input stream</param>
+    /// <param name="outputFormat">The desired output format for conversion</param>
+    /// <param name="cancellationToken">Token to cancel the operation</param>
+    public async Task ParseLineAsync(Stream input, Format outputFormat = Format.Unknown, CancellationToken cancellationToken = default)
+    {
+        if (Length <= 0)
+            throw new InvalidDataException("Line length is invalid.");
+
+        var arrayPool = ArrayPool<byte>.Shared;
+        var dataBuffer = arrayPool.Rent(Length);
+        
+        try
+        {
+            var dataMemory = dataBuffer.AsMemory(0, Length);
+            var bytesRead = await input.ReadAsync(dataMemory, cancellationToken);
+            
+            if (bytesRead < Length)
+                throw new InvalidDataException($"Not enough data to read the line. Expected {Length}, got {bytesRead}.");
+
+            // Use existing ParseLine logic with the buffer
+            ParseLine(dataBuffer.AsSpan(0, Length).ToArray(), outputFormat);
+        }
+        finally
+        {
+            arrayPool.Return(dataBuffer);
+        }
     }
 
     /// <summary>

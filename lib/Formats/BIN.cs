@@ -1,5 +1,7 @@
 using System;
+using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using nathanbutlerDEV.libopx.Enums;
 
 namespace nathanbutlerDEV.libopx.Formats;
@@ -168,6 +170,127 @@ public class BIN : IDisposable
                 yield return packet;
             }
             timecode = timecode.GetNext(); // Increment timecode for the next packet
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously parses the BIN file and returns an async enumerable of packets with optional filtering.
+    /// </summary>
+    /// <param name="magazine">Optional magazine number filter (default: all magazines)</param>
+    /// <param name="rows">Optional array of row numbers to filter (default: all rows)</param>
+    /// <param name="startTimecode">Optional starting timecode for packet numbering</param>
+    /// <param name="cancellationToken">Token to cancel the operation</param>
+    /// <returns>An async enumerable of parsed packets matching the filter criteria</returns>
+    public async IAsyncEnumerable<Packet> ParseAsync(
+        int? magazine = null, 
+        int[]? rows = null, 
+        Timecode? startTimecode = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        rows ??= Constants.DEFAULT_ROWS;
+        var outputFormat = OutputFormat ?? Format.T42;
+        int lineNumber = 0;
+        var timecode = startTimecode ?? new Timecode(0);
+
+        var arrayPool = ArrayPool<byte>.Shared;
+        var packetBuffer = arrayPool.Rent(Constants.PACKET_HEADER_SIZE);
+        var lineBuffer = arrayPool.Rent(Constants.LINE_HEADER_SIZE);
+
+        try
+        {
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                // Read packet header asynchronously
+                var packetMemory = packetBuffer.AsMemory(0, Constants.PACKET_HEADER_SIZE);
+                var packetBytesRead = await Input.ReadAsync(packetMemory, cancellationToken);
+                
+                if (packetBytesRead != Constants.PACKET_HEADER_SIZE)
+                    break;
+
+                var packet = new Packet(packetBuffer.AsSpan(0, Constants.PACKET_HEADER_SIZE).ToArray())
+                {
+                    Timecode = timecode
+                };
+
+                for (var l = 0; l < packet.LineCount; l++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var lineMemory = lineBuffer.AsMemory(0, Constants.LINE_HEADER_SIZE);
+                    var lineBytesRead = await Input.ReadAsync(lineMemory, cancellationToken);
+                    
+                    if (lineBytesRead < Constants.LINE_HEADER_SIZE) break;
+
+                    var line = new Line(lineBuffer.AsSpan(0, Constants.LINE_HEADER_SIZE))
+                    {
+                        LineNumber = lineNumber
+                    };
+
+                    if (line.Length <= 0)
+                        throw new InvalidDataException("Line length is invalid.");
+
+                    // Parse line data asynchronously
+                    await ParseLineAsync(line, Input, outputFormat, cancellationToken);
+
+                    // Apply filtering
+                    if (magazine.HasValue && line.Magazine != magazine.Value && outputFormat == Format.T42)
+                    {
+                        lineNumber++;
+                        continue;
+                    }
+
+                    if (rows != null && !rows.Contains(line.Row) && outputFormat == Format.T42)
+                    {
+                        lineNumber++;
+                        continue;
+                    }
+
+                    packet.Lines.Add(line);
+                    lineNumber++;
+                }
+
+                if (packet.Lines.Count > 0)
+                {
+                    yield return packet;
+                }
+                
+                timecode = timecode.GetNext();
+            }
+        }
+        finally
+        {
+            arrayPool.Return(packetBuffer);
+            arrayPool.Return(lineBuffer);
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously parses line data from a stream
+    /// </summary>
+    private static async Task ParseLineAsync(Line line, Stream input, Format outputFormat, CancellationToken cancellationToken)
+    {
+        if (line.Length <= 0)
+            throw new InvalidDataException("Line length is invalid.");
+
+        var arrayPool = ArrayPool<byte>.Shared;
+        var dataBuffer = arrayPool.Rent(line.Length);
+        
+        try
+        {
+            var dataMemory = dataBuffer.AsMemory(0, line.Length);
+            var bytesRead = await input.ReadAsync(dataMemory, cancellationToken);
+            
+            if (bytesRead < line.Length)
+                throw new InvalidDataException($"Not enough data to read the line. Expected {line.Length}, got {bytesRead}.");
+
+            // Use the existing ParseLine logic with the read data
+            line.ParseLine(dataBuffer.AsSpan(0, line.Length).ToArray(), outputFormat);
+        }
+        finally
+        {
+            arrayPool.Return(dataBuffer);
         }
     }
 

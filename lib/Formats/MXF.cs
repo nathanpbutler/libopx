@@ -1,4 +1,6 @@
+using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using nathanbutlerDEV.libopx.Enums;
 using nathanbutlerDEV.libopx.SMPTE;
 
@@ -315,6 +317,101 @@ public class MXF : IDisposable
         Input.Seek(0, SeekOrigin.Begin);
         StartTimecode = new Timecode(0);
         return false;
+    }
+
+    /// <summary>
+    /// Asynchronously parses the MXF file and returns an async enumerable of packets with optional filtering.
+    /// Supports multiple operation modes including filtering, extraction, and restriping.
+    /// </summary>
+    /// <param name="magazine">Optional magazine number filter for teletext data (default: all magazines)</param>
+    /// <param name="rows">Optional array of row numbers to filter (default: all rows)</param>
+    /// <param name="startTimecode">Optional starting timecode override as string (HH:MM:SS:FF format)</param>
+    /// <param name="cancellationToken">Token to cancel the operation</param>
+    /// <returns>An async enumerable of parsed packets matching the filter criteria</returns>
+    public async IAsyncEnumerable<Packet> ParseAsync(
+        int? magazine = null, 
+        int[]? rows = null, 
+        string? startTimecode = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        Input.Seek(0, SeekOrigin.Begin);
+        _lastTimecode = null;
+        
+        var timecode = startTimecode == null
+            ? StartTimecode
+            : new Timecode(startTimecode, StartTimecode.Timebase, StartTimecode.DropFrame);
+        var smpteTimecode = timecode;
+        var timecodeComponent = timecode;
+
+        int lineNumber = 0;
+        var restripeStart = DateTime.Now;
+        var lastProgressUpdate = DateTime.Now;
+
+        try
+        {
+            while (await TryReadKlvHeaderAsync(cancellationToken) is var (keyType, length) && keyType != KeyType.Unknown)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                bool shouldExtract = Function == Function.Extract && (DemuxMode || RequiredKeys.Contains(keyType));
+
+                if (shouldExtract)
+                {
+                    await ExtractPacketAsync(keyType, length, cancellationToken);
+                    continue;
+                }
+
+                switch (keyType)
+                {
+                    case KeyType.Data:
+                        if (Function == Function.Filter)
+                        {
+                            var packet = await FilterDataPacketAsync(magazine, rows, timecode, lineNumber, OutputFormat ?? Format.T42, cancellationToken);
+                            if (Verbose) Console.WriteLine($"Packet found at timecode {timecode}");
+                            
+                            if (packet.Lines.Count > 0)
+                            {
+                                yield return packet;
+                            }
+                            timecode = timecode.GetNext();
+                        }
+                        else
+                        {
+                            await SkipPacketAsync(length, cancellationToken);
+                        }
+                        break;
+
+                    case KeyType.System:
+                    case KeyType.TimecodeComponent:
+                    case KeyType.Video:
+                    case KeyType.Audio:
+                    default:
+                        await SkipPacketAsync(length, cancellationToken);
+                        break;
+                }
+
+                // Progress reporting with throttling
+                if (PrintProgress && Function == Function.Restripe && 
+                    (DateTime.Now - lastProgressUpdate).TotalMilliseconds >= 1000)
+                {
+                    lastProgressUpdate = DateTime.Now;
+                    var percentComplete = (double)Input.Position / Input.Length * 100;
+                    Console.WriteLine($"Progress: {percentComplete:F2}% complete. Current position: {Input.Position} bytes of {Input.Length} bytes.");
+                }
+            }
+
+            if (PrintProgress && Function == Function.Restripe)
+            {
+                var restripeEnd = DateTime.Now;
+                var totalDuration = (restripeEnd - restripeStart).TotalSeconds;
+                Console.WriteLine($"Restriping completed in {totalDuration:F2} seconds.");
+            }
+        }
+        finally
+        {
+            CloseExtractionStreams();
+            Input.Seek(0, SeekOrigin.Begin);
+        }
     }
 
     /// <summary>
@@ -927,6 +1024,212 @@ public class MXF : IDisposable
             return Constants.SYSTEM_METADATA_SET_GC_OFFSET;
         }
         return -1;
+    }
+
+    /// <summary>
+    /// Asynchronously attempts to read a KLV header from the input stream
+    /// </summary>
+    private async Task<(KeyType keyType, int length)> TryReadKlvHeaderAsync(CancellationToken cancellationToken)
+    {
+        var keyMemory = _keyBuffer.AsMemory(0, Constants.KLV_KEY_SIZE);
+        var keyBytesRead = await Input.ReadAsync(keyMemory, cancellationToken);
+        
+        if (keyBytesRead != Constants.KLV_KEY_SIZE)
+            return (KeyType.Unknown, -1);
+
+        var keyType = Keys.GetKeyType(_keyBuffer.AsSpan(0, Constants.KLV_KEY_SIZE));
+        var length = await ReadBerLengthAsync(Input, _berLengthBuffer, cancellationToken);
+        
+        return length >= 0 ? (keyType, length) : (KeyType.Unknown, -1);
+    }
+
+    /// <summary>
+    /// Asynchronously reads BER encoded length
+    /// </summary>
+    private static async Task<int> ReadBerLengthAsync(Stream input, List<byte> lengthBuffer, CancellationToken cancellationToken)
+    {
+        lengthBuffer.Clear();
+        var firstByteBuffer = new byte[1];
+        var bytesRead = await input.ReadAsync(firstByteBuffer.AsMemory(), cancellationToken);
+        if (bytesRead != 1) return -1;
+        
+        var firstByte = firstByteBuffer[0];
+        lengthBuffer.Add(firstByte);
+
+        if ((firstByte & 0x80) == 0)
+        {
+            return firstByte;
+        }
+        else
+        {
+            var byteCount = firstByte & 0x7F;
+            if (byteCount > 8) return -1;
+
+            var lengthBytes = new byte[byteCount];
+            var lengthBytesRead = await input.ReadAsync(lengthBytes.AsMemory(), cancellationToken);
+            if (lengthBytesRead != byteCount) return -1;
+            
+            lengthBuffer.AddRange(lengthBytes);
+
+            var length = 0;
+            for (var i = 0; i < byteCount; i++)
+            {
+                length = (length << 8) | lengthBytes[i];
+            }
+            return length;
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously skips data in the stream
+    /// </summary>
+    private async Task SkipPacketAsync(int length, CancellationToken cancellationToken)
+    {
+        const int bufferSize = 65536; // 64KB buffer for efficient skipping
+        var arrayPool = ArrayPool<byte>.Shared;
+        var buffer = arrayPool.Rent(Math.Min(bufferSize, length));
+        
+        try
+        {
+            var remaining = length;
+            while (remaining > 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                
+                var toRead = Math.Min(remaining, buffer.Length);
+                var bytesRead = await Input.ReadAsync(buffer.AsMemory(0, toRead), cancellationToken);
+                
+                if (bytesRead == 0)
+                    throw new EndOfStreamException("Unexpected end of stream while skipping data.");
+                    
+                remaining -= bytesRead;
+            }
+        }
+        finally
+        {
+            arrayPool.Return(buffer);
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously extracts packet data to output streams
+    /// </summary>
+    private async Task ExtractPacketAsync(KeyType keyType, int length, CancellationToken cancellationToken)
+    {
+        var outputStream = GetOrCreateExtractionStream(keyType);
+        if (outputStream == null)
+        {
+            await SkipPacketAsync(length, cancellationToken);
+            return;
+        }
+        
+        if (KlvMode)
+        {
+            await outputStream.WriteAsync(_keyBuffer.AsMemory(0, Constants.KLV_KEY_SIZE), cancellationToken);
+            await outputStream.WriteAsync(_berLengthBuffer.ToArray().AsMemory(), cancellationToken);
+        }
+        
+        await CopyDataToStreamAsync(outputStream, length, cancellationToken);
+    }
+
+    /// <summary>
+    /// Asynchronously copies data from input to output stream
+    /// </summary>
+    private async Task CopyDataToStreamAsync(Stream outputStream, int length, CancellationToken cancellationToken)
+    {
+        const int bufferSize = 65536; // 64KB buffer
+        var arrayPool = ArrayPool<byte>.Shared;
+        var buffer = arrayPool.Rent(Math.Min(length, bufferSize));
+        
+        try
+        {
+            var remaining = length;
+            while (remaining > 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                
+                var toRead = Math.Min(remaining, buffer.Length);
+                var bytesRead = await Input.ReadAsync(buffer.AsMemory(0, toRead), cancellationToken);
+                
+                if (bytesRead == 0)
+                    throw new EndOfStreamException("Unexpected end of stream while copying data.");
+                    
+                await outputStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+                remaining -= bytesRead;
+            }
+        }
+        finally
+        {
+            arrayPool.Return(buffer);
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously processes data packets for filtering
+    /// </summary>
+    private async Task<Packet> FilterDataPacketAsync(int? magazine, int[]? rows, Timecode startTimecode, int lineNumber, Format outputFormat, CancellationToken cancellationToken)
+    {
+        var arrayPool = ArrayPool<byte>.Shared;
+        var headerBuffer = arrayPool.Rent(Constants.PACKET_HEADER_SIZE);
+        var lineHeaderBuffer = arrayPool.Rent(Constants.LINE_HEADER_SIZE);
+        
+        try
+        {
+            var headerMemory = headerBuffer.AsMemory(0, Constants.PACKET_HEADER_SIZE);
+            var headerBytesRead = await Input.ReadAsync(headerMemory, cancellationToken);
+            
+            if (headerBytesRead != Constants.PACKET_HEADER_SIZE)
+                throw new InvalidOperationException("Failed to read packet header for Data key.");
+
+            var packet = new Packet(headerBuffer.AsSpan(0, Constants.PACKET_HEADER_SIZE).ToArray())
+            {
+                Timecode = startTimecode
+            };
+
+            for (var l = 0; l < packet.LineCount; l++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var lineHeaderMemory = lineHeaderBuffer.AsMemory(0, Constants.LINE_HEADER_SIZE);
+                var lineHeaderBytesRead = await Input.ReadAsync(lineHeaderMemory, cancellationToken);
+                
+                if (lineHeaderBytesRead != Constants.LINE_HEADER_SIZE)
+                    throw new InvalidOperationException("Failed to read line header for Data key.");
+
+                var line = new Line(lineHeaderBuffer.AsSpan(0, Constants.LINE_HEADER_SIZE))
+                {
+                    LineNumber = lineNumber
+                };
+
+                if (line.Length <= 0)
+                    throw new InvalidDataException("Line length is invalid.");
+
+                await line.ParseLineAsync(Input, outputFormat, cancellationToken);
+
+                // Apply filtering
+                if (magazine.HasValue && line.Magazine != magazine.Value && outputFormat == Format.T42)
+                {
+                    lineNumber++;
+                    continue;
+                }
+
+                if (rows != null && !rows.Contains(line.Row) && outputFormat == Format.T42)
+                {
+                    lineNumber++;
+                    continue;
+                }
+
+                packet.Lines.Add(line);
+                lineNumber++;
+            }
+
+            return packet;
+        }
+        finally
+        {
+            arrayPool.Return(headerBuffer);
+            arrayPool.Return(lineHeaderBuffer);
+        }
     }
     
     private FileStream? GetOrCreateExtractionStream(KeyType keyType)

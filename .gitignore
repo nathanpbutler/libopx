@@ -418,3 +418,16 @@ FodyWeavers.xsd
 publish/
 .DS_Store
 *.tar.gz
+
+# Ignore mxf, vbi, vbid or t42 files in root folder, unless in samples
+!samples/**/*.mxf
+!samples/**/*.vbi
+!samples/**/*.vbid
+!samples/**/*.t42
+*.mxf
+*.vbi
+*.vbid
+*.t42
+
+# Claude Code specific files
+.claude/
