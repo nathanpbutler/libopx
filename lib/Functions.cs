@@ -539,8 +539,10 @@ public class Functions
                 PrintProgress = printProgress // Set progress printing option
             };
 
+            var packets = mxf.ParseAsync(startTimecode: timecodeString, cancellationToken: cancellationToken);
+
             // Run the async parse method which will handle restriping
-            await foreach (var _ in mxf.ParseAsync(startTimecode: timecodeString, cancellationToken: cancellationToken))
+            await foreach (var _ in packets)
             {
                 // The ParseAsync method handles all the restriping internally
                 // We just need to iterate through to execute it

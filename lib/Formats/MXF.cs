@@ -1286,8 +1286,49 @@ public class MXF : IDisposable
             if (actualRead != length)
                 throw new EndOfStreamException($"Expected to read {length} bytes but only read {actualRead}");
 
-            // Use the existing sync method logic
-            RestripeTimecodeComponentData(dataBuffer.AsSpan(0, length).ToArray(), newTimecode);
+            // Parse the TimecodeComponent to get the current start timecode
+            var data = dataBuffer.AsSpan(0, length);
+            var timecodeComponent = TimecodeComponent.Parse(data.ToArray());
+            var currentTimecode = new Timecode(timecodeComponent.StartTimecode, timecodeComponent.RoundedTimecodeTimebase, timecodeComponent.DropFrame);
+
+            if (Verbose)
+            {
+                Console.WriteLine($"Restriping TimecodeComponent: {currentTimecode} -> {newTimecode}");
+            }
+
+            // Find and update timecode-related tags
+            var t = 0;
+            while (t < data.Length)
+            {
+                if (t + 6 > data.Length) break;
+
+                var tagBytes = data.Slice(t, 2);
+                var tagBytesArray = tagBytes.ToArray();
+                if (BitConverter.IsLittleEndian) Array.Reverse(tagBytesArray);
+                var tag = BitConverter.ToUInt16(tagBytesArray, 0);
+
+                var tagLengthBytes = data.Slice(t + 2, 2);
+                var tagLengthBytesArray = tagLengthBytes.ToArray();
+                if (BitConverter.IsLittleEndian) Array.Reverse(tagLengthBytesArray);
+                var tagLength = BitConverter.ToUInt16(tagLengthBytesArray, 0);
+
+                byte[]? newValueBytes = tag switch
+                {
+                    0x1501 => CreateTagValueBytes(newTimecode.FrameNumber, tagLength), // "Start Timecode"
+                    0x1502 => CreateTagValueBytes(newTimecode.Timebase, tagLength),   // "Rounded Timecode Timebase"
+                    0x1503 => CreateTagValueBytes(newTimecode.DropFrame ? 1 : 0, tagLength), // "Drop Frame"
+                    _ => null
+                };
+
+                if (newValueBytes != null)
+                {
+                    if (BitConverter.IsLittleEndian) Array.Reverse(newValueBytes);
+                    var targetSlice = data.Slice(t + 4, Math.Min(newValueBytes.Length, tagLength));
+                    newValueBytes.AsSpan(0, targetSlice.Length).CopyTo(targetSlice);
+                }
+
+                t += 4 + tagLength;
+            }
 
             // Write the modified data back to the input file
             Input.Seek(dataStartPosition, SeekOrigin.Begin);
@@ -1311,49 +1352,48 @@ public class MXF : IDisposable
             return;
         }
 
-        // Skip to timecode position
-        await SkipPacketAsync(offset + 1, cancellationToken); // +1 for the byte skip in sync version
-        
+        #region Myriadbits MXFInspect code
+        Input.Seek(1, SeekOrigin.Current); // Skip the first byte
+        int timebase = StartTimecode.Timebase;
+        bool dropFrame = StartTimecode.DropFrame;
         var rateBuffer = new byte[1];
         var rateBytesRead = await Input.ReadAsync(rateBuffer.AsMemory(), cancellationToken);
         if (rateBytesRead != 1)
-            throw new EndOfStreamException("Failed to read rate byte from System packet.");
-        
+            throw new EndOfStreamException("Unexpected end of stream while reading rate byte.");
         var rate = rateBuffer[0];
         int rateIndex = (rate & 0x1E) >> 1;
         int[] rates = [0, 24, 25, 30, 48, 50, 60, 72, 75, 90, 96, 100, 120, 0, 0, 0];
-        int timebase = StartTimecode.Timebase;
-        bool dropFrame = StartTimecode.DropFrame;
-        
         if (rateIndex < 16)
-            timebase = rates[rateIndex];
-        if ((rate & 0x01) == 0x01)
+			timebase = rates[rateIndex];
+        if ((rate & 0x01) == 0x01) // 1.001 divider active?
             dropFrame = true;
+        Input.Seek(-2, SeekOrigin.Current); // Go back to the start of the timecode
 
-        Input.Seek(-2, SeekOrigin.Current); // Go back to start of timecode
-        
+        // If newTimecode.Timebase and newTimecode.DropFrame do not match what we have found, BREAK
         if (newTimecode.Timebase != timebase || newTimecode.DropFrame != dropFrame)
         {
             throw new InvalidOperationException($"New timecode {newTimecode} does not match existing timebase {timebase} and drop frame {dropFrame}.");
         }
 
+        #endregion
+
         await SkipPacketAsync(offset, cancellationToken);
         var timecodePosition = Input.Position;
 
-        var smpteBuffer = new byte[Constants.SMPTE_TIMECODE_SIZE];
-        var smpteRead = await Input.ReadAsync(smpteBuffer.AsMemory(), cancellationToken);
-        
+        var smpteMemory = _smpteBuffer.AsMemory(0, Constants.SMPTE_TIMECODE_SIZE);
+        var smpteRead = await Input.ReadAsync(smpteMemory, cancellationToken);
         if (smpteRead == Constants.SMPTE_TIMECODE_SIZE)
         {
             if (Verbose)
             {
-                var currentTimecode = Timecode.FromBytes(smpteBuffer, timebase, dropFrame);
+                var currentTimecode = Timecode.FromBytes(_smpteBuffer, timebase, dropFrame);
                 Console.WriteLine($"Restriping System timecode at offset {offset}: {currentTimecode} -> {newTimecode}");
             }
 
+            // Convert new timecode to bytes and write back to file
             var newTimecodeBytes = newTimecode.ToBytes();
             Input.Seek(timecodePosition, SeekOrigin.Begin);
-            await Input.WriteAsync(newTimecodeBytes.AsMemory(), cancellationToken);
+            await Input.WriteAsync(newTimecodeBytes.AsMemory(0, Constants.SMPTE_TIMECODE_SIZE), cancellationToken);
         }
 
         var remainingBytes = length - offset - Constants.SMPTE_TIMECODE_SIZE;
@@ -1414,52 +1454,6 @@ public class MXF : IDisposable
         finally
         {
             arrayPool.Return(buffer);
-        }
-    }
-
-    /// <summary>
-    /// Helper method to restripe timecode component data
-    /// </summary>
-    private void RestripeTimecodeComponentData(byte[] data, Timecode newTimecode)
-    {
-        // Parse the TimecodeComponent to get the current start timecode
-        var timecodeComponent = TimecodeComponent.Parse(data);
-        var currentTimecode = new Timecode(timecodeComponent.StartTimecode, timecodeComponent.RoundedTimecodeTimebase, timecodeComponent.DropFrame);
-
-        if (Verbose)
-        {
-            Console.WriteLine($"Restriping TimecodeComponent: {currentTimecode} -> {newTimecode}");
-        }
-
-        // Find and update timecode-related tags
-        var t = 0;
-        while (t < data.Length)
-        {
-            if (t + 6 > data.Length) break;
-
-            var tagBytes = data[t..(t + 2)];
-            if (BitConverter.IsLittleEndian) Array.Reverse(tagBytes);
-            var tag = BitConverter.ToUInt16(tagBytes, 0);
-
-            var tagLengthBytes = data[(t + 2)..(t + 4)];
-            if (BitConverter.IsLittleEndian) Array.Reverse(tagLengthBytes);
-            var tagLength = BitConverter.ToUInt16(tagLengthBytes, 0);
-
-            byte[]? newValueBytes = tag switch
-            {
-                0x1501 => CreateTagValueBytes(newTimecode.FrameNumber, tagLength), // "Start Timecode"
-                0x1502 => CreateTagValueBytes(newTimecode.Timebase, tagLength),   // "Rounded Timecode Timebase"
-                0x1503 => CreateTagValueBytes(newTimecode.DropFrame ? 1 : 0, tagLength), // "Drop Frame"
-                _ => null
-            };
-
-            if (newValueBytes != null)
-            {
-                if (BitConverter.IsLittleEndian) Array.Reverse(newValueBytes);
-                Array.Copy(newValueBytes, 0, data, t + 4, Math.Min(newValueBytes.Length, tagLength));
-            }
-
-            t += 4 + tagLength;
         }
     }
     
