@@ -140,18 +140,20 @@ public static class AsyncProcessingHelpers
     {
         try
         {
-            using var mxf = new MXF(inputFile);
-            mxf.Verbose = verbose;
+            using var mxf = new MXF(inputFile)
+            {
+                Function = Function.Filter,
+                Verbose = verbose
+            };
+            mxf.AddRequiredKey(KeyType.Data);
             
             var packetCounter = 0;
             var progressReporter = verbose ? new ProgressReporter("Processing MXF", 100) : null;
             
             await foreach (var packet in mxf.ParseAsync(magazine, rows, cancellationToken: cancellationToken))
             {
-                foreach (var line in packet.Lines)
-                {
-                    Console.WriteLine(line);
-                }
+                if (verbose) Console.WriteLine($"Debug: Found packet with {packet.Lines.Count} lines");
+                Console.WriteLine(packet);
                 
                 packetCounter++;
                 progressReporter?.ReportProgress(packetCounter);
@@ -203,6 +205,116 @@ public static class AsyncProcessingHelpers
             
             progressReporter?.Complete(lineCounter);
             return 0;
+        }
+        catch (OperationCanceledException)
+        {
+            Console.Error.WriteLine("Operation was cancelled.");
+            return 130;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+    }
+
+    /// <summary>
+    /// Processes BIN file asynchronously with progress reporting
+    /// </summary>
+    public static async Task<int> ProcessBINAsync(
+        FileInfo inputFile,
+        int? magazine,
+        int[] rows,
+        int lineCount,
+        bool verbose,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var bin = new BIN(inputFile.FullName);
+            
+            var lineCounter = 0;
+            var progressReporter = verbose ? new ProgressReporter("Processing BIN", 1000) : null;
+            
+            await foreach (var packet in bin.ParseAsync(magazine, rows, startTimecode: null, cancellationToken))
+            {
+                Console.WriteLine(packet);
+                lineCounter++;
+                progressReporter?.ReportProgress(lineCounter);
+            }
+            
+            progressReporter?.Complete(lineCounter);
+            return 0;
+        }
+        catch (OperationCanceledException)
+        {
+            Console.Error.WriteLine("Operation was cancelled.");
+            return 130;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+    }
+
+    /// <summary>
+    /// Processes extraction operations asynchronously with progress reporting
+    /// </summary>
+    public static async Task<int> ProcessExtractAsync(
+        FileInfo inputFile,
+        string? outputBasePath,
+        string? keyString,
+        bool demuxMode,
+        bool useNames,
+        bool klvMode,
+        bool verbose,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var progressReporter = verbose ? new ProgressReporter("Extracting MXF", 100) : null;
+            
+            var result = await Functions.ExtractAsync(inputFile, outputBasePath, keyString, demuxMode, useNames, klvMode, verbose, cancellationToken);
+            
+            progressReporter?.Complete(1); // Simple completion for extract operations
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            Console.Error.WriteLine("Operation was cancelled.");
+            return 130;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+    }
+
+    /// <summary>
+    /// Processes conversion operations asynchronously with progress reporting
+    /// </summary>
+    public static async Task<int> ProcessConvertAsync(
+        FileInfo? inputFile,
+        Format inputFormat,
+        Format outputFormat,
+        FileInfo? outputFile,
+        int? magazine,
+        int[] rows,
+        int lineCount,
+        bool verbose,
+        bool keepBlanks,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var progressReporter = verbose ? new ProgressReporter("Converting", 1000) : null;
+            
+            var result = await Functions.ConvertAsync(inputFile, inputFormat, outputFormat, outputFile, magazine, rows, lineCount, verbose, keepBlanks, cancellationToken);
+            
+            progressReporter?.Complete(1); // Simple completion for convert operations
+            return result;
         }
         catch (OperationCanceledException)
         {

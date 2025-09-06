@@ -320,101 +320,6 @@ public class MXF : IDisposable
     }
 
     /// <summary>
-    /// Asynchronously parses the MXF file and returns an async enumerable of packets with optional filtering.
-    /// Supports multiple operation modes including filtering, extraction, and restriping.
-    /// </summary>
-    /// <param name="magazine">Optional magazine number filter for teletext data (default: all magazines)</param>
-    /// <param name="rows">Optional array of row numbers to filter (default: all rows)</param>
-    /// <param name="startTimecode">Optional starting timecode override as string (HH:MM:SS:FF format)</param>
-    /// <param name="cancellationToken">Token to cancel the operation</param>
-    /// <returns>An async enumerable of parsed packets matching the filter criteria</returns>
-    public async IAsyncEnumerable<Packet> ParseAsync(
-        int? magazine = null, 
-        int[]? rows = null, 
-        string? startTimecode = null,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
-    {
-        Input.Seek(0, SeekOrigin.Begin);
-        _lastTimecode = null;
-        
-        var timecode = startTimecode == null
-            ? StartTimecode
-            : new Timecode(startTimecode, StartTimecode.Timebase, StartTimecode.DropFrame);
-        var smpteTimecode = timecode;
-        var timecodeComponent = timecode;
-
-        int lineNumber = 0;
-        var restripeStart = DateTime.Now;
-        var lastProgressUpdate = DateTime.Now;
-
-        try
-        {
-            while (await TryReadKlvHeaderAsync(cancellationToken) is var (keyType, length) && keyType != KeyType.Unknown)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                bool shouldExtract = Function == Function.Extract && (DemuxMode || RequiredKeys.Contains(keyType));
-
-                if (shouldExtract)
-                {
-                    await ExtractPacketAsync(keyType, length, cancellationToken);
-                    continue;
-                }
-
-                switch (keyType)
-                {
-                    case KeyType.Data:
-                        if (Function == Function.Filter)
-                        {
-                            var packet = await FilterDataPacketAsync(magazine, rows, timecode, lineNumber, OutputFormat ?? Format.T42, cancellationToken);
-                            if (Verbose) Console.WriteLine($"Packet found at timecode {timecode}");
-                            
-                            if (packet.Lines.Count > 0)
-                            {
-                                yield return packet;
-                            }
-                            timecode = timecode.GetNext();
-                        }
-                        else
-                        {
-                            await SkipPacketAsync(length, cancellationToken);
-                        }
-                        break;
-
-                    case KeyType.System:
-                    case KeyType.TimecodeComponent:
-                    case KeyType.Video:
-                    case KeyType.Audio:
-                    default:
-                        await SkipPacketAsync(length, cancellationToken);
-                        break;
-                }
-
-                // Progress reporting with throttling
-                if (PrintProgress && Function == Function.Restripe && 
-                    (DateTime.Now - lastProgressUpdate).TotalMilliseconds >= 1000)
-                {
-                    lastProgressUpdate = DateTime.Now;
-                    var percentComplete = (double)Input.Position / Input.Length * 100;
-                    Console.WriteLine($"Progress: {percentComplete:F2}% complete. Current position: {Input.Position} bytes of {Input.Length} bytes.");
-                }
-            }
-
-            if (PrintProgress && Function == Function.Restripe)
-            {
-                var restripeEnd = DateTime.Now;
-                var totalDuration = (restripeEnd - restripeStart).TotalSeconds;
-                Console.WriteLine($"Restriping completed in {totalDuration:F2} seconds.");
-            }
-        }
-        finally
-        {
-            CloseExtractionStreams();
-            Input.Seek(0, SeekOrigin.Begin);
-        }
-    }
-
-    /// <summary>
     /// Parses the MXF file and returns an enumerable of packets with optional filtering.
     /// Supports multiple operation modes including filtering, extraction, and restriping.
     /// </summary>
@@ -544,6 +449,138 @@ public class MXF : IDisposable
         finally
         {
             // Close any open extraction streams
+            CloseExtractionStreams();
+            Input.Seek(0, SeekOrigin.Begin);
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously parses the MXF file and returns an async enumerable of packets with optional filtering.
+    /// Supports multiple operation modes including filtering, extraction, and restriping.
+    /// </summary>
+    /// <param name="magazine">Optional magazine number filter for teletext data (default: all magazines)</param>
+    /// <param name="rows">Optional array of row numbers to filter (default: all rows)</param>
+    /// <param name="startTimecode">Optional starting timecode override as string (HH:MM:SS:FF format)</param>
+    /// <param name="cancellationToken">Token to cancel the operation</param>
+    /// <returns>An async enumerable of parsed packets matching the filter criteria</returns>
+    public async IAsyncEnumerable<Packet> ParseAsync(
+        int? magazine = null, 
+        int[]? rows = null, 
+        string? startTimecode = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        Input.Seek(0, SeekOrigin.Begin);
+        _lastTimecode = null;
+        
+        var timecode = startTimecode == null
+            ? StartTimecode
+            : new Timecode(startTimecode, StartTimecode.Timebase, StartTimecode.DropFrame);
+        var smpteTimecode = startTimecode == null
+            ? StartTimecode
+            : new Timecode(startTimecode, StartTimecode.Timebase, StartTimecode.DropFrame);
+        var timecodeComponent = startTimecode == null
+            ? StartTimecode
+            : new Timecode(startTimecode, StartTimecode.Timebase, StartTimecode.DropFrame);
+
+        int lineNumber = 0;
+        var restripeStart = DateTime.Now;
+        var lastProgressUpdate = DateTime.Now;
+
+        try
+        {
+            while (await TryReadKlvHeaderAsync(cancellationToken) is var (keyType, length) && length >= 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                bool shouldExtract = Function == Function.Extract && (DemuxMode || RequiredKeys.Contains(keyType));
+
+                if (shouldExtract)
+                {
+                    await ExtractPacketAsync(keyType, length, cancellationToken);
+                    continue;
+                }
+
+                switch (keyType)
+                {
+                    case KeyType.TimecodeComponent:
+                        if (Function == Function.Restripe)
+                        {
+                            await RestripeTimecodeComponentAsync(length, timecodeComponent, cancellationToken);
+                        }
+                        else
+                        {
+                            await SkipPacketAsync(length, cancellationToken);
+                        }
+                        break;
+                        
+                    case KeyType.System:
+                        if (Function == Function.Restripe)
+                        {
+                            await RestripeSystemPacketAsync(length, smpteTimecode, cancellationToken);
+                            smpteTimecode = smpteTimecode.GetNext();
+                        }
+                        else if (ShouldProcessKey(KeyType.System))
+                        {
+                            await ProcessSystemPacketAsync(length, cancellationToken);
+                        }
+                        else
+                        {
+                            await SkipPacketAsync(length, cancellationToken);
+                        }
+                        break;
+
+                    case KeyType.Data:
+                        if (Function == Function.Filter)
+                        {
+                            var (packet, updatedLineNumber) = await FilterDataPacketAsync(magazine, rows, timecode, lineNumber, OutputFormat ?? Format.T42, cancellationToken);
+                            lineNumber = updatedLineNumber; // Update lineNumber with the value from FilterDataPacketAsync
+                            if (Verbose) Console.WriteLine($"Packet found at timecode {timecode}");
+                            
+                            if (packet.Lines.Count > 0)
+                            {
+                                yield return packet;
+                            }
+                            timecode = timecode.GetNext();
+                        }
+                        else
+                        {
+                            if (ShouldProcessKey(KeyType.Data))
+                            {
+                                await ProcessDataPacketAsync(length, cancellationToken);
+                            }
+                            else
+                            {
+                                await SkipPacketAsync(length, cancellationToken);
+                            }
+                        }
+                        break;
+
+                    case KeyType.Video:
+                    case KeyType.Audio:
+                    default:
+                        await SkipPacketAsync(length, cancellationToken);
+                        break;
+                }
+
+                // Progress reporting with throttling
+                if (PrintProgress && Function == Function.Restripe && 
+                    (DateTime.Now - lastProgressUpdate).TotalMilliseconds >= 1000)
+                {
+                    lastProgressUpdate = DateTime.Now;
+                    var percentComplete = (double)Input.Position / Input.Length * 100;
+                    Console.WriteLine($"Progress: {percentComplete:F2}% complete. Current position: {Input.Position} bytes of {Input.Length} bytes.");
+                }
+            }
+
+            if (PrintProgress && Function == Function.Restripe)
+            {
+                var restripeEnd = DateTime.Now;
+                var totalDuration = (restripeEnd - restripeStart).TotalSeconds;
+                Console.WriteLine($"Restriping completed in {totalDuration:F2} seconds.");
+            }
+        }
+        finally
+        {
             CloseExtractionStreams();
             Input.Seek(0, SeekOrigin.Begin);
         }
@@ -1039,7 +1076,6 @@ public class MXF : IDisposable
 
         var keyType = Keys.GetKeyType(_keyBuffer.AsSpan(0, Constants.KLV_KEY_SIZE));
         var length = await ReadBerLengthAsync(Input, _berLengthBuffer, cancellationToken);
-        
         return length >= 0 ? (keyType, length) : (KeyType.Unknown, -1);
     }
 
@@ -1167,7 +1203,7 @@ public class MXF : IDisposable
     /// <summary>
     /// Asynchronously processes data packets for filtering
     /// </summary>
-    private async Task<Packet> FilterDataPacketAsync(int? magazine, int[]? rows, Timecode startTimecode, int lineNumber, Format outputFormat, CancellationToken cancellationToken)
+    private async Task<(Packet packet, int updatedLineNumber)> FilterDataPacketAsync(int? magazine, int[]? rows, Timecode startTimecode, int lineNumber = 0, Format outputFormat = Format.T42, CancellationToken cancellationToken = default)
     {
         var arrayPool = ArrayPool<byte>.Shared;
         var headerBuffer = arrayPool.Rent(Constants.PACKET_HEADER_SIZE);
@@ -1223,12 +1259,207 @@ public class MXF : IDisposable
                 lineNumber++;
             }
 
-            return packet;
+            return (packet, lineNumber);
         }
         finally
         {
             arrayPool.Return(headerBuffer);
             arrayPool.Return(lineHeaderBuffer);
+        }
+    }
+
+
+    /// <summary>
+    /// Asynchronously restripes TimecodeComponent packets
+    /// </summary>
+    private async Task RestripeTimecodeComponentAsync(int length, Timecode newTimecode, CancellationToken cancellationToken)
+    {
+        var arrayPool = ArrayPool<byte>.Shared;
+        var dataBuffer = arrayPool.Rent(length);
+        
+        try
+        {
+            var dataMemory = dataBuffer.AsMemory(0, length);
+            var dataStartPosition = Input.Position;
+            var actualRead = await Input.ReadAsync(dataMemory, cancellationToken);
+            
+            if (actualRead != length)
+                throw new EndOfStreamException($"Expected to read {length} bytes but only read {actualRead}");
+
+            // Use the existing sync method logic
+            RestripeTimecodeComponentData(dataBuffer.AsSpan(0, length).ToArray(), newTimecode);
+
+            // Write the modified data back to the input file
+            Input.Seek(dataStartPosition, SeekOrigin.Begin);
+            await Input.WriteAsync(dataMemory, cancellationToken);
+        }
+        finally
+        {
+            arrayPool.Return(dataBuffer);
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously restripes System packets
+    /// </summary>
+    private async Task RestripeSystemPacketAsync(int length, Timecode newTimecode, CancellationToken cancellationToken)
+    {
+        var offset = GetSystemMetadataOffset(length);
+        if (offset < 0)
+        {
+            await SkipPacketAsync(length, cancellationToken);
+            return;
+        }
+
+        // Skip to timecode position
+        await SkipPacketAsync(offset + 1, cancellationToken); // +1 for the byte skip in sync version
+        
+        var rateBuffer = new byte[1];
+        var rateBytesRead = await Input.ReadAsync(rateBuffer.AsMemory(), cancellationToken);
+        if (rateBytesRead != 1)
+            throw new EndOfStreamException("Failed to read rate byte from System packet.");
+        
+        var rate = rateBuffer[0];
+        int rateIndex = (rate & 0x1E) >> 1;
+        int[] rates = [0, 24, 25, 30, 48, 50, 60, 72, 75, 90, 96, 100, 120, 0, 0, 0];
+        int timebase = StartTimecode.Timebase;
+        bool dropFrame = StartTimecode.DropFrame;
+        
+        if (rateIndex < 16)
+            timebase = rates[rateIndex];
+        if ((rate & 0x01) == 0x01)
+            dropFrame = true;
+
+        Input.Seek(-2, SeekOrigin.Current); // Go back to start of timecode
+        
+        if (newTimecode.Timebase != timebase || newTimecode.DropFrame != dropFrame)
+        {
+            throw new InvalidOperationException($"New timecode {newTimecode} does not match existing timebase {timebase} and drop frame {dropFrame}.");
+        }
+
+        await SkipPacketAsync(offset, cancellationToken);
+        var timecodePosition = Input.Position;
+
+        var smpteBuffer = new byte[Constants.SMPTE_TIMECODE_SIZE];
+        var smpteRead = await Input.ReadAsync(smpteBuffer.AsMemory(), cancellationToken);
+        
+        if (smpteRead == Constants.SMPTE_TIMECODE_SIZE)
+        {
+            if (Verbose)
+            {
+                var currentTimecode = Timecode.FromBytes(smpteBuffer, timebase, dropFrame);
+                Console.WriteLine($"Restriping System timecode at offset {offset}: {currentTimecode} -> {newTimecode}");
+            }
+
+            var newTimecodeBytes = newTimecode.ToBytes();
+            Input.Seek(timecodePosition, SeekOrigin.Begin);
+            await Input.WriteAsync(newTimecodeBytes.AsMemory(), cancellationToken);
+        }
+
+        var remainingBytes = length - offset - Constants.SMPTE_TIMECODE_SIZE;
+        if (remainingBytes > 0)
+        {
+            await SkipPacketAsync(remainingBytes, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously processes System packets
+    /// </summary>
+    private async Task ProcessSystemPacketAsync(int length, CancellationToken cancellationToken)
+    {
+        // For now, delegate to sync version by reading data and calling sync method
+        var arrayPool = ArrayPool<byte>.Shared;
+        var buffer = arrayPool.Rent(length);
+        
+        try
+        {
+            var memory = buffer.AsMemory(0, length);
+            var bytesRead = await Input.ReadAsync(memory, cancellationToken);
+            
+            if (bytesRead != length)
+                throw new EndOfStreamException($"Expected to read {length} bytes but only read {bytesRead}");
+
+            // Reset position and call sync method
+            Input.Seek(-length, SeekOrigin.Current);
+            ProcessSystemPacket(length);
+        }
+        finally
+        {
+            arrayPool.Return(buffer);
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously processes Data packets
+    /// </summary>
+    private async Task ProcessDataPacketAsync(int length, CancellationToken cancellationToken)
+    {
+        // For now, delegate to sync version by reading data and calling sync method
+        var arrayPool = ArrayPool<byte>.Shared;
+        var buffer = arrayPool.Rent(length);
+        
+        try
+        {
+            var memory = buffer.AsMemory(0, length);
+            var bytesRead = await Input.ReadAsync(memory, cancellationToken);
+            
+            if (bytesRead != length)
+                throw new EndOfStreamException($"Expected to read {length} bytes but only read {bytesRead}");
+
+            // Reset position and call sync method
+            Input.Seek(-length, SeekOrigin.Current);
+            ProcessDataPacket(length);
+        }
+        finally
+        {
+            arrayPool.Return(buffer);
+        }
+    }
+
+    /// <summary>
+    /// Helper method to restripe timecode component data
+    /// </summary>
+    private void RestripeTimecodeComponentData(byte[] data, Timecode newTimecode)
+    {
+        // Parse the TimecodeComponent to get the current start timecode
+        var timecodeComponent = TimecodeComponent.Parse(data);
+        var currentTimecode = new Timecode(timecodeComponent.StartTimecode, timecodeComponent.RoundedTimecodeTimebase, timecodeComponent.DropFrame);
+
+        if (Verbose)
+        {
+            Console.WriteLine($"Restriping TimecodeComponent: {currentTimecode} -> {newTimecode}");
+        }
+
+        // Find and update timecode-related tags
+        var t = 0;
+        while (t < data.Length)
+        {
+            if (t + 6 > data.Length) break;
+
+            var tagBytes = data[t..(t + 2)];
+            if (BitConverter.IsLittleEndian) Array.Reverse(tagBytes);
+            var tag = BitConverter.ToUInt16(tagBytes, 0);
+
+            var tagLengthBytes = data[(t + 2)..(t + 4)];
+            if (BitConverter.IsLittleEndian) Array.Reverse(tagLengthBytes);
+            var tagLength = BitConverter.ToUInt16(tagLengthBytes, 0);
+
+            byte[]? newValueBytes = tag switch
+            {
+                0x1501 => CreateTagValueBytes(newTimecode.FrameNumber, tagLength), // "Start Timecode"
+                0x1502 => CreateTagValueBytes(newTimecode.Timebase, tagLength),   // "Rounded Timecode Timebase"
+                0x1503 => CreateTagValueBytes(newTimecode.DropFrame ? 1 : 0, tagLength), // "Drop Frame"
+                _ => null
+            };
+
+            if (newValueBytes != null)
+            {
+                if (BitConverter.IsLittleEndian) Array.Reverse(newValueBytes);
+                Array.Copy(newValueBytes, 0, data, t + 4, Math.Min(newValueBytes.Length, tagLength));
+            }
+
+            t += 4 + tagLength;
         }
     }
     

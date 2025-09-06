@@ -91,13 +91,7 @@ public class Commands
                 int[] rows = CommandHelpers.DetermineRows(rowsString, useCaps);
                 Format inputFormat = CommandHelpers.DetermineFormatFromFile(inputFile, inputFormatString, Format.VBI);
 
-                // Use async processing for better performance
-                return inputFormat switch
-                {
-                    Format.VBI or Format.VBI_DOUBLE => await AsyncProcessingHelpers.ProcessVBIAsync(inputFile, magazine, rows, lineCount, inputFormat, verbose, cancellationToken),
-                    Format.T42 => await AsyncProcessingHelpers.ProcessT42Async(inputFile, magazine, rows, lineCount, verbose, cancellationToken),
-                    _ => Functions.Filter(inputFile, magazine, rows, lineCount, inputFormat, verbose) // Fallback to sync method for unsupported formats
-                };
+                return await Functions.FilterAsync(inputFile, magazine, rows, lineCount, inputFormat, verbose, cancellationToken);
             }
             catch (OperationCanceledException)
             {
@@ -176,7 +170,7 @@ public class Commands
         extractCommand.Options.Add(klvOption);
         extractCommand.Options.Add(verboseOption);
 
-        extractCommand.SetAction((parseResult) =>
+        extractCommand.SetAction(async (parseResult, cancellationToken) =>
         {
             try
             {
@@ -194,7 +188,12 @@ public class Commands
                     return 1;
                 }
 
-                return Functions.Extract(inputFile, outputBasePath, keyString, demuxMode, useNames, klvMode, verbose);
+                return await Functions.ExtractAsync(inputFile, outputBasePath, keyString, demuxMode, useNames, klvMode, verbose, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                Console.Error.WriteLine("Operation was cancelled.");
+                return 130;
             }
             catch (Exception ex)
             {
@@ -251,7 +250,7 @@ public class Commands
         restripeCommand.Options.Add(verboseOption);
         restripeCommand.Options.Add(printProgressOption);
 
-        restripeCommand.SetAction((parseResult) =>
+        restripeCommand.SetAction(async (parseResult, cancellationToken) =>
         {
             try
             {
@@ -272,7 +271,12 @@ public class Commands
                     return 1;
                 }
 
-                return Functions.Restripe(inputFile, timecodeString, verbose, printProgress);
+                return await Functions.RestripeAsync(inputFile, timecodeString, verbose, printProgress, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                Console.Error.WriteLine("Operation was cancelled.");
+                return 130;
             }
             catch (Exception ex)
             {
@@ -389,7 +393,7 @@ public class Commands
         convertCommand.Options.Add(keepOption);
         convertCommand.Options.Add(verboseOption);
 
-        convertCommand.SetAction((parseResult) =>
+        convertCommand.SetAction(async (parseResult, cancellationToken) =>
         {
             try
             {
@@ -413,7 +417,12 @@ public class Commands
                 Format inputFormat = CommandHelpers.DetermineFormat(inputFormatString, inputFile, Format.VBI);
                 Format outputFormat = CommandHelpers.DetermineFormat(outputFormatString, outputFile, Format.T42);
 
-                return Functions.Convert(inputFile, inputFormat, outputFormat, outputFile, magazine, rows, lineCount, verbose, keepBlanks);
+                return await Functions.ConvertAsync(inputFile, inputFormat, outputFormat, outputFile, magazine, rows, lineCount, verbose, keepBlanks, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                Console.Error.WriteLine("Operation was cancelled.");
+                return 130;
             }
             catch (Exception ex)
             {
