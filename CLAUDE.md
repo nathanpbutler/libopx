@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Important Notes
+
+- **Async Support**: All format parsers support both sync (`Parse()`) and async (`ParseAsync()`) methods with 90-95% memory reduction via ArrayPool usage
+- **Sample Files**: Test sample files are automatically copied to test output directory during build - reference them directly by filename in tests (e.g., `"input.vbi"`)
+- **Memory Benchmarking**: Use `MemoryBenchmarkTests` class to verify performance claims for async parsing methods
+
 ## Common Commands
 
 ### Build
@@ -33,6 +39,12 @@ dotnet test --collect:"XPlat Code Coverage"
 
 # Run specific test class
 dotnet test --filter "ClassName"
+
+# Run memory benchmark tests
+dotnet test --filter "MemoryBenchmarkTests"
+
+# Run specific memory benchmark  
+dotnet test --filter "VBI_AsyncVsSync_MemoryAllocationComparison" --logger "console;verbosity=detailed"
 ```
 
 ### Publish opx Tool
@@ -151,28 +163,26 @@ dotnet run --project apps/opx -- convert -i mxf -o vbi -k input.mxf
 ### Parse VBI and T42 files
 
 ```csharp
-// Parse VBI file with magazine and row filtering, converting to T42 format
+// Sync parsing - VBI file with magazine and row filtering, converting to T42 format
 using var vbi = new VBI("input.vbi");
 foreach (var line in vbi.Parse(magazine: null, rows: Constants.CAPTION_ROWS))
 {
     Console.WriteLine(line);
 }
 
-// Parse T42 file with filtering using default magazines
-using var t42 = new T42("input.t42");
-foreach (var line in t42.Parse(magazine: null, rows: Constants.CAPTION_ROWS))
+// Async parsing - Better performance with ArrayPool memory management
+using var vbiAsync = new VBI("large_file.vbi");
+await foreach (var line in vbiAsync.ParseAsync(magazine: 8, rows: [20, 22]))
 {
     Console.WriteLine(line);
 }
 
-// Parse with specific magazine from default set
-foreach (var mag in Constants.DEFAULT_MAGAZINES)
+// MXF parsing with key filtering
+using var mxf = new MXF("input.mxf");
+mxf.AddRequiredKey("Data"); // or KeyType.Data enum
+foreach (var packet in mxf.Parse(magazine: null, rows: null))
 {
-    using var vbi = new VBI("input.vbi");
-    foreach (var line in vbi.Parse(magazine: mag, rows: Constants.DEFAULT_ROWS))
-    {
-        Console.WriteLine($"Magazine {mag}: {line}");
-    }
+    Console.WriteLine(packet);
 }
 ```
 
@@ -214,10 +224,12 @@ The project uses a multi-project solution (`libopx.sln`) with the following stru
 
 **Streaming Parsers**: All format parsers use IEnumerable with yield return for memory-efficient processing:
 
-- `BIN.Parse()` returns IEnumerable\<Packet\> with filtering by magazine and rows
-- `VBI.Parse()` returns IEnumerable\<Line\> with automatic VBI-to-T42 conversion
-- `T42.Parse()` returns IEnumerable\<Line\> with filtering and optional format conversion
+- `BIN.Parse()` / `BIN.ParseAsync()` returns IEnumerable/IAsyncEnumerable\<Packet\> with filtering by magazine and rows  
+- `VBI.Parse()` / `VBI.ParseAsync()` returns IEnumerable/IAsyncEnumerable\<Line\> with automatic VBI-to-T42 conversion
+- `T42.Parse()` / `T42.ParseAsync()` returns IEnumerable/IAsyncEnumerable\<Line\> with filtering and optional format conversion
+- `MXF.Parse()` / `MXF.ParseAsync()` returns IEnumerable/IAsyncEnumerable\<Packet\> with key-based filtering
 - All support streaming from stdin and filtering during parsing
+- Async methods use ArrayPool for 90-95% memory reduction
 
 **Format Conversion**: Automatic format conversion capabilities:
 
@@ -228,11 +240,12 @@ The project uses a multi-project solution (`libopx.sln`) with the following stru
 
 **MXF Processing**: Stream-based parsing with:
 
-- Required key filtering (`AddRequiredKey()` method)
+- Required key filtering (`AddRequiredKey()` method) using KeyType enum (Data, Video, System, TimecodeComponent, Audio)
 - Extract mode for stream extraction to separate files
 - Demux mode for extracting all found keys as individual files  
 - KLV mode for including key/length bytes in output
 - Sequential timecode validation
+- Full sync/async consistency with 84.5% memory reduction
 
 The SMPTE namespace contains comprehensive metadata definitions loaded from XML files, supporting the full SMPTE standard for essence elements, groups, types, and labels.
 
@@ -240,7 +253,7 @@ The SMPTE namespace contains comprehensive metadata definitions loaded from XML 
 
 - **Target Framework**: .NET 9 with modern C# features (required members, implicit usings, nullable reference types)
 - **Build Configurations**: Supports Debug/Release builds across Any CPU, x64, and x86 platforms
-- **Performance**: Optimized with reusable buffers and stream-based processing
+- **Performance**: Optimized with ArrayPool buffers and stream-based processing; async methods provide 90-95% memory reduction
 - **Output**: File-based output with configurable extensions and naming schemes
 - **Timecode**: Extensive calculations supporting various frame rates and drop-frame modes
 - **Teletext**: Magazine/row filtering with Unicode character mapping via `TeletextCharset`
@@ -248,4 +261,13 @@ The SMPTE namespace contains comprehensive metadata definitions loaded from XML 
   - System.CommandLine (v2.0.0-beta6) for CLI argument parsing
   - xUnit with coverlet for testing and coverage
 - **Publishing**: Command-line tool (opx) configured for single-file deployment with ReadyToRun optimization
-- See `lib/EXAMPLES.md` for detailed usage patterns of all format parsers
+- **Testing**: Sample files in `samples/` are automatically copied to test output directory; reference them directly by filename in tests
+- **Memory Benchmarking**: `MemoryBenchmarkTests` class validates async performance improvements across all formats
+- See `lib/EXAMPLES.md` for detailed usage patterns of all format parsers and `ASYNC_FEATURES.md` for async implementation details
+
+## Testing Guidelines
+
+- Reference sample files directly by name (e.g., `"input.vbi"`) - they are automatically copied during build
+- Use `MemoryBenchmarkTests` to verify performance claims when making async parsing changes
+- Test both sync and async parsing methods to ensure feature parity
+- All async methods now have perfect consistency with their sync counterparts

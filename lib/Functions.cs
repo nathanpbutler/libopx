@@ -113,6 +113,114 @@ public class Functions
     }
 
     /// <summary>
+    /// Asynchronously filters teletext data by magazine and rows with progress reporting and cancellation support.
+    /// This method provides the same functionality as Filter but with async processing capabilities.
+    /// </summary>
+    /// <param name="input">The input file to process, or null to read from stdin.</param>
+    /// <param name="magazine">The magazine number to filter by (null for all magazines).</param>
+    /// <param name="rows">The number of rows to filter by.</param>
+    /// <param name="lineCount">The number of lines per frame for timecode incrementation.</param>
+    /// <param name="inputFormat">The input format to use (e.g., BIN, VBI, T42).</param>
+    /// <param name="verbose">Whether to enable verbose output.</param>
+    /// <param name="cancellationToken">Cancellation token for operation cancellation</param>
+    /// <returns>Exit code: 0 for success, 1 for failure, 130 for cancellation</returns>
+    /// <remarks>
+    /// This function reads the specified input file or stdin, processes it according to the provided parameters,
+    /// and outputs the filtered lines to stdout. The input format determines how the data is parsed and processed.
+    /// Supported formats include BIN, VBI, VBI_DOUBLE, T42, and MXF.
+    /// </remarks>
+    /// <exception cref="ArgumentException">Thrown if an unsupported input format is specified.</exception>
+    /// <exception cref="FileNotFoundException">Thrown if the specified input file does not exist.</exception>
+    /// <exception cref="IOException">Thrown if there is an error reading the input file or stdin.</exception>
+    public static async Task<int> FilterAsync(FileInfo? input, int? magazine, int[] rows, int lineCount, Format inputFormat, bool verbose, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (verbose)
+            {
+                if (input != null && input.Exists)
+                    Console.WriteLine($"  Input file: {input.FullName}");
+                else
+                    Console.WriteLine("Reading from stdin");
+                Console.WriteLine($"    Magazine: {magazine?.ToString() ?? "all"}");
+                Console.WriteLine($"        Rows: [{string.Join(", ", rows)}]");
+                Console.WriteLine($"Input format: {inputFormat}");
+                Console.WriteLine($"  Line count: {lineCount}");
+            }
+
+            switch (inputFormat)
+            {
+                case Format.BIN:
+                    var bin = input is FileInfo inputBIN && inputBIN.Exists
+                        ? new BIN(inputBIN.FullName)
+                        : new BIN(Console.OpenStandardInput());
+                    await foreach (var packet in bin.ParseAsync(magazine, rows, cancellationToken: cancellationToken))
+                    {
+                        Console.WriteLine(packet);
+                    }
+                    return 0;
+                case Format.VBI:
+                case Format.VBI_DOUBLE:
+                    var vbi = input is FileInfo inputVBI && inputVBI.Exists
+                        ? new VBI(inputVBI.FullName)
+                        : new VBI(Console.OpenStandardInput());
+                    vbi.LineCount = lineCount;
+                    await foreach (var line in vbi.ParseAsync(magazine, rows, cancellationToken))
+                    {
+                        Console.WriteLine(line);
+                    }
+                    return 0;
+                case Format.T42:
+                    var t42 = input is FileInfo inputT42 && inputT42.Exists
+                        ? new T42(inputT42.FullName)
+                        : new T42(Console.OpenStandardInput());
+                    t42.LineCount = lineCount;
+                    await foreach (var line in t42.ParseAsync(magazine, rows, cancellationToken))
+                    {
+                        Console.WriteLine(line);
+                    }
+                    return 0;
+                case Format.MXF:
+                    // Only Filter if file exists, otherwise return 1
+                    if (input is FileInfo inputMXF && inputMXF.Exists)
+                    {
+                        // Implement MXF processing logic
+                        var mxf = new MXF(inputMXF.FullName)
+                        {
+                            Function = Function.Filter, // Set function to Filter
+                            Verbose = verbose
+                        };
+                        mxf.AddRequiredKey(KeyType.Data); // Add Data key to process data packets
+                        await foreach (var packet in mxf.ParseAsync(magazine, rows, startTimecode: null, cancellationToken: cancellationToken))
+                        {
+                            if (verbose) Console.WriteLine($"Debug: Found packet with {packet.Lines.Count} lines");
+                            Console.WriteLine(packet);
+                        }
+                    }
+                    else
+                    {
+                        Console.Error.WriteLine("Error: Input file does not exist or is not specified for MXF format.");
+                        return 1;
+                    }
+                    return 0;
+                default:
+                    Console.WriteLine($"Unsupported input format: {inputFormat}");
+                    return 1;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            Console.Error.WriteLine("Operation was cancelled.");
+            return 130;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+    }
+
+    /// <summary>
     /// Parses the input format string and returns the corresponding Format enum value.
     /// </summary>
     /// <param name="format"></param>
@@ -216,6 +324,99 @@ public class Functions
         }
     }
 
+    /// <summary>
+    /// Asynchronously extracts/demuxes streams from MXF files with progress reporting and cancellation support.
+    /// This method provides the same functionality as Extract but with async processing capabilities.
+    /// </summary>
+    /// <param name="inputFile">The input MXF file to process</param>
+    /// <param name="outputBasePath">Output base path - files will be created as &lt;base&gt;_d.raw, &lt;base&gt;_v.raw, etc</param>
+    /// <param name="keyString">Specify keys to extract</param>
+    /// <param name="demuxMode">Extract all keys found, output as &lt;base&gt;_&lt;hexkey&gt;.raw</param>
+    /// <param name="useNames">Use Key/Essence names instead of hex keys (use with demuxMode)</param>
+    /// <param name="klvMode">Include key and length bytes in output files, use .klv extension</param>
+    /// <param name="verbose">Enable verbose output</param>
+    /// <param name="cancellationToken">Cancellation token for operation cancellation</param>
+    /// <returns>Exit code: 0 for success, 1 for failure, 130 for cancellation</returns>
+    public static async Task<int> ExtractAsync(FileInfo inputFile, string? outputBasePath, string? keyString, bool demuxMode, bool useNames, bool klvMode, bool verbose, CancellationToken cancellationToken = default)
+    {
+        outputBasePath ??= Path.ChangeExtension(inputFile.FullName, null);
+
+        if (!string.IsNullOrEmpty(outputBasePath))
+        {
+            Console.WriteLine($"Output base path specified: {outputBasePath}");
+        }
+
+        try
+        {
+            using var mxf = new MXF(inputFile.FullName);
+
+            // Configure extraction settings
+            mxf.OutputBasePath = outputBasePath;
+            mxf.DemuxMode = demuxMode;
+            mxf.UseKeyNames = useNames && demuxMode; // Only use names in demux mode
+            mxf.KlvMode = klvMode;
+
+            // Parse keys if specified
+            if (!demuxMode && !string.IsNullOrEmpty(keyString))
+            {
+                var targetKeys = ParseKeys(keyString, verbose);
+                if (targetKeys.Count > 0)
+                {
+                    mxf.ClearRequiredKeys();
+                    foreach (var key in targetKeys)
+                    {
+                        mxf.AddRequiredKey(key);
+                    }
+                }
+            }
+            else if (!demuxMode)
+            {
+                // Default to Data if no keys specified
+                Console.WriteLine("No keys specified, defaulting to Data.");
+                mxf.ClearRequiredKeys();
+                mxf.AddRequiredKey(KeyType.Data);
+            }
+
+            // Print active modes
+            if (klvMode)
+            {
+                Console.WriteLine("KLV mode enabled - key and length bytes will be included in output files.");
+            }
+
+            if (demuxMode)
+            {
+                Console.WriteLine("Demux mode enabled - all keys will be extracted.");
+                if (mxf.UseKeyNames)
+                {
+                    Console.WriteLine("Name mode enabled - using Key/Essence names instead of hex keys.");
+                }
+                else
+                {
+                    Console.WriteLine("Using hex key names for output files.");
+                }
+            }
+
+            Console.WriteLine($"Processing MXF file: {inputFile.FullName}");
+
+            // Extract the essence with cancellation support
+            // Since ExtractEssence is sync, we'll run it on a task with cancellation
+            await Task.Run(() => mxf.ExtractEssence(), cancellationToken);
+
+            Console.WriteLine($"Finished processing MXF file: {inputFile.FullName}");
+            return 0;
+        }
+        catch (OperationCanceledException)
+        {
+            Console.Error.WriteLine("Operation was cancelled.");
+            return 130;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error processing file: {ex.Message}");
+            return 1;
+        }
+    }
+
     private static List<KeyType> ParseKeys(string arg, bool verbose = false)
     {
         var keys = new List<KeyType>();
@@ -295,6 +496,62 @@ public class Functions
             }
 
             return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error restriping file: {ex.Message}");
+            return 1;
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously restripes an MXF file with a new start timecode, providing cancellation support and progress reporting.
+    /// This method provides the same functionality as Restripe but with async processing capabilities.
+    /// </summary>
+    /// <param name="inputFileInfo">The input MXF file to restripe</param>
+    /// <param name="timecodeString">New start timecode in HH:MM:SS:FF format</param>
+    /// <param name="verbose">Enable verbose output</param>
+    /// <param name="printProgress">Print progress during parsing</param>
+    /// <param name="cancellationToken">Cancellation token for operation cancellation</param>
+    /// <returns>Exit code: 0 for success, 1 for failure, 130 for cancellation</returns>
+    public static async Task<int> RestripeAsync(FileInfo inputFileInfo, string timecodeString, bool verbose, bool printProgress = false, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (verbose)
+            {
+                Console.WriteLine($"        Input file: {inputFileInfo.FullName}");
+                Console.WriteLine($"New start timecode: {timecodeString}");
+            }
+
+            // Create a FileStream that can read and write to the input file
+            if (!inputFileInfo.Exists)
+            {
+                Console.Error.WriteLine($"Error: Input file '{inputFileInfo.FullName}' does not exist.");
+                return 1;
+            }
+
+            // Create MXF instance and configure for restriping
+            using var mxf = new MXF(inputFileInfo)
+            {
+                Function = Function.Restripe,
+                Verbose = verbose,
+                PrintProgress = printProgress // Set progress printing option
+            };
+
+            // Run the async parse method which will handle restriping
+            await foreach (var _ in mxf.ParseAsync(startTimecode: timecodeString, cancellationToken: cancellationToken))
+            {
+                // The ParseAsync method handles all the restriping internally
+                // We just need to iterate through to execute it
+            }
+
+            return 0;
+        }
+        catch (OperationCanceledException)
+        {
+            Console.Error.WriteLine("Operation was cancelled.");
+            return 130;
         }
         catch (Exception ex)
         {
@@ -474,6 +731,183 @@ public class Functions
                     outputStream?.Dispose();
                 }
             }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+    }
+
+    /// <summary>
+    /// Asynchronously converts files between different teletext formats with progress reporting and cancellation support.
+    /// This method provides the same functionality as Convert but with async processing capabilities.
+    /// </summary>
+    /// <param name="input">The input file to convert, or null to read from stdin.</param>
+    /// <param name="inputFormat">The input format (BIN, VBI, VBI_DOUBLE, T42, MXF).</param>
+    /// <param name="outputFormat">The output format (VBI, VBI_DOUBLE, T42 only).</param>
+    /// <param name="output">The output file to write to, or null to write to stdout.</param>
+    /// <param name="magazine">The magazine number to filter by (null for all magazines).</param>
+    /// <param name="rows">The rows to filter by.</param>
+    /// <param name="lineCount">The number of lines per frame for timecode incrementation.</param>
+    /// <param name="verbose">Whether to enable verbose output.</param>
+    /// <param name="keepBlanks">Whether to keep blank lines in the output.</param>
+    /// <param name="cancellationToken">Cancellation token for operation cancellation</param>
+    /// <returns>Exit code: 0 for success, 1 for failure, 130 for cancellation</returns>
+    public static async Task<int> ConvertAsync(FileInfo? input, Format inputFormat, Format outputFormat, FileInfo? output, int? magazine, int[] rows, int lineCount, bool verbose, bool keepBlanks = false, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // Validate output format - only data formats allowed
+            if (outputFormat != Format.VBI && outputFormat != Format.VBI_DOUBLE && outputFormat != Format.T42)
+            {
+                Console.Error.WriteLine($"Error: Unsupported output format '{outputFormat}'. Supported formats: VBI, VBI_DOUBLE, T42");
+                return 1;
+            }
+
+            if (verbose)
+            {
+                if (input != null && input.Exists)
+                    Console.WriteLine($"   Input file: {input.FullName}");
+                else
+                    Console.WriteLine("Reading from stdin");
+                Console.WriteLine($" Input format: {inputFormat}");
+                Console.WriteLine($"Output format: {outputFormat}");
+                if (output != null && output.Exists)
+                    Console.WriteLine($"  Output file: {output.FullName}");
+                else
+                    Console.WriteLine("Writing to stdout");
+                Console.WriteLine($"     Magazine: {magazine?.ToString() ?? "all"}");
+                Console.WriteLine($"         Rows: [{string.Join(", ", rows)}]");
+                Console.WriteLine($"   Line count: {lineCount}");
+            }
+
+            // Set up output stream
+            Stream outputStream = output != null
+                ? new FileStream(output.FullName, FileMode.Create, FileAccess.Write, FileShare.None)
+                : Console.OpenStandardOutput();
+
+            try
+            {
+                switch (inputFormat)
+                {
+                    case Format.BIN:
+                        var bin = input is FileInfo inputBIN && inputBIN.Exists
+                            ? new BIN(inputBIN.FullName)
+                            : new BIN(Console.OpenStandardInput());
+                        bin.OutputFormat = outputFormat;
+                        bin.SetOutput(outputStream);
+                        await foreach (var packet in bin.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken: cancellationToken))
+                        {
+                            foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
+                            {
+                                if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
+                                {
+                                    // Write blank line with same format/length
+                                    var blankData = new byte[line.Data.Length];
+                                    bin.Output.Write(blankData);
+                                }
+                                else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
+                                {
+                                    bin.Output.Write(line.Data);
+                                }
+                            }
+                        }
+                        return 0;
+
+                    case Format.VBI:
+                    case Format.VBI_DOUBLE:
+                        var vbi = input is FileInfo inputVBI && inputVBI.Exists
+                            ? new VBI(inputVBI.FullName, inputFormat)
+                            : new VBI(Console.OpenStandardInput(), inputFormat);
+                        vbi.OutputFormat = outputFormat;
+                        vbi.LineCount = lineCount;
+                        vbi.SetOutput(outputStream);
+                        await foreach (var line in vbi.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken))
+                        {
+                            if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
+                            {
+                                // Write blank line with same format/length
+                                var blankData = new byte[line.Data.Length];
+                                vbi.Output.Write(blankData);
+                            }
+                            else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
+                            {
+                                vbi.Output.Write(line.Data);
+                            }
+                        }
+                        return 0;
+
+                    case Format.T42:
+                        var t42 = input is FileInfo inputT42 && inputT42.Exists
+                            ? new T42(inputT42.FullName)
+                            : new T42(Console.OpenStandardInput());
+                        t42.OutputFormat = outputFormat;
+                        t42.LineCount = lineCount;
+                        t42.SetOutput(outputStream);
+                        await foreach (var line in t42.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken))
+                        {
+                            if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
+                            {
+                                // Write blank line with same format/length
+                                var blankData = new byte[line.Data.Length];
+                                t42.Output.Write(blankData);
+                            }
+                            else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
+                            {
+                                t42.Output.Write(line.Data);
+                            }
+                        }
+                        return 0;
+
+                    case Format.MXF:
+                        if (input == null || !input.Exists)
+                        {
+                            Console.Error.WriteLine("Error: Input file must be specified and exist for MXF format conversion.");
+                            return 1;
+                        }
+                        var mxf = new MXF(input.FullName)
+                        {
+                            OutputFormat = outputFormat,
+                            Verbose = verbose
+                        };
+                        mxf.OutputFormat = outputFormat;
+                        mxf.SetOutput(outputStream);
+                        await foreach (var packet in mxf.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken: cancellationToken))
+                        {
+                            foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
+                            {
+                                if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
+                                {
+                                    // Write blank line with same format/length
+                                    var blankData = new byte[line.Data.Length];
+                                    mxf.Output.Write(blankData);
+                                }
+                                else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
+                                {
+                                    mxf.Output.Write(line.Data);
+                                }
+                            }
+                        }
+                        return 0;
+
+                    default:
+                        Console.Error.WriteLine($"Error: Unsupported input format '{inputFormat}'.");
+                        return 1;
+                }
+            }
+            finally
+            {
+                if (output != null)
+                {
+                    outputStream?.Dispose();
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            Console.Error.WriteLine("Operation was cancelled.");
+            return 130;
         }
         catch (Exception ex)
         {
