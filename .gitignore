@@ -431,3 +431,7 @@ publish/
 
 # Claude Code specific files
 .claude/
+
+# JetBrains Rider
+.idea/
+*.sln.iml

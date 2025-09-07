@@ -121,7 +121,7 @@ public class BIN : IDisposable
         // If OutputFormat is not set, use the provided outputFormat
         var outputFormat = OutputFormat ?? Format.T42;
 
-        int lineNumber = 0;
+        var lineNumber = 0;
 
         var timecode = startTimecode ?? new Timecode(0); // Default timecode, can be modified later
 
