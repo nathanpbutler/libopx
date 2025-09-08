@@ -180,6 +180,7 @@ public class VBI : IDisposable
                     line.Length = t42Data.Length;
                     line.SampleCoding = 0x31; // T42 sample coding
                     line.SampleCount = t42Data.Length;
+                    line.SetCachedType(Format.T42); // Ensure line.Type reports T42 for RCWT packet generation
 
                     // Extract T42 metadata if conversion successful
                     if (t42Data.Length >= Constants.T42_LINE_SIZE && t42Data.Any(b => b != 0))
@@ -310,6 +311,7 @@ public class VBI : IDisposable
                             line.Length = t42Data.Length;
                             line.SampleCoding = 0x31;
                             line.SampleCount = t42Data.Length;
+                            line.SetCachedType(Format.T42); // Ensure correct type for RCWT
                             line.Magazine = T42.GetMagazine(t42Data[0]);
                             line.Row = T42.GetRow([.. t42Data.Take(2)]);
                             line.Text = T42.GetText([.. t42Data.Skip(2)], line.Row == 0);

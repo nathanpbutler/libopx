@@ -103,17 +103,16 @@ public class Line : IDisposable
             {
                 _cachedType = Format.VBI_DOUBLE; // Double VBI lines
             }
-            else if (Data.Length >= Constants.T42_LINE_SIZE && Data.Length < Constants.VBI_LINE_SIZE)
+            else if (Data.Length == Constants.T42_LINE_SIZE)
             {
+                // Exact 42-byte payload (pure T42 line without CRIFC prefix)
+                _cachedType = Format.T42;
+            }
+            else if (Data.Length > Constants.T42_LINE_SIZE && Data.Length < Constants.VBI_LINE_SIZE)
+            {
+                // Longer than 42 but shorter than VBI: likely contains CRI + FC preceding T42
                 var crifc = Functions.GetCrifc(Data);
-                if (crifc >= 0)
-                {
-                    _cachedType = Format.T42; // T42 lines have a CRIFC
-                }
-                else
-                {
-                    _cachedType = Format.Unknown; // Unknown line type
-                }
+                _cachedType = crifc >= 0 ? Format.T42 : Format.Unknown;
             }
             else
             {
@@ -247,11 +246,13 @@ public class Line : IDisposable
         if (data.Length == 720)
             return Format.VBI;
 
-        if (data.Length >= 45 && data.Length < 720)
+        if (data.Length == Constants.T42_LINE_SIZE)
+            return Format.T42; // Pure 42-byte T42 line
+
+        if (data.Length > Constants.T42_LINE_SIZE && data.Length < Constants.VBI_LINE_SIZE)
         {
             var crifc = Functions.GetCrifc(data);
-            if (crifc >= 0)
-                return Format.T42;
+            if (crifc >= 0) return Format.T42;
         }
 
         return Format.Unknown;
@@ -268,11 +269,13 @@ public class Line : IDisposable
         if (data.Length == 720)
             return Format.VBI;
 
-        if (data.Length >= 45 && data.Length < 720)
+        if (data.Length == Constants.T42_LINE_SIZE)
+            return Format.T42;
+
+        if (data.Length > Constants.T42_LINE_SIZE && data.Length < Constants.VBI_LINE_SIZE)
         {
             var crifc = Functions.GetCrifc(data);
-            if (crifc >= 0)
-                return Format.T42;
+            if (crifc >= 0) return Format.T42;
         }
 
         return Format.Unknown;
@@ -360,7 +363,8 @@ public class Line : IDisposable
             try
             {
                 data = ConvertFormat(data, inputFormat, outputFormat);
-                _cachedType = outputFormat;
+                // RCWT is a virtual wrapper format; internally we still treat the payload as T42
+                _cachedType = outputFormat == Format.RCWT ? Format.T42 : outputFormat;
             }
             catch
             {
@@ -384,12 +388,22 @@ public class Line : IDisposable
             Format.VBI_DOUBLE => 0x32,
             Format.T42 => 0x31,
             Format.VBI => 0x31,
+            // Treat RCWT like T42 for sample coding purposes
+            Format.RCWT => 0x31,
             _ => SampleCoding
         };
         SampleCount = data.Length;
 
         // Extract metadata based on output format
-        ExtractMetadata(outputFormat);
+        if (outputFormat == Format.RCWT)
+        {
+            // RCWT encapsulates a T42 payload; extract as T42 so magazine/row/text are populated
+            ExtractMetadata(Format.T42);
+        }
+        else
+        {
+            ExtractMetadata(outputFormat);
+        }
     }
 
     /// <summary>

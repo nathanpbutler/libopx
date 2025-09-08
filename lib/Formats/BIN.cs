@@ -137,7 +137,8 @@ public class BIN : IDisposable
                 if (Input.Read(_lineHeader, 0, Constants.LINE_HEADER_SIZE) < Constants.LINE_HEADER_SIZE) break;
                 var line = new Line(_lineHeader)
                 {
-                    LineNumber = lineNumber // Increment line number for each line
+                    LineNumber = lineNumber, // Increment line number for each line
+                    LineTimecode = timecode  // Propagate packet timecode to line for RCWT
                 };
 
                 if (line.Length <= 0)
@@ -225,7 +226,8 @@ public class BIN : IDisposable
 
                     var line = new Line(lineBuffer.AsSpan(0, Constants.LINE_HEADER_SIZE))
                     {
-                        LineNumber = lineNumber
+                        LineNumber = lineNumber,
+                        LineTimecode = timecode
                     };
 
                     if (line.Length <= 0)

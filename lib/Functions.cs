@@ -592,10 +592,10 @@ public class Functions
     {
         try
         {
-            // Validate output format - only data formats allowed
-            if (outputFormat != Format.VBI && outputFormat != Format.VBI_DOUBLE && outputFormat != Format.T42)
+            // Validate output format - allow data formats plus RCWT (packetized) now
+            if (outputFormat != Format.VBI && outputFormat != Format.VBI_DOUBLE && outputFormat != Format.T42 && outputFormat != Format.RCWT)
             {
-                Console.Error.WriteLine($"Error: Unsupported output format '{outputFormat}'. Supported formats: VBI, VBI_DOUBLE, T42");
+                Console.Error.WriteLine($"Error: Unsupported output format '{outputFormat}'. Supported formats: VBI, VBI_DOUBLE, T42, RCWT");
                 return 1;
             }
 
@@ -623,6 +623,12 @@ public class Functions
 
             try
             {
+                // RCWT session init + header (only once per sync conversion)
+                if (outputFormat == Format.RCWT)
+                {
+                    ResetRCWTHeader();
+                    outputStream.Write(Constants.RCWT_HEADER, 0, Constants.RCWT_HEADER.Length);
+                }
                 switch (inputFormat)
                 {
                     case Format.BIN:
@@ -635,15 +641,21 @@ public class Functions
                         {
                             foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
                             {
+                                byte[] dataToWrite = line.Data;
+                                if (outputFormat == Format.RCWT)
+                                {
+                                    var (fts, fieldNumber) = GetRCWTState(line.LineTimecode);
+                                    dataToWrite = line.ToRCWT(fts, fieldNumber);
+                                }
+
                                 if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
                                 {
-                                    // Write blank line with same format/length
-                                    var blankData = new byte[line.Data.Length];
-                                    bin.Output.Write(blankData);
+                                    var blankData = new byte[dataToWrite.Length];
+                                    bin.Output.Write(blankData, 0, blankData.Length);
                                 }
                                 else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
                                 {
-                                    bin.Output.Write(line.Data);
+                                    bin.Output.Write(dataToWrite, 0, dataToWrite.Length);
                                 }
                             }
                         }
@@ -659,15 +671,20 @@ public class Functions
                         vbi.SetOutput(outputStream);
                         foreach (var line in vbi.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
                         {
+                            byte[] dataToWrite = line.Data;
+                            if (outputFormat == Format.RCWT)
+                            {
+                                var (fts, fieldNumber) = GetRCWTState(line.LineTimecode);
+                                dataToWrite = line.ToRCWT(fts, fieldNumber);
+                            }
                             if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
                             {
-                                // Write blank line with same format/length
-                                var blankData = new byte[line.Data.Length];
-                                vbi.Output.Write(blankData);
+                                var blankData = new byte[dataToWrite.Length];
+                                vbi.Output.Write(blankData, 0, blankData.Length);
                             }
                             else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
                             {
-                                vbi.Output.Write(line.Data);
+                                vbi.Output.Write(dataToWrite, 0, dataToWrite.Length);
                             }
                         }
                         return 0;
@@ -681,15 +698,20 @@ public class Functions
                         t42.SetOutput(outputStream);
                         foreach (var line in t42.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
                         {
+                            byte[] dataToWrite = line.Data;
+                            if (outputFormat == Format.RCWT)
+                            {
+                                var (fts, fieldNumber) = GetRCWTState(line.LineTimecode);
+                                dataToWrite = line.ToRCWT(fts, fieldNumber);
+                            }
                             if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
                             {
-                                // Write blank line with same format/length
-                                var blankData = new byte[line.Data.Length];
-                                t42.Output.Write(blankData);
+                                var blankData = new byte[dataToWrite.Length];
+                                t42.Output.Write(blankData, 0, blankData.Length);
                             }
                             else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
                             {
-                                t42.Output.Write(line.Data);
+                                t42.Output.Write(dataToWrite, 0, dataToWrite.Length);
                             }
                         }
                         return 0;
@@ -711,15 +733,20 @@ public class Functions
                         {
                             foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
                             {
+                                byte[] dataToWrite = line.Data;
+                                if (outputFormat == Format.RCWT)
+                                {
+                                    var (fts, fieldNumber) = GetRCWTState(line.LineTimecode);
+                                    dataToWrite = line.ToRCWT(fts, fieldNumber);
+                                }
                                 if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
                                 {
-                                    // Write blank line with same format/length
-                                    var blankData = new byte[line.Data.Length];
-                                    mxf.Output.Write(blankData);
+                                    var blankData = new byte[dataToWrite.Length];
+                                    mxf.Output.Write(blankData, 0, blankData.Length);
                                 }
                                 else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
                                 {
-                                    mxf.Output.Write(line.Data);
+                                    mxf.Output.Write(dataToWrite, 0, dataToWrite.Length);
                                 }
                             }
                         }

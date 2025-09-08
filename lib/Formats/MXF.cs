@@ -679,7 +679,8 @@ public class MXF : IDisposable
                 throw new InvalidOperationException("Failed to read line header for Data key.");
             var line = new Line(lineHeader)
             {
-                LineNumber = lineNumber // Increment line number for each line
+                LineNumber = lineNumber, // Increment line number for each line
+                LineTimecode = startTimecode // Propagate packet timecode to line for RCWT
             };
 
             if (line.Length <= 0)
