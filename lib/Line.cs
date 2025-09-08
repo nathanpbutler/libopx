@@ -409,6 +409,10 @@ public class Line : IDisposable
             // VBI_DOUBLE to VBI conversion (take every other byte)
             (Format.VBI_DOUBLE, Format.VBI) => [.. data.Where((b, i) => i % 2 == 0)],
 
+            // RCWT conversions - convert to T42 first, then ToRCWT() handles the rest
+            (Format.VBI, Format.RCWT) or (Format.VBI_DOUBLE, Format.RCWT) => VBI.ToT42(data),
+            (Format.T42, Format.RCWT) => [.. data.Take(Constants.T42_LINE_SIZE)],
+
             // Same format - no conversion needed
             _ when inputFormat == outputFormat => data,
 
@@ -474,5 +478,86 @@ public class Line : IDisposable
         }
 
         return sb.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    /// Converts the line data to RCWT (Raw Caption With Timing) format.
+    /// </summary>
+    /// <param name="fts">Frame Time Stamp in milliseconds</param>
+    /// <param name="fieldNumber">Field number (0 or 1)</param>
+    /// <returns>RCWT packet bytes containing packet type, FTS, field marker, framing code, and T42 data payload</returns>
+    public byte[] ToRCWT(int fts, int fieldNumber)
+    {
+        // Ensure we have T42 data as the payload
+        byte[] t42Data;
+        if (Type == Format.T42 && Data.Length >= Constants.T42_LINE_SIZE)
+        {
+            // Use existing T42 data (first 42 bytes)
+            t42Data = [.. Data.Take(Constants.T42_LINE_SIZE)];
+        }
+        else if (Type == Format.VBI || Type == Format.VBI_DOUBLE)
+        {
+            // Convert VBI to T42 first
+            try
+            {
+                var convertedData = ConvertFormat(Data, Type, Format.T42);
+                t42Data = [.. convertedData.Take(Constants.T42_LINE_SIZE)];
+            }
+            catch
+            {
+                // If conversion fails, create blank T42 data
+                t42Data = new byte[Constants.T42_LINE_SIZE];
+            }
+        }
+        else
+        {
+            // For unknown or other formats, create blank T42 data
+            t42Data = new byte[Constants.T42_LINE_SIZE];
+        }
+
+        // Create RCWT packet: [packet_type][fts_bytes][field_marker][framing_code][t42_data]
+        var packet = new List<byte>
+        {
+            // Add packet type (1 byte)
+            Constants.RCWT_PACKET_TYPE_UNKNOWN
+        };
+
+        // Add FTS bytes (8 bytes, padded if necessary)
+        var ftsBytes = GetFTSBytes(fts);
+        packet.AddRange(ftsBytes);
+
+        // Add field marker (1 byte)
+        packet.Add(GetFieldMarkerByte(fieldNumber));
+
+        // Add framing code (1 byte)
+        packet.Add(Constants.RCWT_FRAMING_CODE);
+
+        // Add T42 data payload (42 bytes)
+        packet.AddRange(t42Data);
+
+        return [.. packet];
+    }
+
+    /// <summary>
+    /// Converts FTS value to 8-byte array, padding with zeros if necessary.
+    /// </summary>
+    /// <param name="fts">Frame Time Stamp in milliseconds</param>
+    /// <returns>8-byte array representing the FTS value</returns>
+    private static byte[] GetFTSBytes(int fts)
+    {
+        var ftsBytes = BitConverter.GetBytes(fts);
+        return ftsBytes.Length == Constants.RCWT_FTS_BYTE_SIZE 
+            ? ftsBytes 
+            : [.. ftsBytes, .. new byte[Constants.RCWT_FTS_BYTE_SIZE - ftsBytes.Length]];
+    }
+
+    /// <summary>
+    /// Gets the field marker byte based on field number.
+    /// </summary>
+    /// <param name="fieldNumber">Field number (0 or 1)</param>
+    /// <returns>Field marker byte (0xAF for field 0, 0xAB for field 1)</returns>
+    private static byte GetFieldMarkerByte(int fieldNumber)
+    {
+        return fieldNumber == 0 ? Constants.RCWT_FIELD_0_MARKER : Constants.RCWT_FIELD_1_MARKER;
     }
 }

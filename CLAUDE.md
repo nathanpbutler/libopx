@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Async Support**: All format parsers support both sync (`Parse()`) and async (`ParseAsync()`) methods with 90-95% memory reduction via ArrayPool usage
 - **Sample Files**: Test sample files are automatically copied to test output directory during build - reference them directly by filename in tests (e.g., `"input.vbi"`)
 - **Memory Benchmarking**: Use `MemoryBenchmarkTests` class to verify performance claims for async parsing methods
+- **RCWT Support**: Full Raw Caption With Timing format support with automatic T42 payload conversion, FTS timing, and field alternation
 
 ## Common Commands
 
@@ -115,7 +116,7 @@ dotnet run --project apps/opx -- convert [options] <input-file?>
 **Options:**
 
 - `-i, --input-format <bin|vbi|vbid|t42|mxf>`: Input format (auto-detected from file extension if not specified)
-- `-o, --output-format <vbi|vbid|t42>`: Output format [required]
+- `-o, --output-format <vbi|vbid|t42|rcwt>`: Output format [required]
 - `-f, --output-file <file>`: Output file path (writes to stdout if not specified)
 - `-m, --magazine <int>`: Filter by magazine number (default: all magazines)
 - `-r, --rows <string>`: Filter by rows (comma-separated or hyphen ranges)
@@ -156,9 +157,43 @@ dotnet run --project apps/opx -- convert -o t42 -c input.vbi
 
 # Convert MXF to VBI preserving structure with blank bytes
 dotnet run --project apps/opx -- convert -i mxf -o vbi -k input.mxf
+
+# Convert VBI to RCWT (Raw Caption With Timing) format
+dotnet run --project apps/opx -- convert -i vbi -o rcwt -f output.rcwt input.vbi
+
+# Convert T42 to RCWT with verbose output
+dotnet run --project apps/opx -- convert -i t42 -o rcwt -V input.t42
 ```
 
 **Note:** For filter command, if input file is not specified, reads from stdin. Format is auto-detected from file extension or can be overridden with -f option.
+
+### RCWT (Raw Caption With Timing) Format
+
+RCWT is a container format that wraps T42 teletext data with timing and field information. Each RCWT packet contains:
+
+**Packet Structure (53 bytes total):**
+- 1 byte: Packet type (0x03)
+- 8 bytes: FTS (Frame Time Stamp) in milliseconds, little-endian with zero padding
+- 1 byte: Field marker (0xAF for field 0, 0xAB for field 1)
+- 1 byte: Framing code (0x27)
+- 42 bytes: T42 teletext data payload
+
+**Usage in Code:**
+```csharp
+// Convert Line to RCWT format with timing
+var rcwtData = line.ToRCWT(fts: 1000, fieldNumber: 0);
+
+// State management is handled automatically during conversion
+Functions.ResetRCWTHeader(); // Call at start of new conversion session
+var (fts, fieldNumber) = Functions.GetAndIncrementRCWTState(); // Auto-increment state
+```
+
+**Features:**
+- Automatic T42 payload conversion from VBI/other formats
+- Thread-safe FTS and field number state management  
+- File header written once per conversion session (11 bytes: [204, 204, 237, 204, 0, 80, 0, 2, 0, 0, 0])
+- Configurable timing increments (default: 40ms for 25fps)
+- Field alternation (0 → 1 → 0 → 1...)
 
 ### Parse VBI and T42 files
 
@@ -236,7 +271,7 @@ The project uses a multi-project solution (`libopx.sln`) with the following stru
 - VBI to T42 conversion using `VBI.ToT42()` method
 - T42 to VBI conversion using `T42.ToVBI()` method
 - `Line.ParseLine()` handles format detection and conversion based on OutputFormat
-- Support for VBI, VBI_DOUBLE, and T42 line formats
+- Support for VBI, VBI_DOUBLE, T42, and RCWT line formats
 
 **MXF Processing**: Stream-based parsing with:
 
@@ -257,6 +292,7 @@ The SMPTE namespace contains comprehensive metadata definitions loaded from XML 
 - **Output**: File-based output with configurable extensions and naming schemes
 - **Timecode**: Extensive calculations supporting various frame rates and drop-frame modes
 - **Teletext**: Magazine/row filtering with Unicode character mapping via `TeletextCharset`
+- **RCWT Format**: Complete Raw Caption With Timing implementation with T42 payload conversion and timing state management
 - **Dependencies**:
   - System.CommandLine (v2.0.0-beta6) for CLI argument parsing
   - xUnit with coverlet for testing and coverage

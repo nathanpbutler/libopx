@@ -203,6 +203,33 @@ public class Constants
     public const string T42_BLANK_LINE = "\x1b[37m\x1b[40m                                        \x1b[0m";
     #endregion
 
+    #region RCWT Constants
+    /// <summary>
+    /// RCWT packet type byte (unknown purpose).
+    /// </summary>
+    public const byte RCWT_PACKET_TYPE_UNKNOWN = 0x03;
+    /// <summary>
+    /// RCWT framing code byte for packet synchronization.
+    /// </summary>
+    public const byte RCWT_FRAMING_CODE = 0x27;
+    /// <summary>
+    /// RCWT field 0 marker byte.
+    /// </summary>
+    public const byte RCWT_FIELD_0_MARKER = 0xAF;
+    /// <summary>
+    /// RCWT field 1 marker byte.
+    /// </summary>
+    public const byte RCWT_FIELD_1_MARKER = 0xAB;
+    /// <summary>
+    /// Size of the FTS (Frame Time Stamp) field in bytes.
+    /// </summary>
+    public const int RCWT_FTS_BYTE_SIZE = 8;
+    /// <summary>
+    /// RCWT file header bytes written at the beginning of output.
+    /// </summary>
+    public static readonly byte[] RCWT_HEADER = [204, 204, 237, 204, 0, 80, 0, 2, 0, 0, 0];
+    #endregion
+
     #region Default Values
     /// <summary>
     /// Default magazine number used across the library when no specific magazine is specified (for backward compatibility).

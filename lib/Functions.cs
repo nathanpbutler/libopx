@@ -794,6 +794,12 @@ public class Functions
 
             try
             {
+                // Reset RCWT state for new conversion session
+                if (outputFormat == Format.RCWT)
+                {
+                    ResetRCWTHeader();
+                }
+                
                 // Write headers for formats that require them
                 if (outputFormat == Format.RCWT || outputFormat == Format.STL)
                 {
@@ -812,7 +818,7 @@ public class Functions
                         {
                             foreach (var line in packet.Lines)
                             {
-                                await WriteOutputAsync(line, bin.Output, magazine, rows, keepBlanks, cancellationToken);
+                                await WriteOutputAsync(line, bin.Output, outputFormat, magazine, rows, keepBlanks, cancellationToken);
                                 
                                 /*if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
                                 {
@@ -838,7 +844,7 @@ public class Functions
                         vbi.SetOutput(outputStream);
                         await foreach (var line in vbi.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken))
                         {
-                            await WriteOutputAsync(line, vbi.Output, magazine, rows, keepBlanks, cancellationToken);  
+                            await WriteOutputAsync(line, vbi.Output, outputFormat, magazine, rows, keepBlanks, cancellationToken);  
                             
                             /*if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
                             {
@@ -862,7 +868,7 @@ public class Functions
                         t42.SetOutput(outputStream);
                         await foreach (var line in t42.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken))
                         {
-                            await WriteOutputAsync(line, t42.Output, magazine, rows, keepBlanks, cancellationToken);
+                            await WriteOutputAsync(line, t42.Output, outputFormat, magazine, rows, keepBlanks, cancellationToken);
                             
                             /*if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
                             {
@@ -894,7 +900,7 @@ public class Functions
                         {
                             foreach (var line in packet.Lines)
                             {
-                                await WriteOutputAsync(line, mxf.Output, magazine, rows, keepBlanks, cancellationToken);
+                                await WriteOutputAsync(line, mxf.Output, outputFormat, magazine, rows, keepBlanks, cancellationToken);
                                 
                                 /*if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
                                 {
@@ -947,32 +953,48 @@ public class Functions
     /// </summary>
     /// <param name="input"></param>
     /// <param name="output"></param>
+    /// <param name="outputFormat"></param>
     /// <param name="magazine"></param>
     /// <param name="rows"></param>
     /// <param name="keepBlanks"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    private static async Task WriteOutputAsync(Line input, Stream output, int? magazine, int[] rows, bool keepBlanks, CancellationToken cancellationToken = default)
+    private static async Task WriteOutputAsync(Line input, Stream output, Format outputFormat, int? magazine, int[] rows, bool keepBlanks, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         
         if (input.Type == Format.Unknown)
         {
-            await Task.CompletedTask;
+            return;
+        }
+        
+        byte[] dataToWrite;
+        
+        // Handle different output formats
+        switch (outputFormat)
+        {
+            case Format.RCWT:
+                // For RCWT, convert to RCWT packet format
+                var (fts, fieldNumber) = GetAndIncrementRCWTState();
+                dataToWrite = input.ToRCWT(fts, fieldNumber);
+                break;
+                
+            default:
+                // For other formats, use the line's data directly
+                dataToWrite = input.Data;
+                break;
         }
         
         if (keepBlanks && ((magazine.HasValue && input.Magazine != magazine.Value) || !rows.Contains(input.Row)))
         {
             // Write blank line with same format/length
-            var blankData = new byte[input.Data.Length];
+            var blankData = new byte[dataToWrite.Length];
             await output.WriteAsync(blankData, cancellationToken);
         }
         else if (!keepBlanks || ((!magazine.HasValue || input.Magazine == magazine.Value) && rows.Contains(input.Row)))
         {
-            await output.WriteAsync(input.Data, cancellationToken);
+            await output.WriteAsync(dataToWrite, cancellationToken);
         }
-        
-        await Task.CompletedTask;
     }
     
     /// <summary>
@@ -1007,8 +1029,18 @@ public class Functions
         }
     }
     
+    // Static flag to track if RCWT header has been written (thread-safe)
+    private static volatile bool _rcwtHeaderWritten = false;
+    private static readonly object _rcwtHeaderLock = new();
+    
+    // RCWT state management for FTS and field numbers
+    private static int _rcwtFts = 0;
+    private static int _rcwtFieldNumber = 0;
+    private static readonly object _rcwtStateLock = new();
+
     /// <summary>
     /// Writes an RCWT (Raw Caption With Timing) header to the output stream.
+    /// The header is only written once per conversion session.
     /// </summary>
     /// <param name="output">The output stream to write to</param>
     /// <param name="cancellationToken">Cancellation token</param>
@@ -1017,16 +1049,79 @@ public class Functions
     {
         cancellationToken.ThrowIfCancellationRequested();
         
-        // TODO: Implement RCWT header structure
-        // RCWT headers typically include:
-        // - File format identifier
-        // - Version information
-        // - Timecode format (frame rate, drop-frame mode)
-        // - Character encoding specification
-        // - Optional metadata fields
+        // Thread-safe check and write of RCWT header
+        lock (_rcwtHeaderLock)
+        {
+            if (_rcwtHeaderWritten)
+                return;
+            _rcwtHeaderWritten = true;
+        }
         
-        // Placeholder implementation - will be implemented in next step
-        await Task.CompletedTask;
+        // Write the RCWT header (11 bytes)
+        await output.WriteAsync(Constants.RCWT_HEADER, cancellationToken);
+    }
+
+    /// <summary>
+    /// Resets the RCWT header flag and state for a new conversion session.
+    /// Call this when starting a new RCWT conversion.
+    /// </summary>
+    public static void ResetRCWTHeader()
+    {
+        lock (_rcwtHeaderLock)
+        {
+            _rcwtHeaderWritten = false;
+        }
+        
+        lock (_rcwtStateLock)
+        {
+            _rcwtFts = 0;
+            _rcwtFieldNumber = 0;
+        }
+    }
+
+    /// <summary>
+    /// Gets the current RCWT state (FTS and field number) and increments them for the next line.
+    /// This method is thread-safe.
+    /// </summary>
+    /// <returns>Tuple containing current FTS and field number</returns>
+    public static (int fts, int fieldNumber) GetAndIncrementRCWTState()
+    {
+        lock (_rcwtStateLock)
+        {
+            var currentState = (_rcwtFts, _rcwtFieldNumber);
+            
+            // Increment FTS (time in milliseconds) - you may want to adjust this increment
+            _rcwtFts += 40; // Assuming 25 fps (40ms per frame), adjust as needed
+            
+            // Alternate field number (0, 1, 0, 1, ...)
+            _rcwtFieldNumber = (_rcwtFieldNumber + 1) % 2;
+            
+            return currentState;
+        }
+    }
+
+    /// <summary>
+    /// Sets the RCWT FTS (Frame Time Stamp) value.
+    /// </summary>
+    /// <param name="fts">The FTS value in milliseconds</param>
+    public static void SetRCWTFts(int fts)
+    {
+        lock (_rcwtStateLock)
+        {
+            _rcwtFts = fts;
+        }
+    }
+
+    /// <summary>
+    /// Sets the RCWT field number.
+    /// </summary>
+    /// <param name="fieldNumber">The field number (0 or 1)</param>
+    public static void SetRCWTFieldNumber(int fieldNumber)
+    {
+        lock (_rcwtStateLock)
+        {
+            _rcwtFieldNumber = fieldNumber;
+        }
     }
     
     /// <summary>

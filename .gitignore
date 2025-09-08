@@ -428,6 +428,7 @@ publish/
 *.vbi
 *.vbid
 *.t42
+*.rcwt
 
 # Claude Code specific files
 .claude/
