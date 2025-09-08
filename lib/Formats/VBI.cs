@@ -137,6 +137,12 @@ public class VBI : IDisposable
         // If OutputFormat is not set, use the provided outputFormat
         var outputFormat = OutputFormat ?? Format.T42;
 
+        // Initialize RCWT state if needed
+        if (outputFormat == Format.RCWT)
+        {
+            Functions.ResetRCWTHeader();
+        }
+
         int lineNumber = 0;
         var timecode = new Timecode(0);
         var vbiBuffer = new byte[LineLength];
@@ -162,7 +168,7 @@ public class VBI : IDisposable
             };
 
             // Process the VBI data based on output format
-            if (outputFormat == Format.T42)
+            if (outputFormat is Format.T42 or Format.RCWT)
             {
                 try
                 {
@@ -181,6 +187,9 @@ public class VBI : IDisposable
                         line.Magazine = T42.GetMagazine(t42Data[0]);
                         line.Row = T42.GetRow([.. t42Data.Take(2)]);
                         line.Text = T42.GetText([.. t42Data.Skip(2)], line.Row == 0);
+                        
+                        // For RCWT output, keep the T42 data - WriteOutputAsync will handle RCWT packet generation
+                        // This prevents double-conversion (T42 -> RCWT -> RCWT)
                     }
                     else
                     {
@@ -212,13 +221,13 @@ public class VBI : IDisposable
             }
 
             // Apply filtering if specified and conversion was successful
-            if (magazine.HasValue && line.Magazine != magazine.Value && outputFormat == Format.T42)
+            if (magazine.HasValue && line.Magazine != magazine.Value && (outputFormat is Format.T42 or Format.RCWT))
             {
                 lineNumber++;
                 continue;
             }
 
-            if (rows != null && !rows.Contains(line.Row) && outputFormat == Format.T42)
+            if (rows != null && !rows.Contains(line.Row) && (outputFormat is Format.T42 or Format.RCWT))
             {
                 lineNumber++;
                 continue;
@@ -245,6 +254,12 @@ public class VBI : IDisposable
         // Use default rows if not specified
         rows ??= Constants.DEFAULT_ROWS;
         var outputFormat = OutputFormat ?? Format.T42;
+
+        // Initialize RCWT state if needed
+        if (outputFormat == Format.RCWT)
+        {
+            Functions.ResetRCWTHeader();
+        }
 
         int lineNumber = 0;
         var timecode = new Timecode(0);
@@ -284,7 +299,7 @@ public class VBI : IDisposable
                 };
 
                 // Process the VBI data based on output format
-                if (outputFormat == Format.T42)
+                if (outputFormat is Format.T42 or Format.RCWT)
                 {
                     try
                     {
@@ -298,6 +313,9 @@ public class VBI : IDisposable
                             line.Magazine = T42.GetMagazine(t42Data[0]);
                             line.Row = T42.GetRow([.. t42Data.Take(2)]);
                             line.Text = T42.GetText([.. t42Data.Skip(2)], line.Row == 0);
+                            
+                            // For RCWT output, keep the T42 data - WriteOutputAsync will handle RCWT packet generation
+                            // This prevents double-conversion (T42 -> RCWT -> RCWT)
                         }
                         else
                         {
@@ -326,13 +344,13 @@ public class VBI : IDisposable
                 }
 
                 // Apply filtering
-                if (magazine.HasValue && line.Magazine != magazine.Value && outputFormat == Format.T42)
+                if (magazine.HasValue && line.Magazine != magazine.Value && (outputFormat is Format.T42 or Format.RCWT))
                 {
                     lineNumber++;
                     continue;
                 }
 
-                if (rows != null && !rows.Contains(line.Row) && outputFormat == Format.T42)
+                if (rows != null && !rows.Contains(line.Row) && (outputFormat is Format.T42 or Format.RCWT))
                 {
                     lineNumber++;
                     continue;

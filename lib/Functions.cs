@@ -607,7 +607,7 @@ public class Functions
                     Console.WriteLine("Reading from stdin");
                 Console.WriteLine($" Input format: {inputFormat}");
                 Console.WriteLine($"Output format: {outputFormat}");
-                if (output != null && output.Exists)
+                if (output != null)
                     Console.WriteLine($"  Output file: {output.FullName}");
                 else
                     Console.WriteLine("Writing to stdout");
@@ -778,7 +778,7 @@ public class Functions
                     : "Reading from stdin");
                 Console.WriteLine($" Input format: {inputFormat}");
                 Console.WriteLine($"Output format: {outputFormat}");
-                Console.WriteLine(output is { Exists: true }
+                Console.WriteLine(output != null
                     ? $"  Output file: {output.FullName}"
                     : "Writing to stdout");
                 Console.WriteLine($"     Magazine: {magazine?.ToString() ?? "all"}");
@@ -797,6 +797,7 @@ public class Functions
                 // Reset RCWT state for new conversion session
                 if (outputFormat == Format.RCWT)
                 {
+                    Console.Error.WriteLine("DEBUG: Resetting RCWT state for new conversion session");
                     ResetRCWTHeader();
                 }
                 
@@ -974,8 +975,8 @@ public class Functions
         switch (outputFormat)
         {
             case Format.RCWT:
-                // For RCWT, convert to RCWT packet format
-                var (fts, fieldNumber) = GetAndIncrementRCWTState();
+                // For RCWT, convert to RCWT packet format using timecode from the line
+                var (fts, fieldNumber) = GetRCWTState(input.LineTimecode);
                 dataToWrite = input.ToRCWT(fts, fieldNumber);
                 break;
                 
@@ -1080,23 +1081,27 @@ public class Functions
     }
 
     /// <summary>
-    /// Gets the current RCWT state (FTS and field number) and increments them for the next line.
+    /// Gets RCWT state based on timecode information from the parser.
+    /// Uses the parser's timecode to calculate FTS instead of maintaining separate counters.
     /// This method is thread-safe.
     /// </summary>
-    /// <returns>Tuple containing current FTS and field number</returns>
-    public static (int fts, int fieldNumber) GetAndIncrementRCWTState()
+    /// <param name="timecode">The current timecode from the parser</param>
+    /// <returns>Tuple containing FTS (derived from timecode) and alternating field number</returns>
+    public static (int fts, int fieldNumber) GetRCWTState(Timecode? timecode)
     {
         lock (_rcwtStateLock)
         {
-            var currentState = (_rcwtFts, _rcwtFieldNumber);
+            // Convert timecode to FTS (Frame Time Stamp in milliseconds)
+            // Assuming 25 fps: each frame = 40ms
+            int fts = (int)(timecode?.FrameNumber * 40 ?? 0);
             
-            // Increment FTS (time in milliseconds) - you may want to adjust this increment
-            _rcwtFts += 40; // Assuming 25 fps (40ms per frame), adjust as needed
-            
-            // Alternate field number (0, 1, 0, 1, ...)
+            // Always alternate field number (0, 1, 0, 1, ...)
+            var currentField = _rcwtFieldNumber;
             _rcwtFieldNumber = (_rcwtFieldNumber + 1) % 2;
             
-            return currentState;
+            Console.Error.WriteLine($"DEBUG RCWT: Timecode {timecode}, FTS: {fts}ms, Field: {currentField}");
+            
+            return (fts, currentField);
         }
     }
 

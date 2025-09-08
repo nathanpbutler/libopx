@@ -128,6 +128,12 @@ public class T42 : IDisposable
         // If OutputFormat is not set, use the provided outputFormat
         var outputFormat = OutputFormat ?? Format.T42;
 
+        // Initialize RCWT state if needed
+        if (outputFormat == Format.RCWT)
+        {
+            Functions.ResetRCWTHeader();
+        }
+
         int lineNumber = 0;
         var timecode = new Timecode(0);
         var t42Buffer = new byte[LineLength];
@@ -150,6 +156,9 @@ public class T42 : IDisposable
                 SampleCount = LineLength,
                 LineTimecode = timecode,
             };
+            
+            // Explicitly set the cached type to T42 for proper ToRCWT conversion
+            line.SetCachedType(Format.T42);
 
             // Extract T42 metadata
             if (t42Buffer.Length >= Constants.T42_LINE_SIZE && t42Buffer.Any(b => b != 0))
@@ -157,10 +166,12 @@ public class T42 : IDisposable
                 line.Magazine = GetMagazine(t42Buffer[0]);
                 line.Row = GetRow([.. t42Buffer.Take(2)]);
                 line.Text = GetText([.. t42Buffer.Skip(2)], line.Row == 0);
+                Console.Error.WriteLine($"DEBUG T42: Line {lineNumber} - Magazine: {line.Magazine}, Row: {line.Row}, HasData: {t42Buffer.Any(b => b != 0)}");
             }
             else
             {
                 // Empty data, skip this line
+                Console.Error.WriteLine($"DEBUG T42: Line {lineNumber} - Skipping empty data (length: {t42Buffer.Length}, hasNonZero: {t42Buffer.Any(b => b != 0)})");
                 lineNumber++;
                 continue;
             }
@@ -191,15 +202,17 @@ public class T42 : IDisposable
                     continue;
                 }
             }
+            // For RCWT output, keep the T42 data - WriteOutputAsync will handle RCWT packet generation
+            // This prevents double-conversion (T42 -> RCWT -> RCWT)
 
             // Apply filtering if specified
-            if (magazine.HasValue && line.Magazine != magazine.Value && outputFormat == Format.T42)
+            if (magazine.HasValue && line.Magazine != magazine.Value && (outputFormat is Format.T42 or Format.RCWT))
             {
                 lineNumber++;
                 continue;
             }
 
-            if (rows != null && !rows.Contains(line.Row) && outputFormat == Format.T42)
+            if (rows != null && !rows.Contains(line.Row) && (outputFormat is Format.T42 or Format.RCWT))
             {
                 lineNumber++;
                 continue;
@@ -224,6 +237,12 @@ public class T42 : IDisposable
     {
         rows ??= Constants.DEFAULT_ROWS;
         var outputFormat = OutputFormat ?? Format.T42;
+
+        // Initialize RCWT state if needed
+        if (outputFormat == Format.RCWT)
+        {
+            Functions.ResetRCWTHeader();
+        }
 
         int lineNumber = 0;
         var timecode = new Timecode(0);
@@ -257,6 +276,9 @@ public class T42 : IDisposable
                     SampleCount = LineLength,
                     LineTimecode = timecode,
                 };
+                
+                // Explicitly set the cached type to T42 for proper ToRCWT conversion
+                line.SetCachedType(Format.T42);
 
                 // Extract T42 metadata
                 if (line.Data.Length >= Constants.T42_LINE_SIZE && line.Data.Any(b => b != 0))
@@ -291,15 +313,17 @@ public class T42 : IDisposable
                         continue;
                     }
                 }
+                // For RCWT output, keep the T42 data - WriteOutputAsync will handle RCWT packet generation
+                // This prevents double-conversion (T42 -> RCWT -> RCWT)
 
                 // Apply filtering
-                if (magazine.HasValue && line.Magazine != magazine.Value && outputFormat == Format.T42)
+                if (magazine.HasValue && line.Magazine != magazine.Value && (outputFormat is Format.T42 or Format.RCWT))
                 {
                     lineNumber++;
                     continue;
                 }
 
-                if (rows != null && !rows.Contains(line.Row) && outputFormat == Format.T42)
+                if (rows != null && !rows.Contains(line.Row) && (outputFormat is Format.T42 or Format.RCWT))
                 {
                     lineNumber++;
                     continue;

@@ -185,7 +185,7 @@ var rcwtData = line.ToRCWT(fts: 1000, fieldNumber: 0);
 
 // State management is handled automatically during conversion
 Functions.ResetRCWTHeader(); // Call at start of new conversion session
-var (fts, fieldNumber) = Functions.GetAndIncrementRCWTState(); // Auto-increment state
+var (fts, fieldNumber) = Functions.GetRCWTState(timecode); // Uses parser's timecode
 ```
 
 **Features:**
@@ -194,6 +194,19 @@ var (fts, fieldNumber) = Functions.GetAndIncrementRCWTState(); // Auto-increment
 - File header written once per conversion session (11 bytes: [204, 204, 237, 204, 0, 80, 0, 2, 0, 0, 0])
 - Configurable timing increments (default: 40ms for 25fps)
 - Field alternation (0 → 1 → 0 → 1...)
+- FTS timing synchronized with parser's LineCount setting
+
+**T42 -> RCWT Conversion Status:**
+- ✅ **T42 to RCWT**: Fully working - Fixed Line.Type detection, eliminated double-conversion, synchronized FTS with timecode
+- 🚧 **VBI to RCWT**: Work in progress - VBI data converted to T42 first, then to RCWT packets
+- 🚧 **BIN to RCWT**: Work in progress - BIN data extracted to T42, then to RCWT packets  
+- 🚧 **MXF to RCWT**: Work in progress - MXF data stream extracted to T42, then to RCWT packets
+
+**Key Fixes Applied:**
+- Added `Line.SetCachedType()` method to properly identify T42 data for RCWT conversion
+- Removed redundant ToRCWT() calls from parsers to prevent double-conversion headers
+- Changed FTS calculation from line-based counter to timecode-based: `FTS = FrameNumber * 40ms`
+- Ensured FTS increments respect parser's LineCount setting (every N lines, not every line)
 
 ### Parse VBI and T42 files
 

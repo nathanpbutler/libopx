@@ -221,6 +221,15 @@ public class Line : IDisposable
     }
 
     /// <summary>
+    /// Sets the cached type for the line. This is used when the line type is known explicitly.
+    /// </summary>
+    /// <param name="format">The format to cache</param>
+    internal void SetCachedType(Format format)
+    {
+        _cachedType = format;
+    }
+
+    /// <summary>
     /// Disposes the resources used by the Line.
     /// </summary>
     public void Dispose()
@@ -409,7 +418,7 @@ public class Line : IDisposable
             // VBI_DOUBLE to VBI conversion (take every other byte)
             (Format.VBI_DOUBLE, Format.VBI) => [.. data.Where((b, i) => i % 2 == 0)],
 
-            // RCWT conversions - convert to T42 first, then ToRCWT() handles the rest
+            // RCWT conversions - keep as T42 for now, actual RCWT packet generation happens in parsers
             (Format.VBI, Format.RCWT) or (Format.VBI_DOUBLE, Format.RCWT) => VBI.ToT42(data),
             (Format.T42, Format.RCWT) => [.. data.Take(Constants.T42_LINE_SIZE)],
 
@@ -488,12 +497,15 @@ public class Line : IDisposable
     /// <returns>RCWT packet bytes containing packet type, FTS, field marker, framing code, and T42 data payload</returns>
     public byte[] ToRCWT(int fts, int fieldNumber)
     {
+        Console.Error.WriteLine($"DEBUG: ToRCWT called - Type: {Type}, DataLength: {Data.Length}, Magazine: {Magazine}, Row: {Row}");
+        
         // Ensure we have T42 data as the payload
         byte[] t42Data;
         if (Type == Format.T42 && Data.Length >= Constants.T42_LINE_SIZE)
         {
             // Use existing T42 data (first 42 bytes)
             t42Data = [.. Data.Take(Constants.T42_LINE_SIZE)];
+            Console.Error.WriteLine($"DEBUG: Using existing T42 data ({t42Data.Length} bytes)");
         }
         else if (Type == Format.VBI || Type == Format.VBI_DOUBLE)
         {
@@ -502,17 +514,20 @@ public class Line : IDisposable
             {
                 var convertedData = ConvertFormat(Data, Type, Format.T42);
                 t42Data = [.. convertedData.Take(Constants.T42_LINE_SIZE)];
+                Console.Error.WriteLine($"DEBUG: Converted VBI to T42 ({t42Data.Length} bytes)");
             }
-            catch
+            catch (Exception ex)
             {
                 // If conversion fails, create blank T42 data
                 t42Data = new byte[Constants.T42_LINE_SIZE];
+                Console.Error.WriteLine($"DEBUG: VBI to T42 conversion failed: {ex.Message}, using blank T42 data");
             }
         }
         else
         {
             // For unknown or other formats, create blank T42 data
             t42Data = new byte[Constants.T42_LINE_SIZE];
+            Console.Error.WriteLine($"DEBUG: Unknown format {Type}, using blank T42 data");
         }
 
         // Create RCWT packet: [packet_type][fts_bytes][field_marker][framing_code][t42_data]
@@ -535,7 +550,10 @@ public class Line : IDisposable
         // Add T42 data payload (42 bytes)
         packet.AddRange(t42Data);
 
-        return [.. packet];
+        var result = packet.ToArray();
+        Console.Error.WriteLine($"DEBUG: Created RCWT packet - Size: {result.Length} bytes, FTS: {fts}, Field: {fieldNumber}");
+        
+        return result;
     }
 
     /// <summary>
