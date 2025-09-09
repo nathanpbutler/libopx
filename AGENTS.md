@@ -14,6 +14,7 @@ When proposing or making changes:
 - Use sample files by filename only (they're copied automatically to test output). Do **not** hardcode absolute paths.
 - Keep conversions single-pass and avoid unnecessary buffering; reuse `ArrayPool` where applicable.
 - Update or add minimal tests when modifying parsing, timing, or format conversion logic.
+- Use the `SampleFiles.EnsureAsync()` helper for downloading test samples from GitHub releases automatically.
 - Favor incremental patches; avoid repo-wide reformatting or stylistic churn.
 
 ## Quick Reference: Key Capabilities
@@ -243,8 +244,7 @@ Solution: Multi-project `.NET 9` with core library + CLI + tests.
   - `Functions`, `Constants`, `TeletextCharset`, `Keys`, `Enums/`
   - `SMPTE/` XML metadata definitions (elements, groups, types, labels)
 - `apps/opx/` Unified CLI (filter, extract, restripe, convert)
-- `tests/` xUnit tests + memory benchmarks
-- `samples/` Input assets auto-copied to test output
+- `tests/` xUnit tests + memory benchmarks + `SampleFiles.cs` helper for downloading test assets
 - `scripts/` Helper tooling for asset generation & extraction
 
 ### Core Patterns
@@ -285,6 +285,8 @@ Performance:
 ## Testing Guidance
 
 - Reference sample files directly: `"input.vbi"`, `"input.mxf"`, etc.
+- Sample files are automatically downloaded from GitHub releases using `SampleFiles.EnsureAsync()`.
+- Set `OPX_SAMPLES_VERSION` environment variable to use a specific release version (defaults to v1.0.0).
 - Validate both sync and async paths.
 - Run memory benchmarks after performance changes: `dotnet test --filter "MemoryBenchmarkTests"`.
 - Cover new branches in format detection or timecode arithmetic.

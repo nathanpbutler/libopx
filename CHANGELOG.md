@@ -12,17 +12,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * RCWT (Raw Caption With Timing) format support (initial implementation) (`aeb967a`)
 * Header writing framework for RCWT and STL formats (foundation for future
   caption format output) (`f444334`)
-* Git LFS support for large file handling in repository (`b1487a7`)
+* `SampleFiles.cs` helper for automatic test sample downloads from GitHub releases
+* Support for `OPX_SAMPLES_VERSION` environment variable to control sample version
 
 ### Changed
 
 * Unified CLI command set and memory benchmark tooling to complete async parsing
   implementation (`b383475`)
+* Migrated from Git LFS to GitHub releases for sample file distribution
+* Reduced repository size by ~99% (359MB → 1.5MB) through Git LFS removal
+* Updated test infrastructure to download samples on-demand from releases
 
 ### Fixed
 
 * RCWT format conversion issues for T42 input (`b414ab5`)
 * Broken async MXF restriping methods functionality (`b1487a7`)
+
+### Removed
+
+* Git LFS support and tracked sample files from repository history
 
 ### Documentation
 
