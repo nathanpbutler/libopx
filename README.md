@@ -77,7 +77,8 @@ libopx/
 │   ├── Formats/      # Format parsers (MXF, BIN, VBI, T42)
 │   ├── SMPTE/        # SMPTE metadata system
 │   └── Enums/        # Enumeration definitions
-├── samples/          # Sample files for testing
+├── samples/          # (Deprecated in repo) Obtain sample media from Release
+│                       assets (e.g. v1.0.0) and place here if needed
 ├── scripts/          # Development scripts
 └── tests/            # xUnit test suite
 ```

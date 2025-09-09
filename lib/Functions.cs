@@ -644,8 +644,8 @@ public class Functions
                                 byte[] dataToWrite = line.Data;
                                 if (outputFormat == Format.RCWT)
                                 {
-                                    var (fts, fieldNumber) = GetRCWTState(line.LineTimecode);
-                                    dataToWrite = line.ToRCWT(fts, fieldNumber);
+                                    var (fts, fieldNumber) = GetRCWTState(line.LineTimecode, verbose);
+                                    dataToWrite = line.ToRCWT(fts, fieldNumber, verbose);
                                 }
 
                                 if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
@@ -674,8 +674,8 @@ public class Functions
                             byte[] dataToWrite = line.Data;
                             if (outputFormat == Format.RCWT)
                             {
-                                var (fts, fieldNumber) = GetRCWTState(line.LineTimecode);
-                                dataToWrite = line.ToRCWT(fts, fieldNumber);
+                                var (fts, fieldNumber) = GetRCWTState(line.LineTimecode, verbose);
+                                dataToWrite = line.ToRCWT(fts, fieldNumber, verbose);
                             }
                             if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
                             {
@@ -701,8 +701,8 @@ public class Functions
                             byte[] dataToWrite = line.Data;
                             if (outputFormat == Format.RCWT)
                             {
-                                var (fts, fieldNumber) = GetRCWTState(line.LineTimecode);
-                                dataToWrite = line.ToRCWT(fts, fieldNumber);
+                                var (fts, fieldNumber) = GetRCWTState(line.LineTimecode, verbose);
+                                dataToWrite = line.ToRCWT(fts, fieldNumber, verbose);
                             }
                             if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
                             {
@@ -736,8 +736,8 @@ public class Functions
                                 byte[] dataToWrite = line.Data;
                                 if (outputFormat == Format.RCWT)
                                 {
-                                    var (fts, fieldNumber) = GetRCWTState(line.LineTimecode);
-                                    dataToWrite = line.ToRCWT(fts, fieldNumber);
+                                    var (fts, fieldNumber) = GetRCWTState(line.LineTimecode, verbose);
+                                    dataToWrite = line.ToRCWT(fts, fieldNumber, verbose);
                                 }
                                 if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
                                 {
@@ -824,7 +824,7 @@ public class Functions
                 // Reset RCWT state for new conversion session
                 if (outputFormat == Format.RCWT)
                 {
-                    Console.Error.WriteLine("DEBUG: Resetting RCWT state for new conversion session");
+                    if (verbose) Console.Error.WriteLine("DEBUG: Resetting RCWT state for new conversion session");
                     ResetRCWTHeader();
                 }
                 
@@ -846,8 +846,8 @@ public class Functions
                         {
                             foreach (var line in packet.Lines)
                             {
-                                await WriteOutputAsync(line, bin.Output, outputFormat, magazine, rows, keepBlanks, cancellationToken);
-                                
+                                await WriteOutputAsync(line, bin.Output, outputFormat, magazine, rows, keepBlanks, verbose, cancellationToken);
+
                                 /*if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
                                 {
                                     // Write blank line with same format/length
@@ -872,8 +872,8 @@ public class Functions
                         vbi.SetOutput(outputStream);
                         await foreach (var line in vbi.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken))
                         {
-                            await WriteOutputAsync(line, vbi.Output, outputFormat, magazine, rows, keepBlanks, cancellationToken);  
-                            
+                            await WriteOutputAsync(line, vbi.Output, outputFormat, magazine, rows, keepBlanks, verbose, cancellationToken);
+
                             /*if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
                             {
                                 // Write blank line with same format/length
@@ -896,8 +896,8 @@ public class Functions
                         t42.SetOutput(outputStream);
                         await foreach (var line in t42.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken))
                         {
-                            await WriteOutputAsync(line, t42.Output, outputFormat, magazine, rows, keepBlanks, cancellationToken);
-                            
+                            await WriteOutputAsync(line, t42.Output, outputFormat, magazine, rows, keepBlanks, verbose, cancellationToken);
+
                             /*if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
                             {
                                 // Write blank line with same format/length
@@ -928,8 +928,8 @@ public class Functions
                         {
                             foreach (var line in packet.Lines)
                             {
-                                await WriteOutputAsync(line, mxf.Output, outputFormat, magazine, rows, keepBlanks, cancellationToken);
-                                
+                                await WriteOutputAsync(line, mxf.Output, outputFormat, magazine, rows, keepBlanks, verbose, cancellationToken);
+
                                 /*if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
                                 {
                                     // Write blank line with same format/length
@@ -979,15 +979,16 @@ public class Functions
     /// <summary>
     /// Combined output writing logic for ConvertAsync to avoid code duplication.
     /// </summary>
-    /// <param name="input"></param>
-    /// <param name="output"></param>
-    /// <param name="outputFormat"></param>
-    /// <param name="magazine"></param>
-    /// <param name="rows"></param>
-    /// <param name="keepBlanks"></param>
-    /// <param name="cancellationToken"></param>
-    /// <returns></returns>
-    private static async Task WriteOutputAsync(Line input, Stream output, Format outputFormat, int? magazine, int[] rows, bool keepBlanks, CancellationToken cancellationToken = default)
+    /// <param name="input">The input line to write</param>
+    /// <param name="output">The output stream to write to</param>
+    /// <param name="outputFormat">The target output format</param>
+    /// <param name="magazine">The magazine number to filter by</param>
+    /// <param name="rows">The row numbers to filter by</param>
+    /// <param name="keepBlanks">Whether to keep blank lines</param>
+    /// <param name="verbose">Whether to output verbose debug information</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Task representing the async operation</returns>
+    private static async Task WriteOutputAsync(Line input, Stream output, Format outputFormat, int? magazine, int[] rows, bool keepBlanks, bool verbose, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         
@@ -1003,8 +1004,8 @@ public class Functions
         {
             case Format.RCWT:
                 // For RCWT, convert to RCWT packet format using timecode from the line
-                var (fts, fieldNumber) = GetRCWTState(input.LineTimecode);
-                dataToWrite = input.ToRCWT(fts, fieldNumber);
+                var (fts, fieldNumber) = GetRCWTState(input.LineTimecode, verbose);
+                dataToWrite = input.ToRCWT(fts, fieldNumber, verbose);
                 break;
                 
             default:
@@ -1113,8 +1114,9 @@ public class Functions
     /// This method is thread-safe.
     /// </summary>
     /// <param name="timecode">The current timecode from the parser</param>
+    /// <param name="verbose">Whether to output verbose debug information</param>
     /// <returns>Tuple containing FTS (derived from timecode) and alternating field number</returns>
-    public static (int fts, int fieldNumber) GetRCWTState(Timecode? timecode)
+    public static (int fts, int fieldNumber) GetRCWTState(Timecode? timecode, bool verbose)
     {
         lock (_rcwtStateLock)
         {
@@ -1126,7 +1128,7 @@ public class Functions
             var currentField = _rcwtFieldNumber;
             _rcwtFieldNumber = (_rcwtFieldNumber + 1) % 2;
             
-            Console.Error.WriteLine($"DEBUG RCWT: Timecode {timecode}, FTS: {fts}ms, Field: {currentField}");
+            if (verbose) Console.Error.WriteLine($"DEBUG RCWT: Timecode {timecode}, FTS: {fts}ms, Field: {currentField}");
             
             return (fts, currentField);
         }

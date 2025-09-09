@@ -12,8 +12,13 @@ namespace nathanbutlerDEV.libopx.Formats;
 /// </summary>
 public class MXF : IDisposable
 {
-    // Reusable buffers to reduce allocations
+    /// <summary>
+    /// Buffer for storing KLV keys.
+    /// </summary>
     private readonly byte[] _keyBuffer = new byte[Constants.KLV_KEY_SIZE];
+    /// <summary>
+    /// Buffer for storing SMPTE timecodes.
+    /// </summary>
     private readonly byte[] _smpteBuffer = new byte[Constants.SMPTE_TIMECODE_SIZE];
     /// <summary>
     /// Gets or sets the input MXF file to be processed.
@@ -23,6 +28,9 @@ public class MXF : IDisposable
     /// Gets or sets the output file. If null, writes to stdout.
     /// </summary>
     public FileInfo? OutputFile { get; set; } = null;
+    /// <summary>
+    /// Stream for writing MXF data.
+    /// </summary>
     private Stream? _outputStream;
     /// <summary>
     /// Gets or sets the input stream for reading MXF data.
@@ -84,6 +92,9 @@ public class MXF : IDisposable
     /// Gets or sets whether to print progress updates during parsing.
     /// </summary>
     public bool PrintProgress { get; set; } = false;
+    /// <summary>
+    /// Mapping of key types to file extensions for output files.
+    /// </summary>
     private readonly Dictionary<KeyType, string> _keyTypeToExtension = new()
     {
         { KeyType.Data, "_d.raw" },
@@ -93,13 +104,27 @@ public class MXF : IDisposable
         { KeyType.Audio, "_a.raw" }
     };
     
-    // Cache the previous timecode for sequential checking to avoid recalculation
+    /// <summary>
+    /// Cache the previous timecode for sequential checking to avoid recalculation.
+    /// </summary>
     private Timecode? _lastTimecode;
     
     // Extraction-related fields
+    /// <summary>
+    /// Mapping of key types to output streams.
+    /// </summary>
     private readonly Dictionary<KeyType, FileStream> _outputStreams = [];
+    /// <summary>
+    /// Mapping of key strings to output streams for demuxing.
+    /// </summary>
     private readonly Dictionary<string, FileStream> _demuxStreams = [];
+    /// <summary>
+    /// Buffer for storing BER length values.
+    /// </summary>
     private readonly List<byte> _berLengthBuffer = [];
+    /// <summary>
+    /// Buffer for storing KLV keys.
+    /// </summary>
     private readonly HashSet<string> _foundKeys = [];
 
     /// <summary>
@@ -112,28 +137,33 @@ public class MXF : IDisposable
     [SetsRequiredMembers]
     public MXF(string inputFile)
     {
+        // Initialize input file
         InputFile = new FileInfo(inputFile);
 
+        // If the input file does not exist, throw an exception
         if (!InputFile.Exists)
         {
             throw new FileNotFoundException("The specified MXF file does not exist.", inputFile);
         }
 
+        // Open the input file for reading
         Input = InputFile.OpenRead();
 
+        // If the file is not a valid MXF file, throw an exception
         if (!IsValidMXFFile())
         {
             throw new InvalidDataException("The specified file is not a valid MXF file.");
         }
 
+        // If we cannot retrieve the start timecode, throw an exception
         if (!GetStartTimecode())
         {
             throw new InvalidOperationException("Failed to retrieve start timecode from the MXF file.");
         }
 
-        Input.Seek(0, SeekOrigin.Begin); // Reset stream position to the beginning
+        // Reset stream position to the beginning
+        Input.Seek(0, SeekOrigin.Begin);
     }
-
 
     /// <summary>
     /// Initializes a new instance of the MXF parser with the specified FileInfo object for read/write operations.
@@ -145,26 +175,32 @@ public class MXF : IDisposable
     [SetsRequiredMembers]
     public MXF(FileInfo inputFileInfo)
     {
+        // Initialize input file
         InputFile = inputFileInfo;
 
+        // If the input file does not exist, throw an exception
         if (!InputFile.Exists)
         {
             throw new FileNotFoundException("The specified MXF file does not exist.", InputFile.FullName);
         }
 
+        // Open the input file for reading and writing
         Input = new FileStream(InputFile.FullName, FileMode.Open, FileAccess.ReadWrite);
 
+        // If the stream is not a valid MXF file, throw an exception
         if (!IsValidMXFFile())
         {
             throw new InvalidDataException("The specified stream is not a valid MXF file.");
         }
 
+        // If we cannot retrieve the start timecode, throw an exception
         if (!GetStartTimecode())
         {
             throw new InvalidOperationException("Failed to retrieve start timecode from the MXF file.");
         }
 
-        Input.Seek(0, SeekOrigin.Begin); // Reset stream position to the beginning
+        // Reset stream position to the beginning
+        Input.Seek(0, SeekOrigin.Begin);
     }
 
     /// <summary>
@@ -185,9 +221,9 @@ public class MXF : IDisposable
     /// <param name="outputFile">Path to the output file</param>
     public void SetOutput(string outputFile)
     {
+        // Initialize output file
         OutputFile = new FileInfo(outputFile);
     }
-    
     /// <summary>
     /// Sets the output stream for writing
     /// </summary>
@@ -1235,7 +1271,8 @@ public class MXF : IDisposable
 
                 var line = new Line(lineHeaderBuffer.AsSpan(0, Constants.LINE_HEADER_SIZE))
                 {
-                    LineNumber = lineNumber
+                    LineNumber = lineNumber,
+                    LineTimecode = startTimecode
                 };
 
                 if (line.Length <= 0)

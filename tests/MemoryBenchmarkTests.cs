@@ -28,8 +28,11 @@ namespace libopx.Tests
             var vbiPath = "input.vbi";
             if (!File.Exists(vbiPath))
             {
-                _output.WriteLine($"Skipping test - sample file not found: {vbiPath}");
-                return;
+                if (!await SampleFiles.EnsureAsync(vbiPath))
+                {
+                    _output.WriteLine($"Skipping test - sample file not available: {vbiPath}");
+                    return;
+                }
             }
 
             var fileInfo = new FileInfo(vbiPath);
@@ -75,8 +78,11 @@ namespace libopx.Tests
             var t42Path = "input.t42";
             if (!File.Exists(t42Path))
             {
-                _output.WriteLine($"Skipping test - sample file not found: {t42Path}");
-                return;
+                if (!await SampleFiles.EnsureAsync(t42Path))
+                {
+                    _output.WriteLine($"Skipping test - sample file not available: {t42Path}");
+                    return;
+                }
             }
 
             var fileInfo = new FileInfo(t42Path);
@@ -122,8 +128,11 @@ namespace libopx.Tests
             var binPath = "rick.bin";
             if (!File.Exists(binPath))
             {
-                _output.WriteLine($"Skipping test - sample file not found: {binPath}");
-                return;
+                if (!await SampleFiles.EnsureAsync(binPath))
+                {
+                    _output.WriteLine($"Skipping test - sample file not available: {binPath}");
+                    return;
+                }
             }
 
             var fileInfo = new FileInfo(binPath);
@@ -169,8 +178,11 @@ namespace libopx.Tests
             var mxfPath = "input.mxf";
             if (!File.Exists(mxfPath))
             {
-                _output.WriteLine($"Skipping test - sample file not found: {mxfPath}");
-                return;
+                if (!await SampleFiles.EnsureAsync(mxfPath))
+                {
+                    _output.WriteLine($"Skipping test - sample file not available: {mxfPath}");
+                    return;
+                }
             }
 
             var fileInfo = new FileInfo(mxfPath);

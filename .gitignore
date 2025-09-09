@@ -419,11 +419,10 @@ publish/
 .DS_Store
 *.tar.gz
 
-# Ignore mxf, vbi, vbid or t42 files in root folder, unless in samples
-!samples/**/*.mxf
-!samples/**/*.vbi
-!samples/**/*.vbid
-!samples/**/*.t42
+# Ignore sample files - they're now downloaded from GitHub releases
+samples/
+
+# Ignore mxf, vbi, vbid or t42 files in root folder
 *.mxf
 *.vbi
 *.vbid

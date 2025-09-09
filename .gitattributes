@@ -1,5 +1,2 @@
-samples/*.mxf filter=lfs diff=lfs merge=lfs -binary
-samples/*.bin filter=lfs diff=lfs merge=lfs -binary
-samples/*.vbi filter=lfs diff=lfs merge=lfs -binary
-samples/*.vbid filter=lfs diff=lfs merge=lfs -binary
-samples/*.t42 filter=lfs diff=lfs merge=lfs -binary
+## Sample media no longer tracked via LFS; files are published as release assets instead.
+# (Patterns removed to avoid re-adding large binaries inadvertently.)
