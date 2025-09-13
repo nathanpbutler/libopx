@@ -60,6 +60,8 @@ foreach (var packet in bin.Parse(8, Constants.CAPTION_ROWS))
 
 ## VBI
 
+<!-- markdownlint-disable MD013 -->
+
 ```csharp
 using nathanbutlerDEV.libopx.Formats;
 
@@ -72,3 +74,4 @@ foreach (var line in vbi.Parse(8, Constants.CAPTION_ROWS))
     // Process each line as needed
     Console.WriteLine(line);
 }
+```

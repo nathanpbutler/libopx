@@ -6,6 +6,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 [![.NET](https://img.shields.io/badge/.NET-9-blue?style=flat-square)](https://dotnet.microsoft.com/download/dotnet/9.0)
 
+<!-- markdownlint-disable MD013 -->
+
 A .NET 9 C# library for parsing and extracting data from MXF (Material Exchange Format), BIN (MXF caption data stream), VBI (Vertical Blanking Interval), and T42 (Teletext packet stream) files, with SMPTE timecode and Teletext caption support.
 
 ## Features
@@ -43,8 +45,8 @@ Or download the latest release from [GitHub Releases](https://github.com/nathanp
 # Filter teletext data by magazine and rows
 opx filter -m 8 -r 20,22 input.vbi
 
-# Convert between formats
-opx convert -o t42 input.vbi
+# Convert between formats (use -of / --output-format)
+opx convert -of t42 input.vbi
 
 # Extract streams from MXF files
 opx extract -k d,v input.mxf

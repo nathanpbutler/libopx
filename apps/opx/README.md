@@ -3,6 +3,8 @@
 [![GitHub Release](https://img.shields.io/github/v/release/nathanpbutler/libopx?style=flat-square)](https://github.com/nathanpbutler/libopx/releases)
 [![.NET](https://img.shields.io/badge/.NET-9-blue?style=flat-square)](https://dotnet.microsoft.com/download/dotnet/9.0)
 
+<!-- markdownlint-disable MD013 -->
+
 A unified command-line interface for processing MXF, BIN, VBI, and T42 teletext files using the libopx library.
 
 ## Installation
@@ -40,10 +42,10 @@ opx filter [options] <input-file?>
 **Options:**
 
 - `-m, --magazine <int>`: Filter by magazine number (default: all magazines)
-- `-r, --rows <string>`: Filter by rows (comma-separated or hyphen ranges, e.g., `1,2,5-8,15`)
-- `-f, --format <bin|vbi|vbid|t42>`: Input format override (auto-detected from file extension)
+- `-r, --rows <string>`: Filter by rows (comma-separated or ranges, e.g. `1,2,5-8`)
+- `-if, --input-format <bin|vbi|vbid|t42>`: Input format override (auto-detected)
 - `-c, --caps`: Use caption rows (1-24) instead of default rows (0-24)
-- `-l, --line-count <int>`: Number of lines per frame for timecode incrementation (default: 2)
+- `-l, --line-count <int>`: Lines per frame for timecode increment (default: 2)
 - `-V, --verbose`: Enable verbose output
 
 **Examples:**
@@ -59,10 +61,12 @@ opx filter -c input.t42
 opx filter -m 8 -r 5-8,15 input.mxf
 
 # Filter from stdin with format override
-cat input.bin | opx filter -f bin -c -
+cat input.bin | opx filter -if bin -c -
 
 # Pipe FFmpeg output to opx
-ffmpeg -v error -i input.mxf -vf crop=720:2:0:28 -f rawvideo -pix_fmt gray - | opx filter -c -
+ffmpeg -v error -i input.mxf \
+  -vf crop=720:2:0:28 -f rawvideo -pix_fmt gray - | \
+  opx filter -c -
 ```
 
 ### convert - Convert between different teletext data formats
@@ -75,36 +79,38 @@ opx convert [options] <input-file?>
 
 **Options:**
 
-- `-i, --input-format <bin|vbi|vbid|t42|mxf>`: Input format (auto-detected if not specified)
-- `-o, --output-format <vbi|vbid|t42>`: Output format [required]
+- `-if, --input-format <bin|vbi|vbid|t42|mxf>`: Input format (auto-detected)
+- `-of, --output-format <vbi|vbid|t42>`: Output format [required]
 - `-f, --output-file <file>`: Output file path (writes to stdout if not specified)
 - `-m, --magazine <int>`: Filter by magazine number (default: all magazines)
-- `-r, --rows <string>`: Filter by rows (comma-separated or hyphen ranges)
+- `-r, --rows <string>`: Filter by rows (comma-separated or ranges)
 - `-c, --caps`: Use caption rows (1-24) instead of default rows (0-24)
 - `-k, --keep`: Write blank bytes if rows or magazine doesn't match
-- `-l, --line-count <int>`: Number of lines per frame for timecode incrementation (default: 2)
+- `-l, --line-count <int>`: Lines per frame for timecode increment (default: 2)
 - `-V, --verbose`: Enable verbose output
 
 **Examples:**
 
 ```bash
 # Convert VBI to T42 format (auto-detect input)
-opx convert -o t42 input.vbi
+opx convert -of t42 input.vbi
 
 # Convert MXF data stream to T42 with file output
-opx convert -i mxf -o t42 -f output.t42 input.mxf
+opx convert -if mxf -of t42 -f output.t42 input.mxf
 
 # Convert T42 to VBI with magazine/row filtering
-opx convert -i t42 -o vbi -m 8 -r 20-22 input.t42
+opx convert -if t42 -of vbi -m 8 -r 20-22 input.t42
 
 # Convert VBI to T42 with caption rows only
-opx convert -o t42 -c input.vbi
+opx convert -of t42 -c input.vbi
 
 # Convert MXF to VBI preserving structure with blank bytes
-opx convert -i mxf -o vbi -k input.mxf
+opx convert -if mxf -of vbi -k input.mxf
 
 # Pipe FFmpeg output and convert to T42
-ffmpeg -v error -i input.mxf -vf crop=720:2:0:28 -f rawvideo -pix_fmt gray - | opx convert -o t42 -f output.t42 -
+ffmpeg -v error -i input.mxf \
+  -vf crop=720:2:0:28 -f rawvideo -pix_fmt gray - | \
+  opx convert -of t42 -f output.t42 -
 ```
 
 ### extract - Extract/demux streams from MXF files
@@ -117,11 +123,12 @@ opx extract [options] <input.mxf>
 
 **Options:**
 
-- `-o, --output <string>`: Output base path - files will be created as `<base>_d.raw`, `<base>_v.raw`, etc.
-- `-k, --key <d|v|s|t|a>`: Extract specific keys (data, video, system, timecode, audio)
-- `-d, --demux`: Extract all keys found, output as `<base>_<hexkey>.raw`
-- `-n`: Use Key/Essence names instead of hex keys (use with `-d`)
-- `--klv`: Include key and length bytes in output files, use `.klv` extension
+- `-o, --output <string>`: Output base path (creates `<base>_d.raw`, etc.)
+- `-k, --key <d|v|s|t|a>`: Extract specific keys (d=Data, v=Video, s=System,
+  t=Timecode, a=Audio)
+- `-d, --demux`: Extract all keys, writing `<base>_<hexkey>.raw`
+- `-n`: Use essence names instead of hex keys (with `-d`)
+- `--klv`: Include raw KLV (key & length) bytes in outputs
 - `-V, --verbose`: Enable verbose output
 
 **Examples:**
@@ -153,7 +160,8 @@ opx restripe [options] <input-file>
 
 **Options:**
 
-- `-t, --timecode <string>`: New start timecode (HH:MM:SS:FF) [required]
+- `-t, --timecode <string>`: New start timecode (HH:MM:SS:FF)
+  [required]
 - `-V, --verbose`: Enable verbose output
 - `-pp, --print-progress`: Print progress during parsing
 
@@ -193,7 +201,7 @@ The tool automatically detects input format based on file extensions:
 - `.t42` → T42 format
 - `.mxf` → MXF format
 
-Override auto-detection using the `-i` or `-f` options.
+Override auto-detection using the `-if` option.
 
 ## Row Filtering
 
@@ -218,12 +226,15 @@ Extract VBI data from video and process with opx:
 
 ```bash
 # Extract and filter teletext from video
-ffmpeg -i input.mxv -vf crop=720:2:0:28 -f rawvideo -pix_fmt gray - | \
+ffmpeg -i input.mxv \
+  -vf crop=720:2:0:28 -f rawvideo -pix_fmt gray - | \
   opx filter -c -
 
 # Convert video teletext to T42 format
-ffmpeg -i input.mxv -vf crop=720:2:0:28 -f rawvideo -pix_fmt gray - | \
-  opx convert -o t42 -f output.t42 -
+ffmpeg -i input.mxv \
+  -vf crop=720:2:0:28 \
+  -f rawvideo -pix_fmt gray - | \
+  opx convert -of t42 -f output.t42 -
 ```
 
 ### MPV Visualization
@@ -231,13 +242,13 @@ ffmpeg -i input.mxv -vf crop=720:2:0:28 -f rawvideo -pix_fmt gray - | \
 Combine opx output with video playback:
 
 ```bash
-opx convert -o vbi input.mxf | \
+opx convert -of vbi input.mxf | \
   mpv --window-scale=2 \
       --demuxer=rawvideo \
       --demuxer-rawvideo-mp-format=gray \
       --demuxer-rawvideo-w=720 \
       --demuxer-rawvideo-h=2 \
-      --lavfi-complex="[vid1]pad=720:32:0:28,format=yuv422p[v1];movie='input.mxf',scale=720:576:flags=lanczos[v2];[v1][v2]vstack,setsar=608:405,setdar=1.7777[vo];amovie='input.mxf'[ao]" \
+      --lavfi-complex="[vid1]pad=720:32:0:28,format=yuv422p[v1]" \
       -
 ```
 
@@ -246,7 +257,7 @@ opx convert -o vbi input.mxf | \
 The tool provides clear error messages for common issues:
 
 - **File not found**: Check file path and permissions
-- **Invalid format**: Verify file format and use `-f` to override detection
+- **Invalid format**: Verify file format and use `-if` to override
 - **Invalid timecode**: Ensure timecode format is `HH:MM:SS:FF`
 - **Invalid rows**: Check row specification syntax
 
