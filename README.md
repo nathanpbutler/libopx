@@ -8,11 +8,11 @@
 
 <!-- markdownlint-disable MD013 -->
 
-A .NET 9 C# library for parsing and extracting data from MXF (Material Exchange Format), BIN (MXF caption data stream), VBI (Vertical Blanking Interval), and T42 (Teletext packet stream) files, with SMPTE timecode and Teletext caption support.
+A .NET 9 C# library for parsing and extracting data from MXF (Material Exchange Format) files and extracted data streams, VBI (Vertical Blanking Interval), and T42 (Teletext packet stream) files, with SMPTE timecode and Teletext caption support.
 
 ## Features
 
-- **Multi-format support**: BIN, VBI, T42, and MXF file parsing
+- **Multi-format support**: MXF, extracted data streams, VBI, and T42 file parsing
 - **Format conversion**: Automatic VBI ↔ T42 conversion
 - **Teletext filtering**: Magazine and row-based filtering with Unicode mapping
 - **SMPTE timecode**: Full timecode calculations with various frame rates
@@ -76,7 +76,7 @@ foreach (var line in vbi.Parse(magazine: 8, rows: new[] { 20, 22 }))
 libopx/
 ├── apps/opx/         # CLI tool
 ├── lib/              # Main library
-│   ├── Formats/      # Format parsers (MXF, BIN, VBI, T42)
+│   ├── Formats/      # Format parsers (MXF, MXF data stream, VBI, T42)
 │   ├── SMPTE/        # SMPTE metadata system
 │   └── Enums/        # Enumeration definitions
 ├── samples/          # (Deprecated in repo) Obtain sample media from Release

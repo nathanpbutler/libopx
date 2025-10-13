@@ -21,37 +21,17 @@ Console.WriteLine($"{mxf.SMPTETimecodes.Count} SMPTE timecodes found.");
 Console.WriteLine($"{mxf.Packets.Count} packets found.");
 ```
 
-## BIN
+## MXF.MXFData (Extracted MXF Data)
 
 ```csharp
 using nathanbutlerDEV.libopx.Formats;
 
-// Open the BIN file
-var bin = new BIN("temp/rick.bin");
+// Open the extracted MXF data file (*.bin)
+// Note: .bin files are extracted MXF data streams, not a standalone format
+var mxfData = new MXF.MXFData("temp/rick.bin");
 
-// Parse the BIN file
-bin.Parse();
-
-// Display the results
-Console.WriteLine($"{bin.Packets.Count} packets found.");
-
-// Iterate through the packets and display their contents
-foreach (var packet in bin.Packets)
-{
-    Console.WriteLine(packet);
-}
-```
-
-## BIN (proposed new method)
-
-```csharp
-using nathanbutlerDEV.libopx.Formats;
-
-// Open the BIN file
-var bin = new BIN("temp/rick.bin");
-
-// Parse the BIN file using the new method with specified parameters
-foreach (var packet in bin.Parse(8, Constants.CAPTION_ROWS))
+// Parse the extracted MXF data using the new method with specified parameters
+foreach (var packet in mxfData.Parse(8, Constants.CAPTION_ROWS))
 {
     // Process each packet as needed
     Console.WriteLine(packet);

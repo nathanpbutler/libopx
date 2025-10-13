@@ -172,7 +172,7 @@ public class VBI : IDisposable
             {
                 try
                 {
-                    // Convert VBI to T42 using the same approach as BIN/MXF parsers
+                    // Convert VBI to T42 using the same approach as MXFData/MXF parsers
                     var t42Data = ToT42(vbiBuffer);
 
                     // Update line properties for T42

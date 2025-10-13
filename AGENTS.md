@@ -91,7 +91,7 @@ Status:
 - ✅ T42 → RCWT fully implemented
 
 # Specific test method
-- 🚧 VBI / BIN / MXF → RCWT: sequential pipeline (convert → T42 → RCWT)
+- 🚧 VBI / MXFData / MXF → RCWT: sequential pipeline (convert → T42 → RCWT)
 
 # Coverage
 
@@ -238,7 +238,7 @@ foreach (var packet in mxf.Parse(magazine: null, rows: null))
 Solution: Multi-project `.NET 9` with core library + CLI + tests.
 
 - `lib/` Core library (`libopx`) containing:
-  - `Formats/` parsers: `MXF`, `BIN`, `VBI`, `T42`
+  - `Formats/` parsers: `MXF`, `MXFData`, `VBI`, `T42`
   - `Timecode*.cs` SMPTE timecode components
   - `Packet`, `Line` data structures
   - `Functions`, `Constants`, `TeletextCharset`, `Keys`, `Enums/`
@@ -250,10 +250,10 @@ Solution: Multi-project `.NET 9` with core library + CLI + tests.
 ### Core Patterns
 
 Streaming Parsers:
-- `BIN.Parse()` / `ParseAsync()` → `IEnumerable` / `IAsyncEnumerable<Packet>`
+- `MXF.Parse()` / `ParseAsync()` → `Packet` enumeration with key filtering
+- `MXFData.Parse()` / `ParseAsync()` → `IEnumerable` / `IAsyncEnumerable<Packet>`
 - `VBI.Parse()` / `ParseAsync()` → `IEnumerable` / `IAsyncEnumerable<Line>` (auto VBI→T42)
 - `T42.Parse()` / `ParseAsync()` → `Line` enumeration w/ filtering & conversions
-- `MXF.Parse()` / `ParseAsync()` → `Packet` enumeration with key filtering
 
 Format Conversion Flow:
 - VBI ⇄ T42 via `VBI.ToT42()` and `T42.ToVBI()`

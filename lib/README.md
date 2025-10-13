@@ -5,7 +5,7 @@
 
 <!-- markdownlint-disable MD013 -->
 
-A .NET 9 C# library for parsing and extracting data from MXF (Material Exchange Format), BIN (MXF caption data stream), VBI (Vertical Blanking Interval), and T42 (Teletext packet stream) files, with SMPTE timecode and Teletext caption support.
+A .NET 9 C# library for parsing and extracting data from MXF (Material Exchange Format) files and extracted data streams (*.bin), VBI (Vertical Blanking Interval), and T42 (Teletext packet stream) files, with SMPTE timecode and Teletext caption support.
 
 ## Installation
 
@@ -123,12 +123,13 @@ foreach (var line in t42.Parse(magazine: null, rows: null))
 }
 ```
 
-#### BIN Parser
+#### MXF.MXFData Parser (Extracted MXF Data)
 
 ```csharp
-using var bin = new BIN("input.bin");
+using var mxfData = new MXF.MXFData("input.bin");
 // Returns IEnumerable<Packet>
-foreach (var packet in bin.Parse(magazine: null, rows: null))
+// Note: *.bin files are extracted MXF data streams
+foreach (var packet in mxfData.Parse(magazine: null, rows: null))
 {
     Console.WriteLine($"Timecode: {packet.Timecode}");
     foreach (var line in packet.Lines)
@@ -217,7 +218,7 @@ var vbiDoubleFormat = Format.VBI_DOUBLE;
 
 ### Core Components
 
-- **Formats/**: Format parsers for MXF, BIN, VBI, and T42 files
+- **Formats/**: Format parsers for MXF (with nested MXFData class), VBI, and T42 files
 - **SMPTE/**: Complete SMPTE metadata system with XML-based definitions
 - **Enums/**: Enumeration definitions (LineFormat, Function)
 - **Timecode.cs**: SMPTE timecode handling with frame rate support

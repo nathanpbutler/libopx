@@ -5,7 +5,7 @@
 
 <!-- markdownlint-disable MD013 -->
 
-A unified command-line interface for processing MXF, BIN, VBI, and T42 teletext files using the libopx library.
+A unified command-line interface for processing MXF files, extracted data streams, VBI, and T42 teletext files using the libopx library.
 
 ## Installation
 
@@ -179,11 +179,11 @@ opx restripe -t 01:30:15:10 -V -pp input.mxf
 
 ### Input Formats
 
-- **BIN**: MXF caption data stream
+- **MXF**: Material Exchange Format files
+- **MXFData**: Extracted MXF data streams
 - **VBI**: Vertical Blanking Interval data
 - **VBID**: VBI Double (2-line format)
 - **T42**: Teletext packet stream
-- **MXF**: Material Exchange Format files
 
 ### Output Formats
 
@@ -195,11 +195,11 @@ opx restripe -t 01:30:15:10 -V -pp input.mxf
 
 The tool automatically detects input format based on file extensions:
 
-- `.bin` → BIN format
-- `.vbi` → VBI format
+- `.mxf`  → MXF format
+- `.bin`  → Extracted MXF data stream
+- `.vbi`  → VBI format
 - `.vbid` → VBI Double format
-- `.t42` → T42 format
-- `.mxf` → MXF format
+- `.t42`  → T42 format
 
 Override auto-detection using the `-if` option.
 

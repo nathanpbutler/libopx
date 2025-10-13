@@ -123,7 +123,7 @@ namespace libopx.Tests
         }
 
         [Fact]
-        public async Task LargeBIN_AsyncVsSync_MemoryAllocationComparison()
+        public async Task LargeMXFData_AsyncVsSync_MemoryAllocationComparison()
         {
             var binPath = "rick.bin";
             if (!File.Exists(binPath))
@@ -136,33 +136,33 @@ namespace libopx.Tests
             }
 
             var fileInfo = new FileInfo(binPath);
-            _output.WriteLine($"Testing with BIN file: {fileInfo.Name} ({fileInfo.Length:N0} bytes)");
+            _output.WriteLine($"Testing with MXFData file: {fileInfo.Name} ({fileInfo.Length:N0} bytes)");
 
             // Test sync method
             var syncResults = await MeasureMemoryUsage(() =>
             {
-                using var bin = new BIN(binPath);
-                var packets = bin.Parse(magazine: null, rows: null).ToList();
+                using var mxfData = new MXF.MXFData(binPath);
+                var packets = mxfData.Parse(magazine: null, rows: null).ToList();
                 return Task.FromResult(packets.Count);
-            }, "BIN Sync Parse");
+            }, "MXFData Sync Parse");
 
             // Test async method
             var asyncResults = await MeasureMemoryUsage(async () =>
             {
-                using var bin = new BIN(binPath);
+                using var mxfData = new MXF.MXFData(binPath);
                 var packets = new List<nathanbutlerDEV.libopx.Packet>();
-                await foreach (var packet in bin.ParseAsync(magazine: null, rows: null))
+                await foreach (var packet in mxfData.ParseAsync(magazine: null, rows: null))
                 {
                     packets.Add(packet);
                 }
                 return packets.Count;
-            }, "BIN Async Parse");
+            }, "MXFData Async Parse");
 
             // Calculate memory reduction
             var memoryReduction = CalculateReduction(syncResults.PeakMemoryMB, asyncResults.PeakMemoryMB);
             var allocationReduction = CalculateReduction(syncResults.Gen0Collections, asyncResults.Gen0Collections);
 
-            _output.WriteLine($"\n=== BIN MEMORY COMPARISON ===");
+            _output.WriteLine($"\n=== MXFData MEMORY COMPARISON ===");
             _output.WriteLine($"Sync  - Peak Memory: {syncResults.PeakMemoryMB:F2} MB, Gen0: {syncResults.Gen0Collections}, Packets: {syncResults.Result}");
             _output.WriteLine($"Async - Peak Memory: {asyncResults.PeakMemoryMB:F2} MB, Gen0: {asyncResults.Gen0Collections}, Packets: {asyncResults.Result}");
             _output.WriteLine($"Memory Reduction: {memoryReduction:F1}%");
@@ -264,6 +264,11 @@ namespace libopx.Tests
             
             process.Refresh();
             var finalWorkingSet = process.WorkingSet64;
+
+            if (result == null)
+            {
+                throw new InvalidOperationException("The action did not return a result.");
+            }
 
             return new MemoryTestResults
             {

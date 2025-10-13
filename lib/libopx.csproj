@@ -5,13 +5,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>nathanbutlerDEV.libopx</RootNamespace>
-    <Version>1.5.0</Version>
+    <Version>2.0.0</Version>
     
     <!-- Package Information -->
     <PackageId>libopx</PackageId>
     <Title>libopx - MXF and Teletext Processing Library</Title>
     <Authors>Nathan Butler</Authors>
-    <Description>A .NET 9 C# library for parsing and extracting data from MXF (Material Exchange Format), BIN, VBI (Vertical Blanking Interval), and T42 (Teletext packet stream) files, with SMPTE timecode and Teletext caption support (OP-42 &amp; OP-47 in particular).</Description>
+    <Description>A .NET 9 C# library for parsing and extracting data from MXF (Material Exchange Format) and extracted data streams, VBI (Vertical Blanking Interval), and T42 (Teletext packet stream) files, with SMPTE timecode and Teletext caption support (OP-42 &amp; OP-47 in particular).</Description>
     <PackageProjectUrl>https://github.com/nathanpbutler/libopx</PackageProjectUrl>
     <RepositoryUrl>https://github.com/nathanpbutler/libopx</RepositoryUrl>
     <RepositoryType>git</RepositoryType>

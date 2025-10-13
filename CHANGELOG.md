@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+* Refactored BIN class to MXFData nested class to clarify that BIN files are
+  extracted MXF data streams, not a standalone format. CLI continues to accept
+  *.bin file extension for backward compatibility
 * Unified CLI command set and memory benchmark tooling to complete async parsing
   implementation (`b383475`)
 * Migrated from Git LFS to GitHub releases for sample file distribution

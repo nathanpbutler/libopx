@@ -219,9 +219,9 @@ public static class AsyncProcessingHelpers
     }
 
     /// <summary>
-    /// Processes BIN file asynchronously with progress reporting
+    /// Processes extracted MXF data file asynchronously with progress reporting
     /// </summary>
-    public static async Task<int> ProcessBINAsync(
+    public static async Task<int> ProcessMXFDataAsync(
         FileInfo inputFile,
         int? magazine,
         int[] rows,
@@ -231,18 +231,18 @@ public static class AsyncProcessingHelpers
     {
         try
         {
-            using var bin = new BIN(inputFile.FullName);
-            
+            using var mxfData = new MXF.MXFData(inputFile.FullName);
+
             var lineCounter = 0;
-            var progressReporter = verbose ? new ProgressReporter("Processing BIN", 1000) : null;
-            
-            await foreach (var packet in bin.ParseAsync(magazine, rows, startTimecode: null, cancellationToken))
+            var progressReporter = verbose ? new ProgressReporter("Processing MXFData", 1000) : null;
+
+            await foreach (var packet in mxfData.ParseAsync(magazine, rows, startTimecode: null, cancellationToken))
             {
                 Console.WriteLine(packet);
                 lineCounter++;
                 progressReporter?.ReportProgress(lineCounter);
             }
-            
+
             progressReporter?.Complete(lineCounter);
             return 0;
         }

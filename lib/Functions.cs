@@ -18,13 +18,13 @@ public class Functions
     /// <param name="magazine">The magazine number to filter by (null for all magazines).</param>
     /// <param name="rows">The number of rows to filter by.</param>
     /// <param name="lineCount">The number of lines per frame for timecode incrementation.</param>
-    /// <param name="inputFormat">The input format to use (e.g., BIN, VBI, T42).</param>
+    /// <param name="inputFormat">The input format to use (e.g., MXFData, VBI, T42).</param>
     /// <param name="verbose">Whether to enable verbose output.</param>
     /// <returns>An integer indicating the result of the filtering operation.</returns>
     /// <remarks>
     /// This function reads the specified input file or stdin, processes it according to the provided parameters,
     /// and outputs the filtered lines to stdout. The input format determines how the data is parsed and processed.
-    /// Supported formats include BIN, VBI, VBI_DOUBLE, and T42.
+    /// Supported formats include MXFData, VBI, VBI_DOUBLE, and T42.
     /// </remarks>
     /// <exception cref="ArgumentException">Thrown if an unsupported input format is specified.</exception>
     /// <exception cref="FileNotFoundException">Thrown if the specified input file does not exist.</exception>
@@ -47,13 +47,13 @@ public class Functions
 
             switch (inputFormat)
             {
-                case Format.BIN:
-                    var bin = input is FileInfo inputBIN && inputBIN.Exists
-                        ? new BIN(inputBIN.FullName)
-                        : new BIN(Console.OpenStandardInput());
-                    foreach (var line in bin.Parse(magazine, rows))
+                case Format.MXFData:
+                    var mxfData = input is FileInfo inputMXFData && inputMXFData.Exists
+                        ? new MXF.MXFData(inputMXFData.FullName)
+                        : new MXF.MXFData(Console.OpenStandardInput());
+                    foreach (var packet in mxfData.Parse(magazine, rows))
                     {
-                        Console.WriteLine(line);
+                        Console.WriteLine(packet);
                     }
                     return 0;
                 case Format.VBI:
@@ -120,14 +120,14 @@ public class Functions
     /// <param name="magazine">The magazine number to filter by (null for all magazines).</param>
     /// <param name="rows">The number of rows to filter by.</param>
     /// <param name="lineCount">The number of lines per frame for timecode incrementation.</param>
-    /// <param name="inputFormat">The input format to use (e.g., BIN, VBI, T42).</param>
+    /// <param name="inputFormat">The input format to use (e.g., MXFData, VBI, T42).</param>
     /// <param name="verbose">Whether to enable verbose output.</param>
     /// <param name="cancellationToken">Cancellation token for operation cancellation</param>
     /// <returns>Exit code: 0 for success, 1 for failure, 130 for cancellation</returns>
     /// <remarks>
     /// This function reads the specified input file or stdin, processes it according to the provided parameters,
     /// and outputs the filtered lines to stdout. The input format determines how the data is parsed and processed.
-    /// Supported formats include BIN, VBI, VBI_DOUBLE, T42, and MXF.
+    /// Supported formats include MXFData, VBI, VBI_DOUBLE, T42, and MXF.
     /// </remarks>
     /// <exception cref="ArgumentException">Thrown if an unsupported input format is specified.</exception>
     /// <exception cref="FileNotFoundException">Thrown if the specified input file does not exist.</exception>
@@ -147,11 +147,11 @@ public class Functions
 
             switch (inputFormat)
             {
-                case Format.BIN:
-                    var bin = input is { Exists: true } inputBIN
-                        ? new BIN(inputBIN.FullName)
-                        : new BIN(Console.OpenStandardInput());
-                    await foreach (var packet in bin.ParseAsync(magazine, rows, cancellationToken: cancellationToken))
+                case Format.MXFData:
+                    var mxfData = input is { Exists: true } inputMXFData
+                        ? new MXF.MXFData(inputMXFData.FullName)
+                        : new MXF.MXFData(Console.OpenStandardInput());
+                    await foreach (var packet in mxfData.ParseAsync(magazine, rows, cancellationToken: cancellationToken))
                     {
                         Console.WriteLine(packet);
                     }
@@ -233,7 +233,7 @@ public class Functions
     {
         return format.TrimStart('.').ToLowerInvariant() switch
         {
-            "bin" => Format.BIN,
+            "bin" => Format.MXFData,
             "vbi" => Format.VBI,
             "vbid" => Format.VBI_DOUBLE,
             "t42" => Format.T42,
@@ -570,7 +570,7 @@ public class Functions
     /// Convert function to transform input files between different teletext formats.
     /// </summary>
     /// <param name="input">The input file to convert, or null to read from stdin.</param>
-    /// <param name="inputFormat">The input format (BIN, VBI, VBI_DOUBLE, T42, MXF).</param>
+    /// <param name="inputFormat">The input format (MXFData, VBI, VBI_DOUBLE, T42, MXF).</param>
     /// <param name="outputFormat">The output format (VBI, VBI_DOUBLE, T42 only).</param>
     /// <param name="output">The output file to write to, or null to write to stdout.</param>
     /// <param name="magazine">The magazine number to filter by (null for all magazines).</param>
@@ -631,13 +631,13 @@ public class Functions
                 }
                 switch (inputFormat)
                 {
-                    case Format.BIN:
-                        var bin = input is FileInfo inputBIN && inputBIN.Exists
-                            ? new BIN(inputBIN.FullName)
-                            : new BIN(Console.OpenStandardInput());
-                        bin.OutputFormat = outputFormat;
-                        bin.SetOutput(outputStream);
-                        foreach (var packet in bin.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
+                    case Format.MXFData:
+                        var mxfData = input is FileInfo inputMXFData && inputMXFData.Exists
+                            ? new MXF.MXFData(inputMXFData.FullName)
+                            : new MXF.MXFData(Console.OpenStandardInput());
+                        mxfData.OutputFormat = outputFormat;
+                        mxfData.SetOutput(outputStream);
+                        foreach (var packet in mxfData.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
                         {
                             foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
                             {
@@ -651,11 +651,11 @@ public class Functions
                                 if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
                                 {
                                     var blankData = new byte[dataToWrite.Length];
-                                    bin.Output.Write(blankData, 0, blankData.Length);
+                                    mxfData.Output.Write(blankData, 0, blankData.Length);
                                 }
                                 else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
                                 {
-                                    bin.Output.Write(dataToWrite, 0, dataToWrite.Length);
+                                    mxfData.Output.Write(dataToWrite, 0, dataToWrite.Length);
                                 }
                             }
                         }
@@ -777,7 +777,7 @@ public class Functions
     /// This method provides the same functionality as Convert but with async processing capabilities.
     /// </summary>
     /// <param name="input">The input file to convert, or null to read from stdin.</param>
-    /// <param name="inputFormat">The input format (BIN, VBI, VBI_DOUBLE, T42, MXF).</param>
+    /// <param name="inputFormat">The input format (MXFData, VBI, VBI_DOUBLE, T42, MXF).</param>
     /// <param name="outputFormat">The output format (VBI, VBI_DOUBLE, T42 only).</param>
     /// <param name="output">The output file to write to, or null to write to stdout.</param>
     /// <param name="magazine">The magazine number to filter by (null for all magazines).</param>
@@ -836,17 +836,17 @@ public class Functions
                 
                 switch (inputFormat)
                 {
-                    case Format.BIN:
-                        var bin = input is { Exists: true } inputBIN
-                            ? new BIN(inputBIN.FullName)
-                            : new BIN(Console.OpenStandardInput());
-                        bin.OutputFormat = outputFormat;
-                        bin.SetOutput(outputStream);
-                        await foreach (var packet in bin.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken: cancellationToken))
+                    case Format.MXFData:
+                        var mxfData = input is { Exists: true } inputMXFData
+                            ? new MXF.MXFData(inputMXFData.FullName)
+                            : new MXF.MXFData(Console.OpenStandardInput());
+                        mxfData.OutputFormat = outputFormat;
+                        mxfData.SetOutput(outputStream);
+                        await foreach (var packet in mxfData.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken: cancellationToken))
                         {
                             foreach (var line in packet.Lines)
                             {
-                                await WriteOutputAsync(line, bin.Output, outputFormat, magazine, rows, keepBlanks, verbose, cancellationToken);
+                                await WriteOutputAsync(line, mxfData.Output, outputFormat, magazine, rows, keepBlanks, verbose, cancellationToken);
 
                                 /*if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
                                 {
@@ -1049,7 +1049,7 @@ public class Functions
             case Format.VBI:
             case Format.VBI_DOUBLE:
             case Format.T42:
-            case Format.BIN:
+            case Format.MXFData:
             case Format.MXF:
             case Format.Unknown:
             default:
@@ -1414,7 +1414,7 @@ public class Functions
 
     #endregion
 
-    #region BIN
+    #region MXFData
 
     /// <summary>
     /// Get the count of the bytes
