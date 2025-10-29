@@ -593,4 +593,164 @@ public class Line : IDisposable
     {
         return fieldNumber == 0 ? Constants.RCWT_FIELD_0_MARKER : Constants.RCWT_FIELD_1_MARKER;
     }
+
+    /// <summary>
+    /// Converts the line data to EBU STL (EBU-Tech 3264) TTI block format.
+    /// </summary>
+    /// <param name="subtitleNumber">Sequential subtitle number</param>
+    /// <param name="timeCodeIn">Start timecode for the subtitle</param>
+    /// <param name="timeCodeOut">End timecode for the subtitle</param>
+    /// <param name="verbose">Whether to output verbose debug information</param>
+    /// <returns>TTI block bytes (128 bytes) containing timing and text data without odd-parity encoding</returns>
+    public byte[] ToSTL(int subtitleNumber, Timecode timeCodeIn, Timecode? timeCodeOut = null, bool verbose = false)
+    {
+        if (verbose) Console.Error.WriteLine($"DEBUG: ToSTL called - Type: {Type}, DataLength: {Data.Length}, Magazine: {Magazine}, Row: {Row}");
+
+        // Create TTI block (128 bytes)
+        var tti = new byte[Constants.STL_TTI_BLOCK_SIZE];
+
+        // Subtitle Group Number (SGN) - byte 0
+        tti[0] = Constants.STL_SUBTITLE_GROUP;
+
+        // Subtitle Number (SN) - bytes 1-2 (big-endian)
+        tti[1] = (byte)((subtitleNumber >> 8) & 0xFF);
+        tti[2] = (byte)(subtitleNumber & 0xFF);
+
+        // Extension Block Number (EBN) - byte 3 (0xFF = not part of extension)
+        tti[3] = 0xFF;
+
+        // Cumulative Status (CS) - byte 4
+        tti[4] = Constants.STL_CUMULATIVE_STATUS;
+
+        // Time Code In (TCI) - bytes 5-8 (HH:MM:SS:FF in BCD format)
+        var tciBytes = EncodeTimecodeToSTL(timeCodeIn);
+        Array.Copy(tciBytes, 0, tti, 5, 4);
+
+        // Time Code Out (TCO) - bytes 9-12 (HH:MM:SS:FF in BCD format)
+        var tcoBytes = EncodeTimecodeToSTL(timeCodeOut ?? timeCodeIn);
+        Array.Copy(tcoBytes, 0, tti, 9, 4);
+
+        // Vertical Position (VP) - byte 13 (row number, 0-based)
+        // Map teletext row (0-31) to STL vertical position
+        tti[13] = Row >= 0 && Row <= 31 ? (byte)Row : (byte)0;
+
+        // Justification Code (JC) - byte 14 (0x02 = left-justified)
+        tti[14] = 0x02;
+
+        // Comment Flag (CF) - byte 15 (0x00 = contains subtitle data)
+        tti[15] = 0x00;
+
+        // Text Field (TF) - bytes 16-127 (112 bytes)
+        // Extract T42 data and convert to STL format (strip parity, remap control codes)
+        byte[] textData = ExtractSTLTextData(verbose);
+        Array.Copy(textData, 0, tti, 16, Math.Min(textData.Length, Constants.STL_TEXT_FIELD_SIZE));
+
+        // Fill remaining text field with spaces if needed
+        for (int i = 16 + textData.Length; i < 128; i++)
+        {
+            tti[i] = 0x8F; // STL space character
+        }
+
+        if (verbose) Console.Error.WriteLine($"DEBUG: Created STL TTI block - Size: {tti.Length} bytes, Subtitle: {subtitleNumber}, TCI: {timeCodeIn}, Row: {Row}");
+
+        return tti;
+    }
+
+    /// <summary>
+    /// Encodes a timecode to STL format (4 bytes in BCD format: HH, MM, SS, FF).
+    /// </summary>
+    /// <param name="timecode">The timecode to encode</param>
+    /// <returns>4-byte array representing the timecode in BCD format</returns>
+    private static byte[] EncodeTimecodeToSTL(Timecode timecode)
+    {
+        var tc = new byte[4];
+
+        // Convert each component to BCD (Binary Coded Decimal)
+        tc[0] = (byte)((timecode.Hours / 10 << 4) | (timecode.Hours % 10));
+        tc[1] = (byte)((timecode.Minutes / 10 << 4) | (timecode.Minutes % 10));
+        tc[2] = (byte)((timecode.Seconds / 10 << 4) | (timecode.Seconds % 10));
+        tc[3] = (byte)((timecode.Frames / 10 << 4) | (timecode.Frames % 10));
+
+        return tc;
+    }
+
+    /// <summary>
+    /// Extracts and converts T42 text data to STL format.
+    /// Strips odd-parity bits and remaps control codes to STL equivalents.
+    /// </summary>
+    /// <param name="verbose">Whether to output verbose debug information</param>
+    /// <returns>Byte array containing STL-formatted text data (max 112 bytes)</returns>
+    private byte[] ExtractSTLTextData(bool verbose)
+    {
+        // Ensure we have T42 data as the payload
+        byte[] t42Data;
+        if (Type == Format.T42 && Data.Length >= Constants.T42_LINE_SIZE)
+        {
+            t42Data = [.. Data.Take(Constants.T42_LINE_SIZE)];
+        }
+        else if (Type == Format.VBI || Type == Format.VBI_DOUBLE)
+        {
+            try
+            {
+                var convertedData = ConvertFormat(Data, Type, Format.T42);
+                t42Data = [.. convertedData.Take(Constants.T42_LINE_SIZE)];
+            }
+            catch
+            {
+                t42Data = new byte[Constants.T42_LINE_SIZE];
+            }
+        }
+        else
+        {
+            t42Data = new byte[Constants.T42_LINE_SIZE];
+        }
+
+        // Convert T42 to STL text format
+        var stlText = new List<byte>();
+
+        // Skip first 2 bytes (magazine/row header in T42)
+        for (int i = 2; i < t42Data.Length && stlText.Count < Constants.STL_TEXT_FIELD_SIZE; i++)
+        {
+            byte b = t42Data[i];
+
+            // Strip parity bit (bit 7) - STL doesn't use odd-parity encoding
+            byte stripped = (byte)(b & 0x7F);
+
+            // Remap T42 control codes to STL control codes
+            if (stripped == Constants.T42_BLOCK_START_BYTE)
+            {
+                // T42 Start Box -> STL Start Box
+                stlText.Add(Constants.STL_START_BOX);
+            }
+            else if (stripped == Constants.T42_NORMAL_HEIGHT)
+            {
+                // T42 End Box (Normal Height) -> STL End Box
+                stlText.Add(Constants.STL_END_BOX);
+            }
+            else if (stripped <= 7)
+            {
+                // T42 color codes (0-7) map directly to STL alpha color codes
+                stlText.Add(stripped);
+            }
+            else if (stripped >= 0x20 && stripped <= 0x7F)
+            {
+                // Displayable ASCII characters - keep as is
+                stlText.Add(stripped);
+            }
+            else if (stripped == 0x00)
+            {
+                // Null byte - treat as space in STL
+                stlText.Add(0x20);
+            }
+            else
+            {
+                // Other control codes - map to space for now
+                stlText.Add(0x20);
+            }
+        }
+
+        if (verbose) Console.Error.WriteLine($"DEBUG: Extracted STL text data - {stlText.Count} bytes from {t42Data.Length} T42 bytes");
+
+        return [.. stlText];
+    }
 }

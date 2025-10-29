@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 * RCWT (Raw Captions With Time) format support (initial implementation) (`aeb967a`)
+* **EBU STL (EBU-Tech 3264) format support** - Full implementation of STL output format
+  including GSI header generation and TTI block creation with proper timecode encoding
+  and control code mapping (without odd-parity encoding)
 * Header writing framework for RCWT and STL formats (foundation for future
   caption format output) (`f444334`)
 * `SampleFiles.cs` helper for automatic test sample downloads from GitHub releases

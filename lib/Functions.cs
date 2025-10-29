@@ -821,13 +821,18 @@ public class Functions
 
             try
             {
-                // Reset RCWT state for new conversion session
+                // Reset state for new conversion session
                 if (outputFormat == Format.RCWT)
                 {
                     if (verbose) Console.Error.WriteLine("DEBUG: Resetting RCWT state for new conversion session");
                     ResetRCWTHeader();
                 }
-                
+                else if (outputFormat == Format.STL)
+                {
+                    if (verbose) Console.Error.WriteLine("DEBUG: Resetting STL state for new conversion session");
+                    ResetSTLSubtitleNumber();
+                }
+
                 // Write headers for formats that require them
                 if (outputFormat == Format.RCWT || outputFormat == Format.STL)
                 {
@@ -991,14 +996,14 @@ public class Functions
     private static async Task WriteOutputAsync(Line input, Stream output, Format outputFormat, int? magazine, int[] rows, bool keepBlanks, bool verbose, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        
+
         if (input.Type == Format.Unknown)
         {
             return;
         }
-        
+
         byte[] dataToWrite;
-        
+
         // Handle different output formats
         switch (outputFormat)
         {
@@ -1007,13 +1012,22 @@ public class Functions
                 var (fts, fieldNumber) = GetRCWTState(input.LineTimecode, verbose);
                 dataToWrite = input.ToRCWT(fts, fieldNumber, verbose);
                 break;
-                
+
+            case Format.STL:
+                // For STL, convert to TTI block format using timecode from the line
+                var subtitleNumber = GetNextSTLSubtitleNumber();
+                var timeCodeIn = input.LineTimecode ?? new Timecode(0);
+                // For timeCodeOut, use the next frame (or same if at end)
+                var timeCodeOut = timeCodeIn.GetNext();
+                dataToWrite = input.ToSTL(subtitleNumber, timeCodeIn, timeCodeOut, verbose);
+                break;
+
             default:
                 // For other formats, use the line's data directly
                 dataToWrite = input.Data;
                 break;
         }
-        
+
         if (keepBlanks && ((magazine.HasValue && input.Magazine != magazine.Value) || !rows.Contains(input.Row)))
         {
             // Write blank line with same format/length
@@ -1067,6 +1081,10 @@ public class Functions
     private static int _rcwtFieldNumber = 0;
     private static readonly object _rcwtStateLock = new();
 
+    // STL state management for subtitle numbering
+    private static int _stlSubtitleNumber = 1; // Start from 1
+    private static readonly object _stlStateLock = new();
+
     /// <summary>
     /// Writes an RCWT (Raw Captions With Time) header to the output stream.
     /// The header is only written once per conversion session.
@@ -1093,6 +1111,7 @@ public class Functions
     /// <summary>
     /// Resets the RCWT header flag and state for a new conversion session.
     /// Call this when starting a new RCWT conversion.
+    /// Also resets STL state for good measure.
     /// </summary>
     public static void ResetRCWTHeader()
     {
@@ -1100,11 +1119,16 @@ public class Functions
         {
             _rcwtHeaderWritten = false;
         }
-        
+
         lock (_rcwtStateLock)
         {
             _rcwtFts = 0;
             _rcwtFieldNumber = 0;
+        }
+
+        lock (_stlStateLock)
+        {
+            _stlSubtitleNumber = 1;
         }
     }
 
@@ -1157,6 +1181,30 @@ public class Functions
             _rcwtFieldNumber = fieldNumber;
         }
     }
+
+    /// <summary>
+    /// Gets the next STL subtitle number and increments the counter.
+    /// This method is thread-safe.
+    /// </summary>
+    /// <returns>The next subtitle number</returns>
+    public static int GetNextSTLSubtitleNumber()
+    {
+        lock (_stlStateLock)
+        {
+            return _stlSubtitleNumber++;
+        }
+    }
+
+    /// <summary>
+    /// Resets the STL subtitle number counter.
+    /// </summary>
+    public static void ResetSTLSubtitleNumber()
+    {
+        lock (_stlStateLock)
+        {
+            _stlSubtitleNumber = 1;
+        }
+    }
     
     /// <summary>
     /// Writes an EBU STL (EBU-t3264) header to the output stream.
@@ -1167,16 +1215,122 @@ public class Functions
     private static async Task WriteSTLHeaderAsync(Stream output, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        
-        // TODO: Implement STL header structure
-        // STL headers include:
-        // - GSI (General Subtitle Information) block (1024 bytes)
-        // - Contains metadata like program title, timecode start/end
-        // - Character set information
-        // - Subtitle count and timing information
-        
-        // Placeholder implementation - will be implemented later
-        await Task.CompletedTask;
+
+        // Create GSI (General Subtitle Information) block - 1024 bytes
+        var gsi = new byte[Constants.STL_GSI_BLOCK_SIZE];
+
+        // Code Page Number (CPN) - bytes 0-2: "437" for Latin
+        var cpn = Encoding.ASCII.GetBytes("437");
+        Array.Copy(cpn, 0, gsi, 0, Math.Min(cpn.Length, 3));
+
+        // Disk Format Code (DFC) - byte 3: "STL25.01" (8 bytes starting at byte 3)
+        var dfc = Encoding.ASCII.GetBytes("STL25.01");
+        Array.Copy(dfc, 0, gsi, 3, Math.Min(dfc.Length, 8));
+
+        // Display Standard Code (DSC) - byte 11: 0x31 ('1') for Open subtitling
+        gsi[11] = 0x31;
+
+        // Character Code Table (CCT) - bytes 12-13: "00" for Latin
+        gsi[12] = 0x30;
+        gsi[13] = 0x30;
+
+        // Language Code (LC) - bytes 14-15: "0A" (hex) for English
+        gsi[14] = 0x30;
+        gsi[15] = 0x41;
+
+        // Original Programme Title (OPT) - bytes 16-47: "libopx teletext conversion"
+        var opt = Encoding.ASCII.GetBytes("libopx teletext conversion");
+        Array.Copy(opt, 0, gsi, 16, Math.Min(opt.Length, 32));
+
+        // Original Episode Title (OET) - bytes 48-79: empty/spaces
+        for (int i = 48; i < 80; i++) gsi[i] = 0x20;
+
+        // Translated Programme Title (TPT) - bytes 80-111: empty/spaces
+        for (int i = 80; i < 112; i++) gsi[i] = 0x20;
+
+        // Translated Episode Title (TET) - bytes 112-143: empty/spaces
+        for (int i = 112; i < 144; i++) gsi[i] = 0x20;
+
+        // Translator's Name (TN) - bytes 144-175: empty/spaces
+        for (int i = 144; i < 176; i++) gsi[i] = 0x20;
+
+        // Translator's Contact (TC) - bytes 176-207: empty/spaces
+        for (int i = 176; i < 208; i++) gsi[i] = 0x20;
+
+        // Subtitle List Reference Code (SLR) - bytes 208-223: empty/spaces
+        for (int i = 208; i < 224; i++) gsi[i] = 0x20;
+
+        // Creation Date (CD) - bytes 224-229: YYMMDD format (current date)
+        var now = DateTime.Now;
+        var cd = Encoding.ASCII.GetBytes(now.ToString("yyMMdd"));
+        Array.Copy(cd, 0, gsi, 224, 6);
+
+        // Revision Date (RD) - bytes 230-235: YYMMDD format (current date)
+        Array.Copy(cd, 0, gsi, 230, 6);
+
+        // Revision Number (RN) - bytes 236-237: "01"
+        gsi[236] = 0x30;
+        gsi[237] = 0x31;
+
+        // Total Number of TTI blocks (TNB) - bytes 238-242: "00000" (will be updated if known)
+        var tnb = Encoding.ASCII.GetBytes("00000");
+        Array.Copy(tnb, 0, gsi, 238, 5);
+
+        // Total Number of Subtitles (TNS) - bytes 243-247: "00000"
+        var tns = Encoding.ASCII.GetBytes("00000");
+        Array.Copy(tns, 0, gsi, 243, 5);
+
+        // Total Number of Subtitle Groups (TNG) - bytes 248-250: "001"
+        var tng = Encoding.ASCII.GetBytes("001");
+        Array.Copy(tng, 0, gsi, 248, 3);
+
+        // Maximum Number of Displayable Characters (MNC) - bytes 251-252: "40" (40 chars per row)
+        gsi[251] = 0x34;
+        gsi[252] = 0x30;
+
+        // Maximum Number of Displayable Rows (MNR) - bytes 253-254: "23" (23 rows)
+        gsi[253] = 0x32;
+        gsi[254] = 0x33;
+
+        // Time Code: Status (TCS) - byte 255: 0x31 ('1') for intended for use
+        gsi[255] = 0x31;
+
+        // Time Code: Start-of-Programme (TCP) - bytes 256-263: "00000000" (HH:MM:SS:FF)
+        var tcp = Encoding.ASCII.GetBytes("00000000");
+        Array.Copy(tcp, 0, gsi, 256, 8);
+
+        // Time Code: First In-Cue (TCF) - bytes 264-271: "00000000"
+        Array.Copy(tcp, 0, gsi, 264, 8);
+
+        // Total Number of Disks (TND) - byte 272: 0x31 ('1')
+        gsi[272] = 0x31;
+
+        // Disk Sequence Number (DSN) - byte 273: 0x31 ('1')
+        gsi[273] = 0x31;
+
+        // Country of Origin (CO) - bytes 274-276: "GBR"
+        var co = Encoding.ASCII.GetBytes("GBR");
+        Array.Copy(co, 0, gsi, 274, 3);
+
+        // Publisher (PUB) - bytes 277-308: "libopx"
+        var pub = Encoding.ASCII.GetBytes("libopx");
+        Array.Copy(pub, 0, gsi, 277, Math.Min(pub.Length, 32));
+        for (int i = 277 + pub.Length; i < 309; i++) gsi[i] = 0x20;
+
+        // Editor's Name (EN) - bytes 309-340: empty/spaces
+        for (int i = 309; i < 341; i++) gsi[i] = 0x20;
+
+        // Editor's Contact Details (ECD) - bytes 341-372: empty/spaces
+        for (int i = 341; i < 373; i++) gsi[i] = 0x20;
+
+        // Spare bytes (373-447): spaces
+        for (int i = 373; i < 448; i++) gsi[i] = 0x20;
+
+        // User-Defined Area (UDA) - bytes 448-1023: spaces
+        for (int i = 448; i < 1024; i++) gsi[i] = 0x20;
+
+        // Write GSI block to output
+        await output.WriteAsync(gsi, cancellationToken);
     }
     
     #endregion

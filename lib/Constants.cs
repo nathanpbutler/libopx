@@ -230,6 +230,69 @@ public class Constants
     public static readonly byte[] RCWT_HEADER = [204, 204, 237, 204, 0, 80, 0, 2, 0, 0, 0];
     #endregion
 
+    #region STL Constants
+    /// <summary>
+    /// Size of the GSI (General Subtitle Information) block in bytes.
+    /// </summary>
+    public const int STL_GSI_BLOCK_SIZE = 1024;
+    /// <summary>
+    /// Size of a TTI (Text and Timing Information) block in bytes.
+    /// </summary>
+    public const int STL_TTI_BLOCK_SIZE = 128;
+    /// <summary>
+    /// Maximum text field size in a TTI block (112 bytes).
+    /// </summary>
+    public const int STL_TEXT_FIELD_SIZE = 112;
+    /// <summary>
+    /// STL start box control code.
+    /// </summary>
+    public const byte STL_START_BOX = 0x0B;
+    /// <summary>
+    /// STL end box control code.
+    /// </summary>
+    public const byte STL_END_BOX = 0x0A;
+    /// <summary>
+    /// STL alpha black color code.
+    /// </summary>
+    public const byte STL_ALPHA_BLACK = 0x00;
+    /// <summary>
+    /// STL alpha red color code.
+    /// </summary>
+    public const byte STL_ALPHA_RED = 0x01;
+    /// <summary>
+    /// STL alpha green color code.
+    /// </summary>
+    public const byte STL_ALPHA_GREEN = 0x02;
+    /// <summary>
+    /// STL alpha yellow color code.
+    /// </summary>
+    public const byte STL_ALPHA_YELLOW = 0x03;
+    /// <summary>
+    /// STL alpha blue color code.
+    /// </summary>
+    public const byte STL_ALPHA_BLUE = 0x04;
+    /// <summary>
+    /// STL alpha magenta color code.
+    /// </summary>
+    public const byte STL_ALPHA_MAGENTA = 0x05;
+    /// <summary>
+    /// STL alpha cyan color code.
+    /// </summary>
+    public const byte STL_ALPHA_CYAN = 0x06;
+    /// <summary>
+    /// STL alpha white color code.
+    /// </summary>
+    public const byte STL_ALPHA_WHITE = 0x07;
+    /// <summary>
+    /// STL subtitle group number (default 0x00 for teletext).
+    /// </summary>
+    public const byte STL_SUBTITLE_GROUP = 0x00;
+    /// <summary>
+    /// STL cumulative status (0x00 = not part of cumulative set).
+    /// </summary>
+    public const byte STL_CUMULATIVE_STATUS = 0x00;
+    #endregion
+
     #region Default Values
     /// <summary>
     /// Default magazine number used across the library when no specific magazine is specified (for backward compatibility).
