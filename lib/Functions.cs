@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Text;
 using nathanbutlerDEV.libopx.Enums;
 using nathanbutlerDEV.libopx.Formats;
 
@@ -1234,9 +1235,9 @@ public class Functions
         gsi[12] = 0x30;
         gsi[13] = 0x30;
 
-        // Language Code (LC) - bytes 14-15: "0A" (hex) for English
+        // Language Code (LC) - bytes 14-15: "09" (hex) for English
         gsi[14] = 0x30;
-        gsi[15] = 0x41;
+        gsi[15] = 0x39;
 
         // Original Programme Title (OPT) - bytes 16-47: "libopx teletext conversion"
         var opt = Encoding.ASCII.GetBytes("libopx teletext conversion");
@@ -1284,9 +1285,9 @@ public class Functions
         var tng = Encoding.ASCII.GetBytes("001");
         Array.Copy(tng, 0, gsi, 248, 3);
 
-        // Maximum Number of Displayable Characters (MNC) - bytes 251-252: "40" (40 chars per row)
-        gsi[251] = 0x34;
-        gsi[252] = 0x30;
+        // Maximum Number of Displayable Characters (MNC) - bytes 251-252: "38" (38 chars per row)
+        gsi[251] = 0x33;
+        gsi[252] = 0x38;
 
         // Maximum Number of Displayable Rows (MNR) - bytes 253-254: "23" (23 rows)
         gsi[253] = 0x32;
@@ -1308,8 +1309,8 @@ public class Functions
         // Disk Sequence Number (DSN) - byte 273: 0x31 ('1')
         gsi[273] = 0x31;
 
-        // Country of Origin (CO) - bytes 274-276: "GBR"
-        var co = Encoding.ASCII.GetBytes("GBR");
+        // Country of Origin (CO) - bytes 274-276: "AUS"
+        var co = Encoding.ASCII.GetBytes("AUS");
         Array.Copy(co, 0, gsi, 274, 3);
 
         // Publisher (PUB) - bytes 277-308: "libopx"

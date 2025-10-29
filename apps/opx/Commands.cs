@@ -57,7 +57,7 @@ public class Commands
         var capsOption = new Option<bool>("-c")
         {
             Aliases = { "--caps" },
-            Description = "Use caption rows (1-24) instead of default rows (0-24)"
+            Description = "Use caption rows (1-24) instead of default rows (0-31)"
         };
 
         var verboseOption = new Option<bool>("-V")
@@ -368,7 +368,7 @@ public class Commands
         var capsOption = new Option<bool>("-c")
         {
             Aliases = { "--caps" },
-            Description = "Use caption rows (1-24) instead of default rows (0-24)"
+            Description = "Use caption rows (1-24) instead of default rows (0-31)"
         };
 
         var keepOption = new Option<bool>("--keep")

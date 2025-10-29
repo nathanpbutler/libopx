@@ -222,13 +222,13 @@ public class VBI : IDisposable
             }
 
             // Apply filtering if specified and conversion was successful
-            if (magazine.HasValue && line.Magazine != magazine.Value && (outputFormat is Format.T42 or Format.RCWT))
+            if (magazine.HasValue && line.Magazine != magazine.Value)
             {
                 lineNumber++;
                 continue;
             }
 
-            if (rows != null && !rows.Contains(line.Row) && (outputFormat is Format.T42 or Format.RCWT))
+            if (rows != null && !rows.Contains(line.Row))
             {
                 lineNumber++;
                 continue;
@@ -346,13 +346,13 @@ public class VBI : IDisposable
                 }
 
                 // Apply filtering
-                if (magazine.HasValue && line.Magazine != magazine.Value && (outputFormat is Format.T42 or Format.RCWT))
+                if (magazine.HasValue && line.Magazine != magazine.Value)
                 {
                     lineNumber++;
                     continue;
                 }
 
-                if (rows != null && !rows.Contains(line.Row) && (outputFormat is Format.T42 or Format.RCWT))
+                if (rows != null && !rows.Contains(line.Row))
                 {
                     lineNumber++;
                     continue;

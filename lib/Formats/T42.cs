@@ -206,13 +206,13 @@ public class T42 : IDisposable
             // This prevents double-conversion (T42 -> RCWT -> RCWT)
 
             // Apply filtering if specified
-            if (magazine.HasValue && line.Magazine != magazine.Value && (outputFormat is Format.T42 or Format.RCWT))
+            if (magazine.HasValue && line.Magazine != magazine.Value)
             {
                 lineNumber++;
                 continue;
             }
 
-            if (rows != null && !rows.Contains(line.Row) && (outputFormat is Format.T42 or Format.RCWT))
+            if (rows != null && !rows.Contains(line.Row))
             {
                 lineNumber++;
                 continue;
@@ -317,13 +317,13 @@ public class T42 : IDisposable
                 // This prevents double-conversion (T42 -> RCWT -> RCWT)
 
                 // Apply filtering
-                if (magazine.HasValue && line.Magazine != magazine.Value && (outputFormat is Format.T42 or Format.RCWT))
+                if (magazine.HasValue && line.Magazine != magazine.Value)
                 {
                     lineNumber++;
                     continue;
                 }
 
-                if (rows != null && !rows.Contains(line.Row) && (outputFormat is Format.T42 or Format.RCWT))
+                if (rows != null && !rows.Contains(line.Row))
                 {
                     lineNumber++;
                     continue;

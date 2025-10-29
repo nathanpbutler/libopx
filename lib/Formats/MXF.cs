@@ -727,14 +727,14 @@ public class MXF : IDisposable
             // Use the more efficient ParseLine method
             line.ParseLine(Input, outputFormat);
 
-            // Apply filtering if specified (only for T42 output format)
-            if (magazine.HasValue && line.Magazine != magazine.Value && outputFormat == Format.T42)
+            // Apply filtering if specified
+            if (magazine.HasValue && line.Magazine != magazine.Value)
             {
                 lineNumber++;
                 continue; // Skip lines that don't match the magazine filter
             }
 
-            if (rows != null && !rows.Contains(line.Row) && outputFormat == Format.T42)
+            if (rows != null && !rows.Contains(line.Row))
             {
                 lineNumber++;
                 continue; // Skip lines that don't match the row filter
@@ -1281,13 +1281,13 @@ public class MXF : IDisposable
                 await line.ParseLineAsync(Input, outputFormat, cancellationToken);
 
                 // Apply filtering
-                if (magazine.HasValue && line.Magazine != magazine.Value && outputFormat == Format.T42)
+                if (magazine.HasValue && line.Magazine != magazine.Value)
                 {
                     lineNumber++;
                     continue;
                 }
 
-                if (rows != null && !rows.Contains(line.Row) && outputFormat == Format.T42)
+                if (rows != null && !rows.Contains(line.Row))
                 {
                     lineNumber++;
                     continue;
@@ -1686,13 +1686,13 @@ public class MXF : IDisposable
                     line.ParseLine(Input, outputFormat);
 
                     // Apply filtering if specified
-                    if (magazine.HasValue && line.Magazine != magazine.Value && outputFormat == Format.T42)
+                    if (magazine.HasValue && line.Magazine != magazine.Value)
                     {
                         lineNumber++;
                         continue; // Skip lines that don't match the magazine filter
                     }
 
-                    if (rows != null && !rows.Contains(line.Row) && outputFormat == Format.T42)
+                    if (rows != null && !rows.Contains(line.Row))
                     {
                         lineNumber++;
                         continue; // Skip lines that don't match the row filter
@@ -1773,13 +1773,13 @@ public class MXF : IDisposable
                         await ParseLineAsync(line, Input, outputFormat, cancellationToken);
 
                         // Apply filtering
-                        if (magazine.HasValue && line.Magazine != magazine.Value && outputFormat == Format.T42)
+                        if (magazine.HasValue && line.Magazine != magazine.Value)
                         {
                             lineNumber++;
                             continue;
                         }
 
-                        if (rows != null && !rows.Contains(line.Row) && outputFormat == Format.T42)
+                        if (rows != null && !rows.Contains(line.Row))
                         {
                             lineNumber++;
                             continue;

@@ -708,8 +708,12 @@ public class Line : IDisposable
         // Convert T42 to STL text format
         var stlText = new List<byte>();
 
-        // Skip first 2 bytes (magazine/row header in T42)
-        for (int i = 2; i < t42Data.Length && stlText.Count < Constants.STL_TEXT_FIELD_SIZE; i++)
+        // Determine starting position based on row type
+        // Row 0 (header): Skip first 10 bytes (2 mag/row + 8 header metadata), parse last 32 bytes
+        // Rows 1-24 (captions): Skip first 2 bytes (mag/row), parse remaining 40 bytes
+        int startIndex = Row == 0 ? 10 : 2;
+
+        for (int i = startIndex; i < t42Data.Length && stlText.Count < Constants.STL_TEXT_FIELD_SIZE; i++)
         {
             byte b = t42Data[i];
 
@@ -749,7 +753,7 @@ public class Line : IDisposable
             }
         }
 
-        if (verbose) Console.Error.WriteLine($"DEBUG: Extracted STL text data - {stlText.Count} bytes from {t42Data.Length} T42 bytes");
+        if (verbose) Console.Error.WriteLine($"DEBUG: Extracted STL text data - {stlText.Count} bytes from {t42Data.Length} T42 bytes (Row: {Row}, StartIndex: {startIndex})");
 
         return [.. stlText];
     }
