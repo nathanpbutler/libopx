@@ -1015,6 +1015,13 @@ public class Functions
                 break;
 
             case Format.STL:
+                // For STL, skip lines that contain only spaces (regardless of -c flag)
+                if (IsSTLLineEmpty(input))
+                {
+                    if (verbose) Console.Error.WriteLine($"DEBUG: Skipping STL line with only spaces - Row: {input.Row}, Magazine: {input.Magazine}");
+                    return; // Skip this line entirely
+                }
+
                 // For STL, convert to TTI block format using timecode from the line
                 var subtitleNumber = GetNextSTLSubtitleNumber();
                 var timeCodeIn = input.LineTimecode ?? new Timecode(0);
@@ -1206,7 +1213,58 @@ public class Functions
             _stlSubtitleNumber = 1;
         }
     }
-    
+
+    /// <summary>
+    /// Checks if a line contains only spaces or control codes in its displayable text area.
+    /// Used to skip empty lines in STL output.
+    /// </summary>
+    /// <param name="line">The line to check</param>
+    /// <returns>True if the line contains only spaces/control codes, false otherwise</returns>
+    private static bool IsSTLLineEmpty(Line line)
+    {
+        // Get T42 data from the line
+        byte[] t42Data;
+        if (line.Type == Format.T42 && line.Data.Length >= Constants.T42_LINE_SIZE)
+        {
+            t42Data = [.. line.Data.Take(Constants.T42_LINE_SIZE)];
+        }
+        else if (line.Type == Format.VBI || line.Type == Format.VBI_DOUBLE)
+        {
+            try
+            {
+                t42Data = VBI.ToT42(line.Data);
+            }
+            catch
+            {
+                return true; // If conversion fails, consider it empty
+            }
+        }
+        else
+        {
+            return true; // Unknown format, consider empty
+        }
+
+        // Determine starting position based on row type
+        // Row 0 (header): Skip first 10 bytes (2 mag/row + 8 header metadata), check last 32 bytes
+        // Rows 1-24 (captions): Skip first 2 bytes (mag/row), check remaining 40 bytes
+        int startIndex = line.Row == 0 ? 10 : 2;
+
+        // Check if all displayable bytes are spaces or control codes
+        for (int i = startIndex; i < t42Data.Length; i++)
+        {
+            byte b = t42Data[i];
+            byte stripped = (byte)(b & 0x7F); // Strip parity bit
+
+            // Check if this is a displayable character (not space)
+            if (stripped >= 0x21 && stripped <= 0x7E)
+            {
+                return false; // Found a non-space displayable character
+            }
+        }
+
+        return true; // All bytes are spaces or control codes
+    }
+
     /// <summary>
     /// Writes an EBU STL (EBU-t3264) header to the output stream.
     /// </summary>
