@@ -12,7 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * RCWT (Raw Captions With Time) format support (initial implementation) (`aeb967a`)
 * **EBU STL (EBU-Tech 3264) format support** - Full implementation of STL output format
   including GSI header generation and TTI block creation with proper timecode encoding
-  and control code mapping (without odd-parity encoding)
+  and control code mapping (without odd-parity encoding). Features:
+  * Automatic filtering of empty lines (space-only content)
+  * Proper header row (row 0) text extraction (32 bytes vs 40 bytes for caption rows)
+  * BCD timecode encoding for Time Code In/Out fields
+  * Control code remapping from T42 to STL equivalents
 * Header writing framework for RCWT and STL formats (foundation for future
   caption format output) (`f444334`)
 * `SampleFiles.cs` helper for automatic test sample downloads from GitHub releases
@@ -31,6 +35,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+* **Row filtering now applies to all output formats** - Fixed critical bug where magazine
+  and row filtering (including `-c`/`--caps` flag) only applied to T42 and RCWT formats,
+  causing row 0 (header rows) to leak through when converting to STL and other formats.
+  Updated filtering logic in 8 parser methods across T42.cs, VBI.cs, and MXF.cs
+* **STL header row text extraction** - Fixed STL text extraction to properly handle row 0
+  structure (skipping first 10 bytes instead of 2) to prevent control codes and metadata
+  from appearing as garbage text in subtitle output
+* **Corrected `-c`/`--caps` flag description** - Updated help text to reflect actual
+  default rows (0-31) instead of incorrectly stated (0-24)
 * RCWT format conversion issues for T42 input (`b414ab5`)
 * Broken async MXF restriping methods functionality (`b1487a7`)
 

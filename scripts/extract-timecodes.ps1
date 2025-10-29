@@ -1,3 +1,5 @@
+#!/usr/bin/env pwsh
+
 # Get all .raw files in the current directory
 $rawFiles = Get-ChildItem -Filter "*_s.raw"
 

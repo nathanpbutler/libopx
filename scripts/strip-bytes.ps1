@@ -1,3 +1,5 @@
+#!/usr/bin/env pwsh
+
 <#
 .SYNOPSIS
     Strips the high bit from bytes in a binary file by subtracting 128 from bytes >= 128.
