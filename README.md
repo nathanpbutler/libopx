@@ -11,11 +11,12 @@ A .NET 9 C# library for parsing and extracting data from MXF (Material Exchange 
 ## Features
 
 - **Multi-format support**: MXF, extracted data streams, VBI, and T42 file parsing
-- **Format conversion**: Automatic VBI ↔ T42 conversion
+- **Format conversion**: Automatic VBI ↔ T42 conversion, plus RCWT and EBU STL output
 - **Teletext filtering**: Magazine and row-based filtering with Unicode mapping
 - **SMPTE timecode**: Full timecode calculations with various frame rates
 - **MXF processing**: Stream extraction and demuxing capabilities
 - **CLI tool**: Unified `opx` command-line interface
+- **Subtitle formats**: RCWT (Raw Captions With Time) and EBU STL (EBU-Tech 3264) export
 
 **Format conversions**: Convert between HD and SD T42 and VBI formats or vice versa. You can even pipe that data to other applications like `ffmpeg` or `mpv`.
 
@@ -45,6 +46,9 @@ opx filter -m 8 -r 20,22 input.vbi
 
 # Convert between formats (use -of / --output-format)
 opx convert -of t42 input.vbi
+
+# Convert to EBU STL subtitle format
+opx convert -of stl -c input.mxf output.stl
 
 # Extract streams from MXF files
 opx extract -k d,v input.mxf

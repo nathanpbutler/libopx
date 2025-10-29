@@ -8,42 +8,6 @@ namespace nathanbutlerDEV.opx;
 public static class CommandHelpers
 {
     /// <summary>
-    /// Creates completion source for magazine numbers (1-8).
-    /// </summary>
-    public static Func<CompletionContext, IEnumerable<CompletionItem>> CreateMagazineCompletionSource()
-    {
-        return ctx =>
-        {
-            List<CompletionItem> magazines = [];
-            for (int i = 1; i <= 8; i++)
-            {
-                magazines.Add(new CompletionItem(
-                    label: i.ToString("D2"),
-                    sortText: i.ToString("D2")));
-            }
-            return magazines;
-        };
-    }
-
-    /// <summary>
-    /// Creates completion source for row numbers (0-31).
-    /// </summary>
-    public static Func<CompletionContext, IEnumerable<CompletionItem>> CreateRowsCompletionSource()
-    {
-        return ctx =>
-        {
-            List<CompletionItem> rows = [];
-            for (int i = 0; i <= 31; i++)
-            {
-                rows.Add(new CompletionItem(
-                    label: i.ToString("D2"),
-                    sortText: i.ToString("D2")));
-            }
-            return rows;
-        };
-    }
-
-    /// <summary>
     /// Creates completion source for input format options.
     /// </summary>
     public static Func<CompletionContext, IEnumerable<CompletionItem>> CreateInputFormatCompletionSource()
@@ -73,7 +37,8 @@ public static class CommandHelpers
                 new CompletionItem("vbi", "VBI format"),
                 new CompletionItem("vbid", "VBI format (double width)"),
                 new CompletionItem("t42", "T42 format"),
-                new CompletionItem("rcwt", "RCWT format (Raw Captions With Time)")
+                new CompletionItem("rcwt", "RCWT format (Raw Captions With Time)"),
+                new CompletionItem("stl", "EBU STL format (EBU-Tech 3264)")
             ];
         };
     }

@@ -21,7 +21,8 @@ When proposing or making changes:
 
 - **Async Support**: All format parsers expose sync `Parse()` and async `ParseAsync()` methods; async variants yield ~90–95% lower allocations via `ArrayPool`.
 - **RCWT Support**: Full Raw Captions With Time conversion with automatic T42 payload handling, field alternation, and FTS synchronization.
-- **Teletext Filtering**: Magazine and row filtering across VBI, T42, MXF-derived streams.
+- **STL Support**: Complete EBU STL (EBU-Tech 3264) subtitle format support with GSI header generation, TTI block creation, BCD timecode encoding, automatic empty line filtering, and proper header/caption row text extraction.
+- **Teletext Filtering**: Magazine and row filtering across VBI, T42, MXF-derived streams; filters apply universally to all output formats.
 - **Memory Benchmarking**: `MemoryBenchmarkTests` verifies allocation reductions—run before/after performance-related edits.
 
 ## Common Commands
@@ -44,12 +45,12 @@ Arguments:
 - `INPUT_FILE` (optional): Input file; if omitted, reads from stdin.
 
 Options:
-- `-if, --input-format <bin|vbi|vbid|t42>`: Force input format (auto-detect if omitted)
-- `-m,  --magazine <int>`: Magazine filter (default: all)
-- `-r,  --rows <list>`: Rows (comma & range syntax: `1,2,5-8,15`)
-- `-l,  --line-count <int>`: Lines per frame for timecode increment (default: 2)
-- `-c,  --caps`: Use caption rows (1–24) instead of default (0–24)
-- `-V,  --verbose`: Verbose output
+- `-if, --input-format <bin|mxf|t42|vbi|vbid>`: Input format
+- `-m, --magazine`: Filter by magazine number (default: all magazines)
+- `-r, --rows`: Filter by number of rows (comma-separated or hyphen ranges, e.g., 1,2,5-8,15)
+- `-l, --line-count`: Number of lines per frame for timecode incrementation [default: 2]
+- `-c, --caps`: Use caption rows (1-24) instead of default rows (0-31)
+- `-V, --verbose`: Enable verbose output
 
 #### extract – Demux streams from MXF
 ```bash
@@ -59,12 +60,12 @@ Arguments:
 - `INPUT_FILE` (required): MXF file path.
 
 Options:
-- `-o,  --output <path>`: Output base; creates `<base>_d.raw`, `<base>_v.raw`, etc.
-- `-k,  --key <list>`: Comma list of key codes / aliases to extract (e.g. `d,v,s,t,a`)
-- `-d,  --demux`: Extract all keys encountered
-- `-n`: Use Key/Essence names instead of hex keys (with `-d`)
-- `--klv`: Include key & length bytes (.klv extension)
-- `-V,  --verbose`: Verbose output
+- `-o, --output`: Output base path - files will be created as `<base>_d.raw`, `<base>_v.raw`, etc
+- `-k, --key <a|d|s|t|v>`: Specify keys to extract
+- `-d, --demux`: Extract all keys found, output as `<base>_<hexkey>.raw`
+- `-n`: Use Key/Essence names instead of hex keys (use with -d)
+- `--klv`: Include key and length bytes in output files, use .klv extension
+- `-V, --verbose`: Enable verbose output
 
 #### restripe – Apply new start timecode to MXF
 ## Common Commands
@@ -128,12 +129,12 @@ Arguments:
 - `INPUT_FILE` (optional): Input file (stdin if omitted).
 
 Options:
-- `-if, --input-format <bin|vbi|vbid|t42>`: Force input format (auto-detect if omitted)
-- `-m,  --magazine <int>`: Magazine filter (default: all)
-- `-r,  --rows <list>`: Rows (comma/range list e.g. `1,2,5-8,15`)
-- `-l,  --line-count <int>`: Lines per frame for timecode increment (default: 2)
-- `-c,  --caps`: Caption rows (1–24) instead of default (0–24)
-- `-V,  --verbose`: Verbose output
+- `-if, --input-format <bin|mxf|t42|vbi|vbid>`: Input format
+- `-m, --magazine`: Filter by magazine number (default: all magazines)
+- `-r, --rows`: Filter by number of rows (comma-separated or hyphen ranges, e.g., 1,2,5-8,15)
+- `-l, --line-count`: Number of lines per frame for timecode incrementation [default: 2]
+- `-c, --caps`: Use caption rows (1-24) instead of default rows (0-31)
+- `-V, --verbose`: Enable verbose output
 
 #### extract – Demux MXF streams
 ```bash
@@ -143,12 +144,12 @@ Arguments:
 - `INPUT_FILE` (required): MXF file path.
 
 Options:
-- `-o,  --output <path>`: Output base; creates `<base>_d.raw`, `<base>_v.raw`, etc.
-- `-k,  --key <list>`: Comma list of keys (d=Data, v=Video, s=System, t=Timecode, a=Audio)
-- `-d,  --demux`: Extract all keys encountered
-- `-n`: Use Key/Essence names instead of hex keys (with `-d`)
-- `--klv`: Include key & length bytes (.klv extension)
-- `-V,  --verbose`: Verbose output
+- `-o, --output`: Output base path - files will be created as `<base>_d.raw`, `<base>_v.raw`, etc
+- `-k, --key <a|d|s|t|v>`: Specify keys to extract
+- `-d, --demux`: Extract all keys found, output as `<base>_<hexkey>.raw`
+- `-n`: Use Key/Essence names instead of hex keys (use with -d)
+- `--klv`: Include key and length bytes in output files, use .klv extension
+- `-V, --verbose`: Enable verbose output
 
 #### restripe – New start timecode for MXF
 ```bash
@@ -158,9 +159,9 @@ Arguments:
 - `INPUT_FILE` (required): MXF file path.
 
 Options:
-- `-t,  --timecode <HH:MM:SS:FF>`: New start timecode (required)
-- `-pp, --print-progress`: Print parse progress
-- `-V,  --verbose`: Verbose output
+- `-t, --timecode` (required): New start timecode (HH:MM:SS:FF)
+- `-V, --verbose`: Enable verbose output
+- `-pp, --print-progress`: Print progress during parsing
 
 #### convert – Convert between formats
 ```bash
@@ -171,14 +172,14 @@ Arguments:
 - `OUTPUT_FILE` (optional): Output file; stdout if omitted.
 
 Options:
-- `-if, --input-format <bin|vbi|vbid|t42|mxf>`: Input format override
-- `-of, --output-format <vbi|vbid|t42|rcwt>`: Output format (default T42 if omitted)
-- `-m,  --magazine <int>`: Magazine filter
-- `-r,  --rows <list>`: Row filter (comma/range list)
-- `-l,  --line-count <int>`: Lines per frame for timecode increment (default: 2)
-- `-c,  --caps`: Caption rows (1–24) instead of default (0–24)
-- `--keep`: Emit blank bytes for filtered lines/magazines
-- `-V,  --verbose`: Verbose output
+- `-if, --input-format <bin|mxf|t42|vbi|vbid>`: Input format (auto-detected from file extension if not specified)
+- `-of, --output-format <rcwt|stl|t42|vbi|vbid>`: Output format (auto-detected from output file extension if not specified)
+- `-m, --magazine`: Filter by magazine number (default: all magazines)
+- `-r, --rows`: Filter by number of rows (comma-separated or hyphen ranges, e.g., 1,2,5-8,15)
+- `-l, --line-count`: Number of lines per frame for timecode incrementation [default: 2]
+- `-c, --caps`: Use caption rows (1-24) instead of default rows (0-31)
+- `--keep`: Write blank bytes if rows or magazine doesn't match
+- `-V, --verbose`: Enable verbose output
 
 ### Usage Examples
 
@@ -209,6 +210,16 @@ dotnet run --project apps/opx -- convert -if t42 -of vbi -m 8 -r 20-22 -V input.
 
 # VBI → RCWT file
 dotnet run --project apps/opx -- convert -if vbi -of rcwt input.vbi output.rcwt
+
+# MXF → STL (EBU subtitle format) with caption rows only
+dotnet run --project apps/opx -- convert -if mxf -of stl -c input.mxf output.stl
+
+# T42 → STL with magazine and row filtering
+dotnet run --project apps/opx -- convert -of stl -m 8 -r 20-24 input.t42 output.stl
+```
+
+## Parsing Examples
+
 ```csharp
 // Sync VBI parse with caption row filtering and T42 conversion
 using var vbi = new VBI("input.vbi");
@@ -257,8 +268,9 @@ Streaming Parsers:
 
 Format Conversion Flow:
 - VBI ⇄ T42 via `VBI.ToT42()` and `T42.ToVBI()`
-- Optional RCWT wrapping using `Line.ToRCWT()` and state helpers
-- Output format chosen by `Line.ParseLine()` logic
+- Optional RCWT wrapping using `Line.ToRCWT()` with FTS/field state management
+- Optional STL conversion using `Line.ToSTL()` with BCD timecode encoding and automatic empty line filtering
+- Output format chosen by `Line.ParseLine()` logic with universal row/magazine filtering
 
 MXF Processing:
 - Key filtering (`AddRequiredKey()` / enum KeyType)

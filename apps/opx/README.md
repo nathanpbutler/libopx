@@ -41,11 +41,11 @@ opx filter [options] <input-file?>
 
 **Options:**
 
-- `-m, --magazine <int>`: Filter by magazine number (default: all magazines)
-- `-r, --rows <string>`: Filter by rows (comma-separated or ranges, e.g. `1,2,5-8`)
-- `-if, --input-format <bin|vbi|vbid|t42>`: Input format override (auto-detected)
-- `-c, --caps`: Use caption rows (1-24) instead of default rows (0-24)
-- `-l, --line-count <int>`: Lines per frame for timecode increment (default: 2)
+- `-if, --input-format <bin|mxf|t42|vbi|vbid>`: Input format
+- `-m, --magazine`: Filter by magazine number (default: all magazines)
+- `-r, --rows`: Filter by number of rows (comma-separated or hyphen ranges, e.g., 1,2,5-8,15)
+- `-l, --line-count`: Number of lines per frame for timecode incrementation [default: 2]
+- `-c, --caps`: Use caption rows (1-24) instead of default rows (0-31)
 - `-V, --verbose`: Enable verbose output
 
 **Examples:**
@@ -79,14 +79,13 @@ opx convert [options] <input-file?>
 
 **Options:**
 
-- `-if, --input-format <bin|vbi|vbid|t42|mxf>`: Input format (auto-detected)
-- `-of, --output-format <vbi|vbid|t42>`: Output format [required]
-- `-f, --output-file <file>`: Output file path (writes to stdout if not specified)
-- `-m, --magazine <int>`: Filter by magazine number (default: all magazines)
-- `-r, --rows <string>`: Filter by rows (comma-separated or ranges)
-- `-c, --caps`: Use caption rows (1-24) instead of default rows (0-24)
-- `-k, --keep`: Write blank bytes if rows or magazine doesn't match
-- `-l, --line-count <int>`: Lines per frame for timecode increment (default: 2)
+- `-if, --input-format <bin|mxf|t42|vbi|vbid>`: Input format (auto-detected from file extension if not specified)
+- `-of, --output-format <rcwt|stl|t42|vbi|vbid>`: Output format (auto-detected from output file extension if not specified)
+- `-m, --magazine`: Filter by magazine number (default: all magazines)
+- `-r, --rows`: Filter by number of rows (comma-separated or hyphen ranges, e.g., 1,2,5-8,15)
+- `-l, --line-count`: Number of lines per frame for timecode incrementation [default: 2]
+- `-c, --caps`: Use caption rows (1-24) instead of default rows (0-31)
+- `--keep`: Write blank bytes if rows or magazine doesn't match
 - `-V, --verbose`: Enable verbose output
 
 **Examples:**
@@ -111,6 +110,15 @@ opx convert -if mxf -of vbi -k input.mxf
 ffmpeg -v error -i input.mxf \
   -vf crop=720:2:0:28 -f rawvideo -pix_fmt gray - | \
   opx convert -of t42 -f output.t42 -
+
+# Convert to RCWT (Raw Captions With Time) format
+opx convert -if mxf -of rcwt -c -f output.rcwt input.mxf
+
+# Convert to EBU STL (EBU-Tech 3264) subtitle format
+opx convert -if t42 -of stl -c -f output.stl input.t42
+
+# Convert MXF to STL with magazine and row filtering
+opx convert -if mxf -of stl -m 8 -r 20-24 -f output.stl input.mxf
 ```
 
 ### extract - Extract/demux streams from MXF files
@@ -123,12 +131,11 @@ opx extract [options] <input.mxf>
 
 **Options:**
 
-- `-o, --output <string>`: Output base path (creates `<base>_d.raw`, etc.)
-- `-k, --key <d|v|s|t|a>`: Extract specific keys (d=Data, v=Video, s=System,
-  t=Timecode, a=Audio)
-- `-d, --demux`: Extract all keys, writing `<base>_<hexkey>.raw`
-- `-n`: Use essence names instead of hex keys (with `-d`)
-- `--klv`: Include raw KLV (key & length) bytes in outputs
+- `-o, --output`: Output base path - files will be created as `<base>_d.raw`, `<base>_v.raw`, etc
+- `-k, --key <a|d|s|t|v>`: Specify keys to extract
+- `-d, --demux`: Extract all keys found, output as `<base>_<hexkey>.raw`
+- `-n`: Use Key/Essence names instead of hex keys (use with -d)
+- `--klv`: Include key and length bytes in output files, use .klv extension
 - `-V, --verbose`: Enable verbose output
 
 **Examples:**
@@ -160,8 +167,7 @@ opx restripe [options] <input-file>
 
 **Options:**
 
-- `-t, --timecode <string>`: New start timecode (HH:MM:SS:FF)
-  [required]
+- `-t, --timecode` (required): New start timecode (HH:MM:SS:FF)
 - `-V, --verbose`: Enable verbose output
 - `-pp, --print-progress`: Print progress during parsing
 

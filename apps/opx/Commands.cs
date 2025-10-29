@@ -31,14 +31,12 @@ public class Commands
             Aliases = { "--magazine" },
             Description = "Filter by magazine number (default: all magazines)"
         };
-        magazineOption.CompletionSources.Add(CommandHelpers.CreateMagazineCompletionSource());
 
         var rowsOption = new Option<string?>("-r")
         {
             Aliases = { "--rows" },
             Description = "Filter by number of rows (comma-separated or hyphen ranges, e.g., 1,2,5-8,15)"
         };
-        rowsOption.CompletionSources.Add(CommandHelpers.CreateRowsCompletionSource());
 
         var inputFormatOption = new Option<string?>("-if")
         {
@@ -349,14 +347,12 @@ public class Commands
             Aliases = { "--magazine" },
             Description = "Filter by magazine number (default: all magazines)"
         };
-        magazineOption.CompletionSources.Add(CommandHelpers.CreateMagazineCompletionSource());
 
         var rowsOption = new Option<string?>("-r")
         {
             Aliases = { "--rows" },
             Description = "Filter by number of rows (comma-separated or hyphen ranges, e.g., 1,2,5-8,15)"
         };
-        rowsOption.CompletionSources.Add(CommandHelpers.CreateRowsCompletionSource());
 
         var lineCountOption = new Option<int?>("-l")
         {

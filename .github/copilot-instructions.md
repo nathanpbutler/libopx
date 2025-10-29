@@ -11,6 +11,11 @@
 - Keep processing single-pass and low-allocation; reuse buffers and avoid temporary collections—follow `T42.Parse[Async]` and `VBI.Parse[Async]` as examples.
 - When adding filtering or conversion logic, honor magazine/row semantics handled via `Constants.CAPTION_ROWS`, `Constants.DEFAULT_ROWS`, and `Line.SetCachedType()`.
 
+## Critical Format Conversions
+- RCWT support: Full Raw Captions With Time conversion with automatic T42 payload handling, field alternation, and FTS synchronization via `Line.ToRCWT()`.
+- STL support: Complete EBU STL (EBU-Tech 3264) subtitle format with GSI header generation, TTI block creation, BCD timecode encoding, and automatic empty line filtering via `Line.ToSTL()`.
+- Universal filtering: Magazine and row filtering apply across VBI, T42, MXF streams using `Constants.CAPTION_ROWS` (1-24) vs `Constants.DEFAULT_ROWS` (0-31).
+
 ## Developer Workflows
 - Build everything with `dotnet build libopx.sln`; build library or CLI individually via `dotnet build lib/libopx.csproj` or `dotnet build apps/opx/opx.csproj`.
 - Run unit tests with `dotnet test`; target a suite with `dotnet test --filter FullyQualifiedName~ClassName`.
@@ -21,6 +26,11 @@
 - Tests rely on downloadable fixtures; call `await SampleFiles.EnsureAsync()` in new async tests to fetch sample data.
 - Expand coverage in `tests/` alongside parser or conversion changes; mirror sync/async cases where practical.
 - Prefer verifying pipelines through existing sample filenames (e.g. `input.vbi`, `input.mxf`) rather than hardcoded absolute paths.
+
+## Performance & Memory
+- Async parsers use `ArrayPool` and yield ~90-95% allocation reduction vs sync methods—validate with `MemoryBenchmarkTests`.
+- Use `Span<byte>`/`ReadOnlySpan<byte>` over array copies; dispose streams promptly with `using`/`await using`.
+- Avoid global state except centralized areas (e.g., RCWT header state via `Functions.ResetRCWTHeader()`).
 
 ## Tooling Notes
 - Teletext character handling is centralized in `TeletextCharset.cs`; extend mappings there if you add new glyph support.

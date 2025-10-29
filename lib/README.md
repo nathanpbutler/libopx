@@ -72,6 +72,26 @@ foreach (var line in parser.Parse(magazine: null, rows: Constants.DEFAULT_ROWS))
 }
 
 parser.Dispose(); // Ensure output is flushed
+
+// Convert to RCWT (Raw Captions With Time)
+await Functions.ConvertAsync(
+    input: new FileInfo("input.mxf"),
+    output: new FileInfo("output.rcwt"),
+    inputFormat: Format.MXFData,
+    outputFormat: Format.RCWT,
+    magazine: null,
+    rows: Constants.CAPTION_ROWS
+);
+
+// Convert to EBU STL (EBU-Tech 3264 subtitle format)
+await Functions.ConvertAsync(
+    input: new FileInfo("input.t42"),
+    output: new FileInfo("output.stl"),
+    inputFormat: Format.T42,
+    outputFormat: Format.STL,
+    magazine: 8,
+    rows: Constants.CAPTION_ROWS  // Automatically filters out empty lines
+);
 ```
 
 ### Filtering Teletext Data
