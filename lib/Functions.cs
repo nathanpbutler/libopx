@@ -1068,7 +1068,7 @@ public class Functions
     private static readonly object _rcwtStateLock = new();
 
     /// <summary>
-    /// Writes an RCWT (Raw Caption With Timing) header to the output stream.
+    /// Writes an RCWT (Raw Captions With Time) header to the output stream.
     /// The header is only written once per conversion session.
     /// </summary>
     /// <param name="output">The output stream to write to</param>

@@ -18,7 +18,7 @@ public enum Format
     MXFData,
     /// MXF
     MXF,
-    /// RCWT (Raw Caption With Timing)
+    /// RCWT (Raw Captions With Time)
     RCWT,
     /// STL (EBU-t3264 Subtitle Exchange Format)
     STL,

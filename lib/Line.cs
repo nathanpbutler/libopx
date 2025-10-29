@@ -504,7 +504,7 @@ public class Line : IDisposable
     }
 
     /// <summary>
-    /// Converts the line data to RCWT (Raw Caption With Timing) format.
+    /// Converts the line data to RCWT (Raw Captions With Time) format.
     /// </summary>
     /// <param name="fts">Frame Time Stamp in milliseconds</param>
     /// <param name="fieldNumber">Field number (0 or 1)</param>

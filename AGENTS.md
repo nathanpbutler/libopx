@@ -20,7 +20,7 @@ When proposing or making changes:
 ## Quick Reference: Key Capabilities
 
 - **Async Support**: All format parsers expose sync `Parse()` and async `ParseAsync()` methods; async variants yield ~90–95% lower allocations via `ArrayPool`.
-- **RCWT Support**: Full Raw Caption With Timing conversion with automatic T42 payload handling, field alternation, and FTS synchronization.
+- **RCWT Support**: Full Raw Captions With Time conversion with automatic T42 payload handling, field alternation, and FTS synchronization.
 - **Teletext Filtering**: Magazine and row filtering across VBI, T42, MXF-derived streams.
 - **Memory Benchmarking**: `MemoryBenchmarkTests` verifies allocation reductions—run before/after performance-related edits.
 

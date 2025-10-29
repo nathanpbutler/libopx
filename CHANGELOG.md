@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-* RCWT (Raw Caption With Timing) format support (initial implementation) (`aeb967a`)
+* RCWT (Raw Captions With Time) format support (initial implementation) (`aeb967a`)
 * Header writing framework for RCWT and STL formats (foundation for future
   caption format output) (`f444334`)
 * `SampleFiles.cs` helper for automatic test sample downloads from GitHub releases
@@ -39,6 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Introduced CHANGELOG.md adopting Keep a Changelog format (retroactive entries
   added) (`a976440`)
+* Corrected RCWT format name from "Raw Caption With Timing" to "Raw Captions
+  With Time" throughout codebase and documentation
 
 ## [1.4.0] - 2025-09-03
 
