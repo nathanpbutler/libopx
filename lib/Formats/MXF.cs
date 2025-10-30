@@ -393,7 +393,6 @@ public class MXF : IDisposable
 
                 // Determine if we should extract or restripe this key
                 bool shouldExtract = Function == Function.Extract && (DemuxMode || RequiredKeys.Contains(keyType));
-                bool shouldRestripe = Function == Function.Restripe;
 
                 if (shouldExtract)
                 {
@@ -851,22 +850,16 @@ public class MXF : IDisposable
         {
             var fields = type.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
             
-            foreach (var field in fields)
+            foreach (var field in fields.Where(f => f.FieldType == typeof(byte[]) && f.Name != "FourCc"))
             {
-                if (field.FieldType == typeof(byte[]))
+                var fieldValue = (byte[])field.GetValue(null)!;
+
+                if (fieldValue.Length <= keyBytes.Length)
                 {
-                    var fieldValue = (byte[])field.GetValue(null)!;
-                    
-                    if (field.Name == "FourCc")
-                        continue;
-                    
-                    if (fieldValue.Length <= keyBytes.Length)
+                    var keyPrefix = keyBytes.Take(fieldValue.Length).ToArray();
+                    if (keyPrefix.SequenceEqual(fieldValue))
                     {
-                        var keyPrefix = keyBytes.Take(fieldValue.Length).ToArray();
-                        if (keyPrefix.SequenceEqual(fieldValue))
-                        {
-                            return field.Name.TrimStart('_');
-                        }
+                        return field.Name.TrimStart('_');
                     }
                 }
             }
