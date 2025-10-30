@@ -655,18 +655,12 @@ public class TS : IDisposable
         var line = new Line
         {
             LineNumber = lineNumber,
-            Data = t42Data,
-            Length = t42Data.Length,
-            SampleCoding = 0x31,
-            SampleCount = t42Data.Length,
             LineTimecode = timecode,
         };
 
-        // Extract T42 metadata
-        line.Magazine = T42.GetMagazine(t42Data[0]);
-        line.Row = T42.GetRow([.. t42Data.Take(2)]);
-        line.Text = T42.GetText([.. t42Data.Skip(2)], line.Row == 0);
-        line.SetCachedType(Format.T42);
+        // Use ParseLine to handle format conversion
+        var outputFormat = OutputFormat ?? Format.T42;
+        line.ParseLine(t42Data, outputFormat);
 
         lineNumber++;
         return line;

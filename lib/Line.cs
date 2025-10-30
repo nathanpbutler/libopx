@@ -357,6 +357,14 @@ public class Line : IDisposable
             outputFormat = inputFormat;
         }
 
+        // For conversions to VBI/VBI_DOUBLE, extract metadata from input format BEFORE conversion
+        // This preserves magazine/row information when converting to formats without readable metadata
+        byte[]? preConversionData = null;
+        if (inputFormat != outputFormat && (outputFormat == Format.VBI || outputFormat == Format.VBI_DOUBLE))
+        {
+            preConversionData = [.. data];
+        }
+
         // Perform format conversion if needed
         if (inputFormat != outputFormat)
         {
@@ -371,6 +379,7 @@ public class Line : IDisposable
                 // If conversion fails, use original data and format
                 outputFormat = inputFormat;
                 _cachedType = inputFormat;
+                preConversionData = null; // Conversion failed, don't use pre-conversion metadata
             }
         }
         else
@@ -395,7 +404,15 @@ public class Line : IDisposable
         SampleCount = data.Length;
 
         // Extract metadata based on output format
-        if (outputFormat == Format.RCWT)
+        if (preConversionData != null)
+        {
+            // Extract metadata from pre-conversion data for VBI/VBI_DOUBLE outputs
+            var tempData = Data;
+            Data = preConversionData;
+            ExtractMetadata(inputFormat);
+            Data = tempData;
+        }
+        else if (outputFormat == Format.RCWT)
         {
             // RCWT encapsulates a T42 payload; extract as T42 so magazine/row/text are populated
             ExtractMetadata(Format.T42);

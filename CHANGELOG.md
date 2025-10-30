@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] - 2025-10-30
+
+### Fixed
+
+* **TS → VBI/VBI_DOUBLE conversion producing 0-byte output** - Fixed TS parser to properly
+  convert extracted T42 data to requested output format. The `CreateLineFromT42` method now
+  uses `Line.ParseLine()` to handle format conversion instead of manually setting properties.
+* **Metadata loss when converting to VBI/VBI_DOUBLE formats** - Fixed `Line.ParseLine()` to
+  preserve magazine and row metadata from input format when converting to VBI/VBI_DOUBLE.
+  Since VBI formats have no readable metadata, the parser now extracts metadata from the
+  pre-conversion T42 data, ensuring magazine/row filtering works correctly.
+* **VBI → STL conversion producing only header with no subtitle data** - Updated VBI parser
+  to convert to T42 first when outputting STL format, allowing proper metadata extraction.
+  STL TTI blocks require magazine/row information which VBI format doesn't have. Both
+  `Parse()` and `ParseAsync()` methods now handle STL output.
+* **VBI.ValidOutputs array incomplete** - Added `Format.RCWT` and `Format.STL` to the list
+  of supported output formats for VBI parser.
+
+### Technical Details
+
+* Modified `TS.CreateLineFromT42()` (TS.cs:644-667) to use `ParseLine()` for conversions
+* Modified `Line.ParseLine()` (Line.cs:360-423) to save pre-conversion data for metadata extraction
+* Modified `VBI.Parse()` and `VBI.ParseAsync()` (VBI.cs:172, 305) to handle STL output format
+
 ## [2.1.0] - 2025-10-30
 
 ### Added
@@ -241,7 +265,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Publishing**: Single-file deployment with ReadyToRun optimization
 * **Dependencies**: Minimal external dependencies with System.CommandLine for CLI
 
-[unreleased]: https://github.com/nathanpbutler/libopx/compare/v2.1.0...HEAD
+[unreleased]: https://github.com/nathanpbutler/libopx/compare/v2.1.1...HEAD
+[2.1.1]: https://github.com/nathanpbutler/libopx/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/nathanpbutler/libopx/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/nathanpbutler/libopx/compare/v1.4.0...v2.0.0
 [1.4.0]: https://github.com/nathanpbutler/libopx/compare/v1.3.0...v1.4.0

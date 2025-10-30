@@ -45,7 +45,7 @@ public class VBI : IDisposable
     /// <summary>
     /// Gets the array of valid output formats supported by the VBI parser.
     /// </summary>
-    public static readonly Format[] ValidOutputs = [Format.VBI, Format.VBI_DOUBLE, Format.T42];
+    public static readonly Format[] ValidOutputs = [Format.VBI, Format.VBI_DOUBLE, Format.T42, Format.RCWT, Format.STL];
     /// <summary>
     /// Gets or sets the function mode for processing. Default is Filter.
     /// </summary>
@@ -168,7 +168,8 @@ public class VBI : IDisposable
             };
 
             // Process the VBI data based on output format
-            if (outputFormat is Format.T42 or Format.RCWT)
+            // For T42, RCWT, and STL: convert to T42 first to extract metadata
+            if (outputFormat is Format.T42 or Format.RCWT or Format.STL)
             {
                 try
                 {
@@ -180,7 +181,7 @@ public class VBI : IDisposable
                     line.Length = t42Data.Length;
                     line.SampleCoding = 0x31; // T42 sample coding
                     line.SampleCount = t42Data.Length;
-                    line.SetCachedType(Format.T42); // Ensure line.Type reports T42 for RCWT packet generation
+                    line.SetCachedType(Format.T42); // Ensure line.Type reports T42 for RCWT/STL generation
 
                     // Extract T42 metadata if conversion successful
                     if (t42Data.Length >= Constants.T42_LINE_SIZE && t42Data.Any(b => b != 0))
@@ -188,9 +189,9 @@ public class VBI : IDisposable
                         line.Magazine = T42.GetMagazine(t42Data[0]);
                         line.Row = T42.GetRow([.. t42Data.Take(2)]);
                         line.Text = T42.GetText([.. t42Data.Skip(2)], line.Row == 0);
-                        
-                        // For RCWT output, keep the T42 data - WriteOutputAsync will handle RCWT packet generation
-                        // This prevents double-conversion (T42 -> RCWT -> RCWT)
+
+                        // For RCWT/STL output, keep the T42 data - WriteOutputAsync will handle packet generation
+                        // This prevents double-conversion (T42 -> RCWT -> RCWT or T42 -> STL -> STL)
                     }
                     else
                     {
@@ -300,7 +301,8 @@ public class VBI : IDisposable
                 };
 
                 // Process the VBI data based on output format
-                if (outputFormat is Format.T42 or Format.RCWT)
+                // For T42, RCWT, and STL: convert to T42 first to extract metadata
+                if (outputFormat is Format.T42 or Format.RCWT or Format.STL)
                 {
                     try
                     {
@@ -311,13 +313,13 @@ public class VBI : IDisposable
                             line.Length = t42Data.Length;
                             line.SampleCoding = 0x31;
                             line.SampleCount = t42Data.Length;
-                            line.SetCachedType(Format.T42); // Ensure correct type for RCWT
+                            line.SetCachedType(Format.T42); // Ensure correct type for RCWT/STL
                             line.Magazine = T42.GetMagazine(t42Data[0]);
                             line.Row = T42.GetRow([.. t42Data.Take(2)]);
                             line.Text = T42.GetText([.. t42Data.Skip(2)], line.Row == 0);
-                            
-                            // For RCWT output, keep the T42 data - WriteOutputAsync will handle RCWT packet generation
-                            // This prevents double-conversion (T42 -> RCWT -> RCWT)
+
+                            // For RCWT/STL output, keep the T42 data - WriteOutputAsync will handle packet generation
+                            // This prevents double-conversion (T42 -> RCWT -> RCWT or T42 -> STL -> STL)
                         }
                         else
                         {
