@@ -12,15 +12,23 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '9.0.x'
-    
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
     - name: Restore dependencies
       run: dotnet restore
     
@@ -33,24 +41,32 @@ jobs:
   publish-nuget:
     needs: test
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '9.0.x'
-    
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
     - name: Restore dependencies
       run: dotnet restore
-    
+
     - name: Build
       run: dotnet build --configuration Release --no-restore
-    
-    - name: Pack NuGet package
-      run: dotnet pack lib/libopx.csproj --configuration Release --no-build --output ./nupkg
-    
+
+    - name: Pack NuGet package with symbols
+      run: dotnet pack lib/libopx.csproj --configuration Release --no-build --output ./nupkg --include-symbols --include-source
+
     - name: Publish to NuGet
       run: dotnet nuget push ./nupkg/*.nupkg --skip-duplicate --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
       if: github.repository == 'nathanpbutler/libopx' && env.NUGET_API_KEY != ''
@@ -90,12 +106,20 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '9.0.x'
-    
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
     - name: Publish
       run: dotnet publish apps/opx/opx.csproj -c Release -r ${{ matrix.runtime }} --self-contained -p:PublishSingleFile=true -p:PublishReadyToRun=true -o ./publish
     
@@ -129,7 +153,7 @@ jobs:
         path: ./artifacts
     
     - name: Create Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         files: |
           artifacts/opx-win-x64/opx-win-x64.zip

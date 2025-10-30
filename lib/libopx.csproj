@@ -19,20 +19,30 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageTags>mxf;teletext;vbi;t42;smpte;timecode;caption;subtitles;broadcast;video;parsing;extraction;conversion;op42;op47;cli;dotnet;async;performance</PackageTags>
     <Copyright>Copyright (c) 2025 Nathan Butler</Copyright>
-    <PackageReleaseNotes>v1.4.0: Added async parsing methods with ArrayPool buffer management for 30-45% memory reduction and improved performance. Enhanced CLI with Ctrl+C cancellation support and progress reporting. Includes ParseAsync() methods for all formats and new AsyncHelpers utility class.</PackageReleaseNotes>
+    <PackageReleaseNotes>v2.0.0: Major release with EBU STL (EBU-Tech 3264) and RCWT format support. Breaking change: BIN class refactored to MXFData nested class. Fixed critical row filtering bug affecting all output formats. Migrated from Git LFS to GitHub releases (99% repository size reduction). Enhanced header writing framework and sample file management with OPX_SAMPLES_VERSION environment variable support.</PackageReleaseNotes>
     
     <!-- Documentation -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml</DocumentationFile>
+
+    <!-- SourceLink and Symbol Packages -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <DebugType>embedded</DebugType>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-    <DebugSymbols>false</DebugSymbols>
-    <DebugType>None</DebugType>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
 
   <ItemGroup>
     <Folder Include="Keys/" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
   </ItemGroup>
 
   <ItemGroup>

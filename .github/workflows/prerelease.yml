@@ -73,6 +73,14 @@ jobs:
         with:
           dotnet-version: '9.0.x'
 
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
       - name: Publish (self-contained single-file)
         run: >-
           dotnet publish apps/opx/opx.csproj -c Release -r ${{ matrix.runtime }} --self-contained
@@ -132,7 +140,7 @@ jobs:
           find artifacts -type f -maxdepth 3 -print
 
       - name: Create / Update Prerelease
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.vars.outputs.tag }}
           name: Prerelease Build (${{ steps.vars.outputs.date }})
