@@ -106,9 +106,29 @@ public class Functions
                     return 1;
             }
         }
+        catch (FileNotFoundException ex)
+        {
+            Console.Error.WriteLine($"Error: Input file not found: {ex.Message}");
+            return 1;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Console.Error.WriteLine($"Error: Access denied: {ex.Message}");
+            return 1;
+        }
+        catch (IOException ex)
+        {
+            Console.Error.WriteLine($"Error: I/O error: {ex.Message}");
+            return 1;
+        }
+        catch (ArgumentException ex)
+        {
+            Console.Error.WriteLine($"Error: Invalid argument: {ex.Message}");
+            return 1;
+        }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error: {ex.Message}");
+            Console.Error.WriteLine($"Unexpected error: {ex.GetType().Name}: {ex.Message}");
             return 1;
         }
     }
@@ -218,9 +238,29 @@ public class Functions
             await Console.Error.WriteLineAsync("Operation was cancelled.");
             return 130;
         }
+        catch (FileNotFoundException ex)
+        {
+            await Console.Error.WriteLineAsync($"Error: Input file not found: {ex.Message}");
+            return 1;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            await Console.Error.WriteLineAsync($"Error: Access denied: {ex.Message}");
+            return 1;
+        }
+        catch (IOException ex)
+        {
+            await Console.Error.WriteLineAsync($"Error: I/O error: {ex.Message}");
+            return 1;
+        }
+        catch (ArgumentException ex)
+        {
+            await Console.Error.WriteLineAsync($"Error: Invalid argument: {ex.Message}");
+            return 1;
+        }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error: {ex.Message}");
+            await Console.Error.WriteLineAsync($"Unexpected error: {ex.GetType().Name}: {ex.Message}");
             return 1;
         }
     }
@@ -323,9 +363,29 @@ public class Functions
             Console.WriteLine($"Finished processing MXF file: {inputFile.FullName}");
             return 0;
         }
+        catch (FileNotFoundException ex)
+        {
+            Console.Error.WriteLine($"Error: Input file not found: {ex.Message}");
+            return 1;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Console.Error.WriteLine($"Error: Access denied: {ex.Message}");
+            return 1;
+        }
+        catch (IOException ex)
+        {
+            Console.Error.WriteLine($"Error: I/O error processing file: {ex.Message}");
+            return 1;
+        }
+        catch (ArgumentException ex)
+        {
+            Console.Error.WriteLine($"Error: Invalid argument: {ex.Message}");
+            return 1;
+        }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error processing file: {ex.Message}");
+            Console.Error.WriteLine($"Unexpected error processing file: {ex.GetType().Name}: {ex.Message}");
             return 1;
         }
     }
@@ -415,9 +475,29 @@ public class Functions
             await Console.Error.WriteLineAsync("Operation was cancelled.");
             return 130;
         }
+        catch (FileNotFoundException ex)
+        {
+            await Console.Error.WriteLineAsync($"Error: Input file not found: {ex.Message}");
+            return 1;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            await Console.Error.WriteLineAsync($"Error: Access denied: {ex.Message}");
+            return 1;
+        }
+        catch (IOException ex)
+        {
+            await Console.Error.WriteLineAsync($"Error: I/O error processing file: {ex.Message}");
+            return 1;
+        }
+        catch (ArgumentException ex)
+        {
+            await Console.Error.WriteLineAsync($"Error: Invalid argument: {ex.Message}");
+            return 1;
+        }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error processing file: {ex.Message}");
+            await Console.Error.WriteLineAsync($"Unexpected error processing file: {ex.GetType().Name}: {ex.Message}");
             return 1;
         }
     }
@@ -502,9 +582,29 @@ public class Functions
 
             return 0;
         }
+        catch (FileNotFoundException ex)
+        {
+            Console.Error.WriteLine($"Error: Input file not found: {ex.Message}");
+            return 1;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Console.Error.WriteLine($"Error: Access denied: {ex.Message}");
+            return 1;
+        }
+        catch (IOException ex)
+        {
+            Console.Error.WriteLine($"Error: I/O error restriping file: {ex.Message}");
+            return 1;
+        }
+        catch (ArgumentException ex)
+        {
+            Console.Error.WriteLine($"Error: Invalid argument: {ex.Message}");
+            return 1;
+        }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error restriping file: {ex.Message}");
+            Console.Error.WriteLine($"Unexpected error restriping file: {ex.GetType().Name}: {ex.Message}");
             return 1;
         }
     }
@@ -560,9 +660,29 @@ public class Functions
             await Console.Error.WriteLineAsync("Operation was cancelled.");
             return 130;
         }
+        catch (FileNotFoundException ex)
+        {
+            await Console.Error.WriteLineAsync($"Error: Input file not found: {ex.Message}");
+            return 1;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            await Console.Error.WriteLineAsync($"Error: Access denied: {ex.Message}");
+            return 1;
+        }
+        catch (IOException ex)
+        {
+            await Console.Error.WriteLineAsync($"Error: I/O error restriping file: {ex.Message}");
+            return 1;
+        }
+        catch (ArgumentException ex)
+        {
+            await Console.Error.WriteLineAsync($"Error: Invalid argument: {ex.Message}");
+            return 1;
+        }
         catch (Exception ex)
         {
-            await Console.Error.WriteLineAsync($"Error restriping file: {ex.Message}");
+            await Console.Error.WriteLineAsync($"Unexpected error restriping file: {ex.GetType().Name}: {ex.Message}");
             return 1;
         }
     }
@@ -768,9 +888,29 @@ public class Functions
                 }
             }
         }
+        catch (FileNotFoundException ex)
+        {
+            Console.Error.WriteLine($"Error: Input file not found: {ex.Message}");
+            return 1;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Console.Error.WriteLine($"Error: Access denied: {ex.Message}");
+            return 1;
+        }
+        catch (IOException ex)
+        {
+            Console.Error.WriteLine($"Error: I/O error: {ex.Message}");
+            return 1;
+        }
+        catch (ArgumentException ex)
+        {
+            Console.Error.WriteLine($"Error: Invalid argument: {ex.Message}");
+            return 1;
+        }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error: {ex.Message}");
+            Console.Error.WriteLine($"Unexpected error: {ex.GetType().Name}: {ex.Message}");
             return 1;
         }
     }
@@ -975,15 +1115,35 @@ public class Functions
             await Console.Error.WriteLineAsync("Operation was cancelled.");
             return 130;
         }
+        catch (FileNotFoundException ex)
+        {
+            await Console.Error.WriteLineAsync($"Error: Input file not found: {ex.Message}");
+            return 1;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            await Console.Error.WriteLineAsync($"Error: Access denied: {ex.Message}");
+            return 1;
+        }
+        catch (IOException ex)
+        {
+            await Console.Error.WriteLineAsync($"Error: I/O error: {ex.Message}");
+            return 1;
+        }
+        catch (ArgumentException ex)
+        {
+            await Console.Error.WriteLineAsync($"Error: Invalid argument: {ex.Message}");
+            return 1;
+        }
         catch (Exception ex)
         {
-            await Console.Error.WriteLineAsync($"Error: {ex.Message}");
+            await Console.Error.WriteLineAsync($"Unexpected error: {ex.GetType().Name}: {ex.Message}");
             return 1;
         }
     }
 
     #endregion
-    
+
     #region Output Format Helpers
     
     /// <summary>
