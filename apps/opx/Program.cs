@@ -8,7 +8,7 @@ class Program
     {
         try
         {
-            var rootCommand = new RootCommand("OP-42/OP-47 teletext processing utility for VBI, T42, and MXF data stream formats (Enhanced with Async Support)");
+            var rootCommand = new RootCommand("OP-42/OP-47 teletext processing utility for VBI, T42, MXF and MPEG-TS data stream formats");
 
             var filterCommand = Commands.CreateFilterCommand();
             var extractCommand = Commands.CreateExtractCommand();

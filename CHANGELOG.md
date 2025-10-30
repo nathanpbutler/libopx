@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2025-10-30
+
+### Added
+
+* **MPEG-TS (Transport Stream) format support** - Complete implementation of TS parser
+  with teletext extraction capabilities. Features:
+  * Automatic PAT (Program Association Table) and PMT (Program Map Table) parsing
+    for teletext PID detection
+  * Manual PID specification via `PIDs` property and `--pid` CLI option
+  * PES (Packetized Elementary Stream) data accumulation across TS packets
+  * DVB teletext data unit extraction with proper framing byte handling
+  * Support for both teletext (0x02) and teletext subtitle (0x03) data units
+  * Verbose debugging output for troubleshooting stream parsing
+* New `TS` parser class in `lib/Formats/TS.cs` with sync/async parsing methods
+* New `Format.TS` enum value for MPEG-TS format detection
+* `--pid` CLI option for both `filter` and `convert` commands
+* `ParsePidsString` helper method in `CommandHelpers.cs` for PID parsing
+* TS-specific constants in `Constants.cs` (packet sizes, sync bytes, stream types, PIDs)
+* TS format support in `FilterAsync` and `ConvertAsync` with optional `pids` parameter
+* Auto-detection for `.ts` file extension
+
+### Fixed
+
+* **LSB-first to MSB-first bit reversal** - DVB teletext data in MPEG-TS is transmitted
+  with LSB-first bit order, requiring bit reversal before T42 processing. Added
+  `ReverseBits` method to properly decode teletext bytes from transport streams
+* **44-byte DVB teletext data units** - Updated data unit length validation to accept
+  both 42-byte (raw T42) and 44-byte (2 framing bytes + 42 T42 bytes) data units,
+  properly skipping framing bytes when present
+
+### Documentation
+
+* Updated `README.md` with MPEG-TS examples and format information
+* Updated `EXAMPLES.md` with complete TS parsing and conversion examples
+* Updated `AGENTS.md` with TS parser documentation and usage patterns
+* Updated `.github/copilot-instructions.md` to include TS parser
+* Updated `lib/README.md` with TS API reference and examples
+* Updated `apps/opx/README.md` with TS CLI examples and `--pid` option documentation
+
 ## [2.0.0] - 2025-10-30
 
 ### Added
@@ -202,7 +241,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Publishing**: Single-file deployment with ReadyToRun optimization
 * **Dependencies**: Minimal external dependencies with System.CommandLine for CLI
 
-[unreleased]: https://github.com/nathanpbutler/libopx/compare/v2.0.0...HEAD
+[unreleased]: https://github.com/nathanpbutler/libopx/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/nathanpbutler/libopx/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/nathanpbutler/libopx/compare/v1.4.0...v2.0.0
 [1.4.0]: https://github.com/nathanpbutler/libopx/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/nathanpbutler/libopx/compare/v1.2.0...v1.3.0

@@ -6,12 +6,13 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 [![.NET](https://img.shields.io/badge/.NET-9-blue?style=flat-square)](https://dotnet.microsoft.com/download/dotnet/9.0)
 
-A .NET 9 C# library for parsing and extracting data from MXF (Material Exchange Format) files and extracted data streams, VBI (Vertical Blanking Interval), and T42 (Teletext packet stream) files, with SMPTE timecode and Teletext caption support.
+A .NET 9 C# library for parsing and extracting data from MXF (Material Exchange Format) files and extracted data streams, VBI (Vertical Blanking Interval), T42 (Teletext packet stream), and MPEG-TS (Transport Stream) files, with SMPTE timecode and Teletext caption support.
 
 ## Features
 
-- **Multi-format support**: MXF, extracted data streams, VBI, and T42 file parsing
+- **Multi-format support**: MXF, extracted data streams, VBI, T42, and MPEG-TS file parsing
 - **Format conversion**: Automatic VBI ↔ T42 conversion, plus RCWT and EBU STL output
+- **MPEG-TS teletext extraction**: Automatic PAT/PMT parsing with DVB teletext support
 - **Teletext filtering**: Magazine and row-based filtering with Unicode mapping
 - **SMPTE timecode**: Full timecode calculations with various frame rates
 - **MXF processing**: Stream extraction and demuxing capabilities
@@ -44,11 +45,20 @@ Or download the latest release from [GitHub Releases](https://github.com/nathanp
 # Filter teletext data by magazine and rows
 opx filter -m 8 -r 20,22 input.vbi
 
-# Convert between formats (use -of / --output-format)
-opx convert -of t42 input.vbi
+# Filter MPEG-TS teletext (auto-detects PIDs)
+opx filter input.ts
+
+# Filter MPEG-TS with specific PID
+opx filter --pid 70 input.ts
+
+# Convert between formats (auto-detected from extension)
+opx convert input.vbi output.t42
+
+# Convert MPEG-TS to T42
+opx convert --pid 70 input.ts output.t42
 
 # Convert to EBU STL subtitle format
-opx convert -of stl -c input.mxf output.stl
+opx convert -c input.mxf output.stl
 
 # Extract streams from MXF files
 opx extract -k d,v input.mxf
@@ -59,9 +69,23 @@ opx extract -k d,v input.mxf
 ```csharp
 using nathanbutlerDEV.libopx.Formats;
 
-// Parse and filter teletext data
+// Parse and filter teletext data from VBI
 using var vbi = new VBI("input.vbi");
 foreach (var line in vbi.Parse(magazine: 8, rows: new[] { 20, 22 }))
+{
+    Console.WriteLine(line);
+}
+
+// Parse and filter teletext from MPEG-TS (auto-detects PIDs)
+using var ts = new TS("input.ts");
+foreach (var line in ts.Parse(magazine: 8))
+{
+    Console.WriteLine(line);
+}
+
+// Parse MPEG-TS with specific PID
+using var ts2 = new TS("input.ts") { PIDs = new[] { 70 } };
+foreach (var line in ts2.Parse())
 {
     Console.WriteLine(line);
 }
@@ -78,7 +102,7 @@ foreach (var line in vbi.Parse(magazine: 8, rows: new[] { 20, 22 }))
 libopx/
 ├── apps/opx/         # CLI tool
 ├── lib/              # Main library
-│   ├── Formats/      # Format parsers (MXF, MXF data stream, VBI, T42)
+│   ├── Formats/      # Format parsers (MXF, MXF data stream, VBI, T42, TS)
 │   ├── SMPTE/        # SMPTE metadata system
 │   └── Enums/        # Enumeration definitions
 ├── samples/          # (Deprecated in repo) Obtain sample media from Release

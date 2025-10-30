@@ -2,7 +2,7 @@
 
 ## Big Picture
 - Solution targets .NET 9; `lib/` holds the core library, `apps/opx/` is the CLI wrapper, and `tests/` contains xUnit plus memory benchmarks.
-- Parsers in `lib/Formats/` stream teletext/MXF data (`MXF`, `MXFData`, `VBI`, `T42`) into `Packet` and `Line` objects; conversions and timecode math live in `Functions.cs`, `Line.cs`, and `Timecode*.cs`.
+- Parsers in `lib/Formats/` stream teletext/MXF/TS data (`MXF`, `MXFData`, `VBI`, `T42`, `TS`) into `Packet` and `Line` objects; conversions and timecode math live in `Functions.cs`, `Line.cs`, and `Timecode*.cs`.
 - CLI commands in `apps/opx/Commands.cs` wrap the library through System.CommandLine, mirroring filter/convert/extract/restripe workflows described in `apps/opx/README.md`.
 
 ## Patterns & Constraints

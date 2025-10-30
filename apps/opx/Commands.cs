@@ -64,12 +64,18 @@ public class Commands
             Description = "Enable verbose output"
         };
 
+        var pidOption = new Option<string?>("--pid")
+        {
+            Description = "Specify MPEG-TS PID(s) to extract (comma-separated, e.g., 70 or 70,71). Only applies to TS format."
+        };
+
         filterCommand.Arguments.Add(inputOption);
         filterCommand.Options.Add(inputFormatOption);
         filterCommand.Options.Add(magazineOption);
         filterCommand.Options.Add(rowsOption);
         filterCommand.Options.Add(lineCountOption);
         filterCommand.Options.Add(capsOption);
+        filterCommand.Options.Add(pidOption);
         filterCommand.Options.Add(verboseOption);
 
         filterCommand.SetAction(async (parseResult, cancellationToken) =>
@@ -78,18 +84,20 @@ public class Commands
             {
                 string? inputFilePath = parseResult.GetValue(inputOption);
                 FileInfo? inputFile = CommandHelpers.ValidateInputFile(inputFilePath);
-                
+
                 int? magazine = parseResult.GetValue(magazineOption);
                 string? rowsString = parseResult.GetValue(rowsOption);
                 bool useCaps = parseResult.GetValue(capsOption);
                 string? inputFormatString = parseResult.GetValue(inputFormatOption);
                 int lineCount = parseResult.GetValue(lineCountOption) ?? 2;
+                string? pidString = parseResult.GetValue(pidOption);
                 bool verbose = parseResult.GetValue(verboseOption);
 
                 int[] rows = CommandHelpers.DetermineRows(rowsString, useCaps);
                 Format inputFormat = CommandHelpers.DetermineFormatFromFile(inputFile, inputFormatString, Format.VBI);
+                int[]? pids = CommandHelpers.ParsePidsString(pidString);
 
-                return await Functions.FilterAsync(inputFile, magazine, rows, lineCount, inputFormat, verbose, cancellationToken);
+                return await Functions.FilterAsync(inputFile, magazine, rows, lineCount, inputFormat, verbose, pids, cancellationToken);
             }
             catch (OperationCanceledException)
             {
@@ -378,6 +386,11 @@ public class Commands
             Description = "Enable verbose output"
         };
 
+        var pidOption = new Option<string?>("--pid")
+        {
+            Description = "Specify MPEG-TS PID(s) to extract (comma-separated, e.g., 70 or 70,71). Only applies to TS format."
+        };
+
         convertCommand.Arguments.Add(inputOption);
         convertCommand.Arguments.Add(outputOption);
         convertCommand.Options.Add(inputFormatOption);
@@ -387,6 +400,7 @@ public class Commands
         convertCommand.Options.Add(lineCountOption);
         convertCommand.Options.Add(capsOption);
         convertCommand.Options.Add(keepOption);
+        convertCommand.Options.Add(pidOption);
         convertCommand.Options.Add(verboseOption);
 
         convertCommand.SetAction(async (parseResult, cancellationToken) =>
@@ -395,10 +409,10 @@ public class Commands
             {
                 string? inputFilePath = parseResult.GetValue(inputOption);
                 string? outputFilePath = parseResult.GetValue(outputOption);
-                
+
                 FileInfo? inputFile = CommandHelpers.ValidateInputFile(inputFilePath);
                 FileInfo? outputFile = CommandHelpers.ParseOutputFile(outputFilePath);
-                
+
                 string? inputFormatString = parseResult.GetValue(inputFormatOption);
                 string? outputFormatString = parseResult.GetValue(outputFormatOption);
                 int? magazine = parseResult.GetValue(magazineOption);
@@ -406,14 +420,16 @@ public class Commands
                 bool useCaps = parseResult.GetValue(capsOption);
                 bool keepBlanks = parseResult.GetValue(keepOption);
                 int lineCount = parseResult.GetValue(lineCountOption) ?? 2;
+                string? pidString = parseResult.GetValue(pidOption);
                 bool verbose = parseResult.GetValue(verboseOption);
 
                 int[] rows = CommandHelpers.DetermineRows(rowsString, useCaps);
-                
+                int[]? pids = CommandHelpers.ParsePidsString(pidString);
+
                 Format inputFormat = CommandHelpers.DetermineFormat(inputFormatString, inputFile, Format.VBI);
                 Format outputFormat = CommandHelpers.DetermineFormat(outputFormatString, outputFile, Format.T42);
 
-                return await Functions.ConvertAsync(inputFile, inputFormat, outputFormat, outputFile, magazine, rows, lineCount, verbose, keepBlanks, cancellationToken);
+                return await Functions.ConvertAsync(inputFile, inputFormat, outputFormat, outputFile, magazine, rows, lineCount, verbose, keepBlanks, pids, cancellationToken);
             }
             catch (OperationCanceledException)
             {

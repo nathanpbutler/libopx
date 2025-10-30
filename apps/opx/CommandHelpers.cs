@@ -20,7 +20,8 @@ public static class CommandHelpers
                 new CompletionItem("vbi", "VBI format"),
                 new CompletionItem("vbid", "VBI format (double width)"),
                 new CompletionItem("t42", "T42 format"),
-                new CompletionItem("mxf", "MXF container format")
+                new CompletionItem("mxf", "MXF container format"),
+                new CompletionItem("ts", "MPEG Transport Stream")
             ];
         };
     }
@@ -212,5 +213,31 @@ public static class CommandHelpers
     public static int[] DetermineMagazines(int? magazine)
     {
         return magazine.HasValue ? [magazine.Value] : Constants.DEFAULT_MAGAZINES;
+    }
+
+    /// <summary>
+    /// Parses a string of MPEG-TS PIDs into an array of integers.
+    /// </summary>
+    /// <param name="pidsString">Comma-separated PID numbers (e.g., "70" or "70,71,72").</param>
+    /// <returns>Array of PIDs or null if not specified.</returns>
+    public static int[]? ParsePidsString(string? pidsString)
+    {
+        if (string.IsNullOrWhiteSpace(pidsString))
+            return null;
+
+        var pids = new List<int>();
+        var parts = pidsString.Split(',', StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var part in parts)
+        {
+            var trimmed = part.Trim();
+            if (int.TryParse(trimmed, out int pid))
+            {
+                if (pid >= 0 && pid <= 8191) // Valid PID range
+                    pids.Add(pid);
+            }
+        }
+
+        return pids.Count > 0 ? [.. pids.Distinct()] : null;
     }
 }

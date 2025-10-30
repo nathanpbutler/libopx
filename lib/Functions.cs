@@ -78,6 +78,17 @@ public class Functions
                         Console.WriteLine(line);
                     }
                     return 0;
+                case Format.TS:
+                    var ts = input is FileInfo inputTS && inputTS.Exists
+                        ? new TS(inputTS.FullName)
+                        : new TS(Console.OpenStandardInput());
+                    ts.LineCount = lineCount;
+                    ts.Verbose = verbose;
+                    foreach (var line in ts.Parse(magazine, rows))
+                    {
+                        Console.WriteLine(line);
+                    }
+                    return 0;
                 case Format.MXF:
                     // Only Filter if file exists, otherwise return 1
                     if (input is FileInfo inputMXF && inputMXF.Exists)
@@ -143,6 +154,7 @@ public class Functions
     /// <param name="lineCount">The number of lines per frame for timecode incrementation.</param>
     /// <param name="inputFormat">The input format to use (e.g., MXFData, VBI, T42).</param>
     /// <param name="verbose">Whether to enable verbose output.</param>
+    /// <param name="pids">Optional array of PIDs to filter by (TS format only)</param>
     /// <param name="cancellationToken">Cancellation token for operation cancellation</param>
     /// <returns>Exit code: 0 for success, 1 for failure, 130 for cancellation</returns>
     /// <remarks>
@@ -153,7 +165,7 @@ public class Functions
     /// <exception cref="ArgumentException">Thrown if an unsupported input format is specified.</exception>
     /// <exception cref="FileNotFoundException">Thrown if the specified input file does not exist.</exception>
     /// <exception cref="IOException">Thrown if there is an error reading the input file or stdin.</exception>
-    public static async Task<int> FilterAsync(FileInfo? input, int? magazine, int[] rows, int lineCount, Format inputFormat, bool verbose, CancellationToken cancellationToken = default)
+    public static async Task<int> FilterAsync(FileInfo? input, int? magazine, int[] rows, int lineCount, Format inputFormat, bool verbose, int[]? pids = null, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -194,6 +206,19 @@ public class Functions
                         : new T42(Console.OpenStandardInput());
                     t42.LineCount = lineCount;
                     await foreach (var line in t42.ParseAsync(magazine, rows, cancellationToken))
+                    {
+                        Console.WriteLine(line);
+                    }
+                    return 0;
+                case Format.TS:
+                    var ts = input is { Exists: true } inputTS
+                        ? new TS(inputTS.FullName)
+                        : new TS(Console.OpenStandardInput());
+                    ts.LineCount = lineCount;
+                    ts.Verbose = verbose;
+                    if (pids != null)
+                        ts.PIDs = pids;
+                    await foreach (var line in ts.ParseAsync(magazine, rows, cancellationToken: cancellationToken))
                     {
                         Console.WriteLine(line);
                     }
@@ -279,6 +304,7 @@ public class Functions
             "vbid" => Format.VBI_DOUBLE,
             "t42" => Format.T42,
             "mxf" => Format.MXF,
+            "ts" => Format.TS,
             "rcwt" => Format.RCWT,
             "stl" => Format.STL,
             _ => Format.VBI // Default to VBI if unknown format
@@ -838,6 +864,34 @@ public class Functions
                         }
                         return 0;
 
+                    case Format.TS:
+                        var ts = input is FileInfo inputTS && inputTS.Exists
+                            ? new TS(inputTS.FullName)
+                            : new TS(Console.OpenStandardInput());
+                        ts.OutputFormat = outputFormat;
+                        ts.LineCount = lineCount;
+                        ts.Verbose = verbose;
+                        ts.SetOutput(outputStream);
+                        foreach (var line in ts.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
+                        {
+                            byte[] dataToWrite = line.Data;
+                            if (outputFormat == Format.RCWT)
+                            {
+                                var (fts, fieldNumber) = GetRCWTState(line.LineTimecode, verbose);
+                                dataToWrite = line.ToRCWT(fts, fieldNumber, verbose);
+                            }
+                            if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
+                            {
+                                var blankData = new byte[dataToWrite.Length];
+                                ts.Output.Write(blankData, 0, blankData.Length);
+                            }
+                            else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
+                            {
+                                ts.Output.Write(dataToWrite, 0, dataToWrite.Length);
+                            }
+                        }
+                        return 0;
+
                     case Format.MXF:
                         if (input == null || !input.Exists)
                         {
@@ -928,9 +982,10 @@ public class Functions
     /// <param name="lineCount">The number of lines per frame for timecode incrementation.</param>
     /// <param name="verbose">Whether to enable verbose output.</param>
     /// <param name="keepBlanks">Whether to keep blank lines in the output.</param>
+    /// <param name="pids">Optional array of PIDs to filter by (TS format only)</param>
     /// <param name="cancellationToken">Cancellation token for operation cancellation</param>
     /// <returns>Exit code: 0 for success, 1 for failure, 130 for cancellation</returns>
-    public static async Task<int> ConvertAsync(FileInfo? input, Format inputFormat, Format outputFormat, FileInfo? output, int? magazine, int[] rows, int lineCount, bool verbose, bool keepBlanks = false, CancellationToken cancellationToken = default)
+    public static async Task<int> ConvertAsync(FileInfo? input, Format inputFormat, Format outputFormat, FileInfo? output, int? magazine, int[] rows, int lineCount, bool verbose, bool keepBlanks = false, int[]? pids = null, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -1057,6 +1112,22 @@ public class Functions
                             {
                                 t42.Output.Write(line.Data);
                             }*/
+                        }
+                        return 0;
+
+                    case Format.TS:
+                        var ts = input is { Exists: true } inputTS
+                            ? new TS(inputTS.FullName)
+                            : new TS(Console.OpenStandardInput());
+                        ts.OutputFormat = outputFormat;
+                        ts.LineCount = lineCount;
+                        ts.Verbose = verbose;
+                        if (pids != null)
+                            ts.PIDs = pids;
+                        ts.SetOutput(outputStream);
+                        await foreach (var line in ts.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken: cancellationToken))
+                        {
+                            await WriteOutputAsync(line, ts.Output, outputFormat, magazine, rows, keepBlanks, verbose, cancellationToken);
                         }
                         return 0;
 

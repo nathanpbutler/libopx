@@ -311,7 +311,7 @@ public static class AsyncProcessingHelpers
         {
             var progressReporter = verbose ? new ProgressReporter("Converting", 1000) : null;
             
-            var result = await Functions.ConvertAsync(inputFile, inputFormat, outputFormat, outputFile, magazine, rows, lineCount, verbose, keepBlanks, cancellationToken);
+            var result = await Functions.ConvertAsync(inputFile, inputFormat, outputFormat, outputFile, magazine, rows, lineCount, verbose, keepBlanks, pids: null, cancellationToken);
             
             progressReporter?.Complete(1); // Simple completion for convert operations
             return result;

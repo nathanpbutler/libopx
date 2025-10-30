@@ -203,6 +203,77 @@ public class Constants
     public const string T42_BLANK_LINE = "\x1b[37m\x1b[40m                                        \x1b[0m";
     #endregion
 
+    #region TS Constants
+    /// <summary>
+    /// Size of a standard MPEG-TS packet in bytes (188-byte variant).
+    /// </summary>
+    public const int TS_PACKET_SIZE = 188;
+    /// <summary>
+    /// MPEG-TS packet synchronization byte value (0x47).
+    /// </summary>
+    public const byte TS_SYNC_BYTE = 0x47;
+    /// <summary>
+    /// Bit mask for extracting the 13-bit PID (Packet Identifier) from TS header.
+    /// </summary>
+    public const int TS_PID_MASK = 0x1FFF;
+    /// <summary>
+    /// PID for Program Association Table (PAT), always 0x0000.
+    /// </summary>
+    public const int TS_PAT_PID = 0x0000;
+    /// <summary>
+    /// Minimum size of a TS packet header in bytes.
+    /// </summary>
+    public const int TS_HEADER_SIZE = 4;
+    /// <summary>
+    /// Adaptation field control flag indicating adaptation field is present.
+    /// </summary>
+    public const byte TS_ADAPTATION_FIELD_FLAG = 0x20;
+    /// <summary>
+    /// Transport scrambling control flag indicating payload is present.
+    /// </summary>
+    public const byte TS_PAYLOAD_FLAG = 0x10;
+    /// <summary>
+    /// Payload unit start indicator flag in TS header.
+    /// </summary>
+    public const byte TS_PAYLOAD_START_INDICATOR = 0x40;
+    /// <summary>
+    /// Stream type identifier for DVB teletext in PMT (Program Map Table).
+    /// </summary>
+    public const byte TS_STREAM_TYPE_TELETEXT = 0x06;
+    /// <summary>
+    /// Descriptor tag for DVB teletext descriptor in PMT.
+    /// </summary>
+    public const byte TS_DESCRIPTOR_TAG_TELETEXT = 0x56;
+    /// <summary>
+    /// PES (Packetized Elementary Stream) packet start code prefix.
+    /// </summary>
+    public static readonly byte[] TS_PES_START_CODE = [0x00, 0x00, 0x01];
+    /// <summary>
+    /// Data identifier for EBU teletext in PES data field.
+    /// </summary>
+    public const byte TS_DATA_IDENTIFIER_EBU_TELETEXT = 0x10;
+    /// <summary>
+    /// Size of a single teletext data unit within PES payload (44 bytes: 2-byte header + 42-byte T42 data).
+    /// </summary>
+    public const int TS_TELETEXT_DATA_UNIT_SIZE = 44;
+    /// <summary>
+    /// Data unit ID for EBU teletext non-subtitle data (0x02 or 0x03).
+    /// </summary>
+    public const byte TS_DATA_UNIT_ID_TELETEXT = 0x02;
+    /// <summary>
+    /// Data unit ID for EBU teletext subtitle data.
+    /// </summary>
+    public const byte TS_DATA_UNIT_ID_TELETEXT_SUBTITLE = 0x03;
+
+    // Placeholders for future TS packet size variants
+    // public const int TS_PACKET_SIZE_WITH_TIMECODE = 192;  // 188 + 4-byte timecode
+    // public const int TS_PACKET_SIZE_WITH_FEC = 204;       // 188 + 16-byte Reed-Solomon FEC
+
+    // Placeholder for DVB subtitle support
+    // public const byte TS_STREAM_TYPE_DVB_SUBTITLE = 0x05;
+    // public const byte TS_DESCRIPTOR_TAG_SUBTITLE = 0x59;
+    #endregion
+
     #region RCWT Constants
     /// <summary>
     /// RCWT packet type byte (unknown purpose).

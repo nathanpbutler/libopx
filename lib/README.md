@@ -5,7 +5,7 @@
 
 <!-- markdownlint-disable MD013 -->
 
-A .NET 9 C# library for parsing and extracting data from MXF (Material Exchange Format) files and extracted data streams (*.bin), VBI (Vertical Blanking Interval), and T42 (Teletext packet stream) files, with SMPTE timecode and Teletext caption support.
+A .NET 9 C# library for parsing and extracting data from MXF (Material Exchange Format) files and extracted data streams (*.bin), VBI (Vertical Blanking Interval), T42 (Teletext packet stream), and MPEG-TS (Transport Stream) files, with SMPTE timecode and Teletext caption support.
 
 ## Installation
 
@@ -52,6 +52,21 @@ foreach (var packet in mxf.Parse(magazine: null, rows: Constants.CAPTION_ROWS))
     {
         Console.WriteLine(line);
     }
+}
+
+// Parse TS file (auto-detects teletext PIDs)
+using var ts = new TS("input.ts");
+foreach (var line in ts.Parse(magazine: 8, rows: Constants.CAPTION_ROWS))
+{
+    Console.WriteLine(line);
+}
+
+// Parse TS file with manual PID specification
+using var ts2 = new TS("input.ts");
+ts2.PIDs = new[] { 70 };
+foreach (var line in ts2.Parse())
+{
+    Console.WriteLine(line);
 }
 ```
 
@@ -174,6 +189,27 @@ foreach (var packet in mxf.Parse(magazine: null, rows: null))
 }
 ```
 
+#### TS Parser
+
+```csharp
+// Auto-detect teletext PIDs from PAT/PMT
+using var ts = new TS("input.ts");
+// Returns IEnumerable<Line>
+foreach (var line in ts.Parse(magazine: 8, rows: Constants.CAPTION_ROWS))
+{
+    Console.WriteLine($"Timecode: {line.Timecode}, Magazine: {line.Magazine}, Row: {line.Row}");
+}
+
+// Manual PID specification
+using var ts2 = new TS("input.ts");
+ts2.PIDs = new[] { 70, 71 };  // Specify teletext PIDs manually
+ts2.Verbose = true;  // Enable verbose output for debugging
+await foreach (var line in ts2.ParseAsync())
+{
+    Console.WriteLine(line);
+}
+```
+
 ### Advanced Format Conversion
 
 #### VBI ↔ T42 Conversion
@@ -238,7 +274,7 @@ var vbiDoubleFormat = Format.VBI_DOUBLE;
 
 ### Core Components
 
-- **Formats/**: Format parsers for MXF (with nested MXFData class), VBI, and T42 files
+- **Formats/**: Format parsers for MXF (with nested MXFData class), VBI, T42, and TS files
 - **SMPTE/**: Complete SMPTE metadata system with XML-based definitions
 - **Enums/**: Enumeration definitions (LineFormat, Function)
 - **Timecode.cs**: SMPTE timecode handling with frame rate support

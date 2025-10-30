@@ -5,7 +5,7 @@
 
 <!-- markdownlint-disable MD013 -->
 
-A unified command-line interface for processing MXF files, extracted data streams, VBI, and T42 teletext files using the libopx library.
+A unified command-line interface for processing MXF files, extracted data streams, VBI, T42, and MPEG-TS teletext files using the libopx library.
 
 ## Installation
 
@@ -41,11 +41,12 @@ opx filter [options] <input-file?>
 
 **Options:**
 
-- `-if, --input-format <bin|mxf|t42|vbi|vbid>`: Input format
+- `-if, --input-format <bin|mxf|t42|ts|vbi|vbid>`: Input format
 - `-m, --magazine`: Filter by magazine number (default: all magazines)
 - `-r, --rows`: Filter by number of rows (comma-separated or hyphen ranges, e.g., 1,2,5-8,15)
 - `-l, --line-count`: Number of lines per frame for timecode incrementation [default: 2]
 - `-c, --caps`: Use caption rows (1-24) instead of default rows (0-31)
+- `--pid`: Specify MPEG-TS PID(s) to extract (comma-separated, e.g., 70 or 70,71). Only applies to TS format.
 - `-V, --verbose`: Enable verbose output
 
 **Examples:**
@@ -67,6 +68,15 @@ cat input.bin | opx filter -if bin -c -
 ffmpeg -v error -i input.mxf \
   -vf crop=720:2:0:28 -f rawvideo -pix_fmt gray - | \
   opx filter -c -
+
+# Filter TS file with auto-detected teletext PIDs
+opx filter -c input.ts
+
+# Filter TS file with manual PID specification
+opx filter --pid 70 -m 8 input.ts
+
+# Filter TS with multiple PIDs
+opx filter --pid 70,71 -c input.ts
 ```
 
 ### convert - Convert between different teletext data formats
@@ -79,46 +89,59 @@ opx convert [options] <input-file?>
 
 **Options:**
 
-- `-if, --input-format <bin|mxf|t42|vbi|vbid>`: Input format (auto-detected from file extension if not specified)
+- `-if, --input-format <bin|mxf|t42|ts|vbi|vbid>`: Input format (auto-detected from file extension if not specified)
 - `-of, --output-format <rcwt|stl|t42|vbi|vbid>`: Output format (auto-detected from output file extension if not specified)
 - `-m, --magazine`: Filter by magazine number (default: all magazines)
 - `-r, --rows`: Filter by number of rows (comma-separated or hyphen ranges, e.g., 1,2,5-8,15)
 - `-l, --line-count`: Number of lines per frame for timecode incrementation [default: 2]
 - `-c, --caps`: Use caption rows (1-24) instead of default rows (0-31)
+- `--pid`: Specify MPEG-TS PID(s) to extract (comma-separated, e.g., 70 or 70,71). Only applies to TS format.
 - `--keep`: Write blank bytes if rows or magazine doesn't match
 - `-V, --verbose`: Enable verbose output
 
 **Examples:**
 
 ```bash
-# Convert VBI to T42 format (auto-detect input)
-opx convert -of t42 input.vbi
+# Convert VBI to T42 format (auto-detect from extension)
+opx convert input.vbi output.t42
 
 # Convert MXF data stream to T42 with file output
-opx convert -if mxf -of t42 -f output.t42 input.mxf
+opx convert input.mxf output.t42
 
 # Convert T42 to VBI with magazine/row filtering
-opx convert -if t42 -of vbi -m 8 -r 20-22 input.t42
+opx convert -m 8 -r 20-22 input.t42 output.vbi
 
 # Convert VBI to T42 with caption rows only
-opx convert -of t42 -c input.vbi
+opx convert -c input.vbi output.t42
 
 # Convert MXF to VBI preserving structure with blank bytes
-opx convert -if mxf -of vbi -k input.mxf
+opx convert --keep input.mxf output.vbi
 
 # Pipe FFmpeg output and convert to T42
 ffmpeg -v error -i input.mxf \
   -vf crop=720:2:0:28 -f rawvideo -pix_fmt gray - | \
-  opx convert -of t42 -f output.t42 -
+  opx convert -of t42 - > output.t42
 
 # Convert to RCWT (Raw Captions With Time) format
-opx convert -if mxf -of rcwt -c -f output.rcwt input.mxf
+opx convert -c input.mxf output.rcwt
 
 # Convert to EBU STL (EBU-Tech 3264) subtitle format
-opx convert -if t42 -of stl -c -f output.stl input.t42
+opx convert -c input.t42 output.stl
 
 # Convert MXF to STL with magazine and row filtering
-opx convert -if mxf -of stl -m 8 -r 20-24 -f output.stl input.mxf
+opx convert -m 8 -r 20-24 input.mxf output.stl
+
+# Convert TS to T42 with auto-detected PIDs
+opx convert -c input.ts output.t42
+
+# Convert TS to T42 with manual PID specification
+opx convert --pid 70 input.ts output.t42
+
+# Convert TS to VBI with multiple PIDs
+opx convert --pid 70,71 -c input.ts output.vbi
+
+# Convert TS to STL subtitle format
+opx convert --pid 70 -m 8 -c input.ts output.stl
 ```
 
 ### extract - Extract/demux streams from MXF files
@@ -190,6 +213,7 @@ opx restripe -t 01:30:15:10 -V -pp input.mxf
 - **VBI**: Vertical Blanking Interval data
 - **VBID**: VBI Double (2-line format)
 - **T42**: Teletext packet stream
+- **TS**: MPEG Transport Stream (188-byte packets)
 
 ### Output Formats
 
@@ -206,6 +230,7 @@ The tool automatically detects input format based on file extensions:
 - `.vbi`  → VBI format
 - `.vbid` → VBI Double format
 - `.t42`  → T42 format
+- `.ts`   → MPEG Transport Stream format
 
 Override auto-detection using the `-if` option.
 

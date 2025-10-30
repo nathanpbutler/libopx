@@ -22,7 +22,9 @@ public enum Format
     RCWT,
     /// STL (EBU-t3264 Subtitle Exchange Format)
     STL,
-    /// TODO: mp4, ts, mpeg, etc...
+    /// TS (MPEG Transport Stream)
+    TS,
+    /// TODO: mp4, etc...
     /// None
     Unknown
 }

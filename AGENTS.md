@@ -203,19 +203,28 @@ dotnet run --project apps/opx -- restripe -t 10:00:00:00 input.mxf
 dotnet run --project apps/opx -- convert -of t42 input.vbi > output.t42
 
 # MXF (data stream) → T42 file
-dotnet run --project apps/opx -- convert -if mxf -of t42 input.mxf output.t42
+dotnet run --project apps/opx -- convert input.mxf output.t42
 
 # T42 → VBI with filtering & verbose
-dotnet run --project apps/opx -- convert -if t42 -of vbi -m 8 -r 20-22 -V input.t42 output.vbi
+dotnet run --project apps/opx -- convert -m 8 -r 20-22 -V input.t42 output.vbi
 
 # VBI → RCWT file
-dotnet run --project apps/opx -- convert -if vbi -of rcwt input.vbi output.rcwt
+dotnet run --project apps/opx -- convert input.vbi output.rcwt
 
 # MXF → STL (EBU subtitle format) with caption rows only
-dotnet run --project apps/opx -- convert -if mxf -of stl -c input.mxf output.stl
+dotnet run --project apps/opx -- convert -c input.mxf output.stl
 
 # T42 → STL with magazine and row filtering
-dotnet run --project apps/opx -- convert -of stl -m 8 -r 20-24 input.t42 output.stl
+dotnet run --project apps/opx -- convert -m 8 -r 20-24 input.t42 output.stl
+
+# Filter TS with auto-detected teletext PIDs
+dotnet run --project apps/opx -- filter -c input.ts
+
+# Filter TS with manual PID specification
+dotnet run --project apps/opx -- filter --pid 70 -m 8 input.ts
+
+# Convert TS → T42 with specific PID
+dotnet run --project apps/opx -- convert --pid 70 input.ts output.t42
 ```
 
 ## Parsing Examples
@@ -242,6 +251,20 @@ foreach (var packet in mxf.Parse(magazine: null, rows: null))
 {
     Console.WriteLine(packet);
 }
+
+// TS parsing with auto-detection of teletext PIDs
+using var ts = new TS("input.ts");
+await foreach (var line in ts.ParseAsync(magazine: 8, rows: Constants.CAPTION_ROWS))
+{
+    Console.WriteLine(line);
+}
+
+// TS parsing with manual PID specification
+using var ts2 = new TS("input.ts") { PIDs = new[] { 70 } };
+foreach (var line in ts2.Parse(magazine: null, rows: null))
+{
+    Console.WriteLine(line);
+}
 ```
 
 ## Architectural Overview
@@ -249,7 +272,7 @@ foreach (var packet in mxf.Parse(magazine: null, rows: null))
 Solution: Multi-project `.NET 9` with core library + CLI + tests.
 
 - `lib/` Core library (`libopx`) containing:
-  - `Formats/` parsers: `MXF`, `MXFData`, `VBI`, `T42`
+  - `Formats/` parsers: `MXF`, `MXFData`, `VBI`, `T42`, `TS`
   - `Timecode*.cs` SMPTE timecode components
   - `Packet`, `Line` data structures
   - `Functions`, `Constants`, `TeletextCharset`, `Keys`, `Enums/`
@@ -265,6 +288,7 @@ Streaming Parsers:
 - `MXFData.Parse()` / `ParseAsync()` → `IEnumerable` / `IAsyncEnumerable<Packet>`
 - `VBI.Parse()` / `ParseAsync()` → `IEnumerable` / `IAsyncEnumerable<Line>` (auto VBI→T42)
 - `T42.Parse()` / `ParseAsync()` → `Line` enumeration w/ filtering & conversions
+- `TS.Parse()` / `ParseAsync()` → `Line` enumeration with PAT/PMT parsing, PES accumulation, teletext extraction (LSB-first bit reversal)
 
 Format Conversion Flow:
 - VBI ⇄ T42 via `VBI.ToT42()` and `T42.ToVBI()`
