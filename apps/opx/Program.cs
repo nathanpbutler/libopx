@@ -28,7 +28,7 @@ class Program
                 Console.Error.WriteLine("\nOperation cancelled by user.");
             };
 
-            return await rootCommand.Parse(args).InvokeAsync(cts.Token);
+            return await rootCommand.Parse(args).InvokeAsync(cancellationToken: cts.Token);
         }
         catch (OperationCanceledException)
         {
