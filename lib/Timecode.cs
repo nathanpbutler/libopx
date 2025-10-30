@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 
 namespace nathanbutlerDEV.libopx;
 
@@ -6,24 +7,24 @@ namespace nathanbutlerDEV.libopx;
 /// Represents SMPTE timecode with support for various frame rates, drop frame mode, and frame calculations.
 /// Provides arithmetic operations and conversion between different timecode representations.
 /// </summary>
-public class Timecode
+public class Timecode : IEquatable<Timecode>, IComparable<Timecode>
 {
     /// <summary>
     /// The hours component of the timecode
     /// </summary>
-    public int Hours { get; set; }
+    public int Hours { get; private set; }
     /// <summary>
     /// The minutes component of the timecode
     /// </summary>
-    public int Minutes { get; set; }
+    public int Minutes { get; private set; }
     /// <summary>
     /// The seconds component of the timecode
     /// </summary>
-    public int Seconds { get; set; }
+    public int Seconds { get; private set; }
     /// <summary>
     /// The frames component of the timecode
     /// </summary>
-    public int Frames { get; set; }
+    public int Frames { get; private set; }
     /// <summary>
     /// The field component of the timecode - Determined automatically based on the timebase
     /// </summary>
@@ -31,7 +32,7 @@ public class Timecode
     /// <summary>
     /// The timebase of the timecode
     /// </summary>
-    public int Timebase { get; set; }
+    public int Timebase { get; private set; }
     /// <summary>
     /// The frame rate of the timecode
     /// </summary>
@@ -46,7 +47,7 @@ public class Timecode
     /// <summary>
     /// Whether the timecode is a drop frame timecode
     /// </summary>
-    public bool DropFrame { get; set; }
+    public bool DropFrame { get; private set; }
     /// <summary>
     /// The maximum number of frames in the timecode
     /// </summary>
@@ -94,28 +95,36 @@ public class Timecode
             var totalFrames = value % MaxFrames;
             if (totalFrames < 0) totalFrames += MaxFrames;
 
-            // Handle drop frame adjustment - add back the dropped frames
+            // Handle drop frame adjustment - add back the dropped frames for display timecode
             if (DropFrame && Timebase is 30 or 60)
             {
                 var dropFramesPerMinute = Timebase == 30 ? 2 : 4;
-                
-                // Estimate minutes and add back drop frames
-                var estimatedMinutes = totalFrames / (Timebase * 60);
-                var dropFrames = estimatedMinutes / 10 * 9 * dropFramesPerMinute;
-                if (estimatedMinutes % 10 != 0)
+                var framesPerMinute = Timebase * 60;
+                var framesPerTenMinutes = Timebase * 600;
+
+                // Calculate how many 10-minute blocks
+                var tenMinuteBlocks = totalFrames / (framesPerTenMinutes - 9 * dropFramesPerMinute);
+                var remainingFrames = totalFrames % (framesPerTenMinutes - 9 * dropFramesPerMinute);
+
+                // Add back the drop frames for the 10-minute blocks
+                totalFrames += tenMinuteBlocks * 9 * dropFramesPerMinute;
+
+                // Handle remaining minutes (each loses dropFramesPerMinute except the first)
+                if (remainingFrames >= framesPerMinute)
                 {
-                    dropFrames += estimatedMinutes % 10 * dropFramesPerMinute;
+                    var additionalMinutes = (remainingFrames - framesPerMinute) / (framesPerMinute - dropFramesPerMinute) + 1;
+                    if (additionalMinutes > 9) additionalMinutes = 9;
+                    totalFrames += additionalMinutes * dropFramesPerMinute;
                 }
-                totalFrames += dropFrames;
             }
 
             // Convert back to H:M:S:F
-            var totalSeconds = totalFrames / Timebase;
+            var totalSeconds = (int)(totalFrames / Timebase);
             var frames = (int)(totalFrames % Timebase);
-            
-            var hours = (int)(totalSeconds / 3600);
-            var minutes = (int)(totalSeconds % 3600 / 60);
-            var seconds = (int)(totalSeconds % 60);
+
+            var hours = totalSeconds / 3600;
+            var minutes = totalSeconds % 3600 / 60;
+            var seconds = totalSeconds % 60;
 
             Hours = hours % 24;  // Ensure hours wrap at 24
             Minutes = minutes;
@@ -128,7 +137,10 @@ public class Timecode
     /// <summary>
     /// Initializes a new instance of the Timecode class with default values (00:00:00:00 at 25fps).
     /// </summary>
-    public Timecode() {}
+    public Timecode()
+    {
+        Timebase = 25;
+    }
 
     /// <summary>
     /// Initializes a new instance of the Timecode class with the specified time components.
@@ -141,12 +153,12 @@ public class Timecode
     /// <param name="dropFrame">Whether to use drop frame mode (only valid for 30 and 60 fps)</param>
     public Timecode(int hours, int minutes, int seconds, int frames, int timebase = 25, bool dropFrame = false)
     {
-        if (hours < 0 || hours >= 24) throw new ArgumentException("Hours must be between 0 and 23");
-        if (minutes < 0 || minutes >= 60) throw new ArgumentException("Minutes must be between 0 and 59");
-        if (seconds < 0 || seconds >= 60) throw new ArgumentException("Seconds must be between 0 and 59");
-        if (frames < 0 || frames >= timebase) throw new ArgumentException("Frames must be between 0 and the timebase");
-        if (timebase < 24 || timebase > 60) throw new ArgumentException("Timebase must be between 24 and 60");
-        if (dropFrame && timebase is not 30 and not 60) throw new ArgumentException("Drop frame is only supported for 30 and 60 timebases");
+        ValidateTimebase(timebase);
+        if (hours < 0 || hours >= 24) throw new ArgumentException("Hours must be between 0 and 23", nameof(hours));
+        if (minutes < 0 || minutes >= 60) throw new ArgumentException("Minutes must be between 0 and 59", nameof(minutes));
+        if (seconds < 0 || seconds >= 60) throw new ArgumentException("Seconds must be between 0 and 59", nameof(seconds));
+        if (frames < 0 || frames >= timebase) throw new ArgumentException($"Frames must be between 0 and {timebase - 1}", nameof(frames));
+        if (dropFrame && timebase is not 30 and not 60) throw new ArgumentException("Drop frame is only supported for 30 and 60 timebases", nameof(dropFrame));
 
         Hours = hours;
         Minutes = minutes;
@@ -162,9 +174,10 @@ public class Timecode
     /// <param name="timecode">The timecode as a string in HH:MM:SS:FF or HH:MM:SS;FF format</param>
     /// <param name="timebase">The frame rate timebase (24, 25, 30, 48, 50, or 60)</param>
     /// <param name="dropFrame">Whether to use drop frame mode (only valid for 30 and 60 fps)</param>
-    /// <param name="field">The field component (unused, kept for backward compatibility)</param>
-    public Timecode(string timecode, int timebase = 25, bool dropFrame = false, int field = 0)
+    public Timecode(string timecode, int timebase = 25, bool dropFrame = false)
     {
+        ValidateTimebase(timebase);
+
         string[] parts;
         if (timecode.Contains(';'))
         {
@@ -176,13 +189,15 @@ public class Timecode
             parts = timecode.Split(':');
             DropFrame = dropFrame;
         }
-        if (parts.Length != 4) throw new ArgumentException("Timecode must be in the format HH:MM:SS:FF or HH:MM:SS;FF");
-        if (dropFrame && timebase is not 30 and not 60) throw new ArgumentException("Drop frame is only supported for 30 and 60 timebases");
+        if (parts.Length != 4) throw new ArgumentException("Timecode must be in the format HH:MM:SS:FF or HH:MM:SS;FF", nameof(timecode));
+        if (dropFrame && timebase is not 30 and not 60) throw new ArgumentException("Drop frame is only supported for 30 and 60 timebases", nameof(dropFrame));
+
         Hours = int.Parse(parts[0]);
         Minutes = int.Parse(parts[1]);
         Seconds = int.Parse(parts[2]);
         Frames = int.Parse(parts[3]);
-        if (Frames < 0 || Frames >= timebase) throw new ArgumentException("Frames must be between 0 and the timebase");
+
+        if (Frames < 0 || Frames >= timebase) throw new ArgumentException($"Frames must be between 0 and {timebase - 1}", nameof(timecode));
         Timebase = timebase;
     }
 
@@ -197,54 +212,56 @@ public class Timecode
     /// <exception cref="ArgumentException">Thrown when the total frames are not between 0 and the maximum number of frames</exception>
     public Timecode(int totalFrames, int timebase = 25, bool dropFrame = false)
     {
-        if (dropFrame && timebase is not 30 and not 60) throw new ArgumentException("Drop frame is only supported for 30 and 60 timebases");
+        ValidateTimebase(timebase);
+        if (dropFrame && timebase is not 30 and not 60) throw new ArgumentException("Drop frame is only supported for 30 and 60 timebases", nameof(dropFrame));
+
+        // Set properties BEFORE using MaxFrames to ensure correct calculation
+        Timebase = timebase;
+        DropFrame = dropFrame;
 
         if (totalFrames > MaxFrames)
         {
             totalFrames %= MaxFrames;
         }
 
-        var frames = 0;
-        var seconds = 0;
-        var minutes = 0;
-        var hours = 0;
+        // Handle negative frame counts
+        if (totalFrames < 0) totalFrames += MaxFrames;
 
-        for (var f = 0; f < totalFrames; f++)
+        // For drop frame, we need to add back the dropped frames to get display timecode
+        if (dropFrame && timebase is 30 or 60)
         {
-            frames++;
+            var dropFramesPerMinute = timebase == 30 ? 2 : 4;
+            var framesPerMinute = timebase * 60;
+            var framesPerTenMinutes = timebase * 600;
 
-            if (frames < timebase) continue;
-            frames = 0;
-            seconds++;
+            // Calculate how many 10-minute blocks
+            var tenMinuteBlocks = totalFrames / (framesPerTenMinutes - 9 * dropFramesPerMinute);
+            var remainingFrames = totalFrames % (framesPerTenMinutes - 9 * dropFramesPerMinute);
 
-            if (seconds < 60) continue;
-            seconds = 0;
-            minutes++;
+            // Add back the drop frames for the 10-minute blocks
+            totalFrames += tenMinuteBlocks * 9 * dropFramesPerMinute;
 
-            if (dropFrame && timebase is 30 or 60)
+            // Handle remaining minutes (each loses dropFramesPerMinute except the first)
+            if (remainingFrames >= framesPerMinute)
             {
-                switch (timebase)
-                {
-                    case 30 when minutes % 10 != 0:
-                        frames += 2;
-                        break;
-                    case 60 when minutes % 10 != 0:
-                        frames += 4;
-                        break;
-                }
+                var additionalMinutes = (remainingFrames - framesPerMinute) / (framesPerMinute - dropFramesPerMinute) + 1;
+                if (additionalMinutes > 9) additionalMinutes = 9;
+                totalFrames += additionalMinutes * dropFramesPerMinute;
             }
-
-            if (minutes < 60) continue;
-            minutes = 0;
-            hours++;
         }
 
-        Hours = hours;
+        // Convert total frames to H:M:S:F using simple arithmetic
+        var totalSeconds = totalFrames / timebase;
+        var frames = totalFrames % timebase;
+
+        var hours = totalSeconds / 3600;
+        var minutes = totalSeconds % 3600 / 60;
+        var seconds = totalSeconds % 60;
+
+        Hours = hours % 24;
         Minutes = minutes;
         Seconds = seconds;
         Frames = frames;
-        DropFrame = dropFrame;
-        Timebase = timebase;
     }
 
     /// <summary>
@@ -266,8 +283,9 @@ public class Timecode
     /// <param name="dropFrame">Whether the timecode is a drop frame timecode</param>
     public static Timecode FromBytes(ReadOnlySpan<byte> bytes, int timebase = 25, bool dropFrame = false)
     {
+        ValidateTimebase(timebase);
         if (bytes.Length != 4)
-            throw new ArgumentException("Byte span must be exactly 4 bytes long");
+            throw new ArgumentException("Byte span must be exactly 4 bytes long", nameof(bytes));
 
         var hours = bytes[3];
         var minutes = bytes[2];
@@ -275,14 +293,16 @@ public class Timecode
         var frames = bytes[0];
         var extractedField = 0;
 
-        // If Hours -band 0x80 = 128, then it is 50p and field is 1
+        // MXF System Stream field encoding for progressive formats:
+        // 48p: 0x80 bit in seconds byte indicates field 1
+        // 50p/60p: 0x80 bit in hours byte indicates field 1
+        // Note: 50p and 60p share the same bit position; caller must know format from context
         if ((hours & 0x80) == 0x80)
         {
             extractedField = 1;
             hours -= 128;
         }
 
-        // If Seconds -band 0x80 = 128, then it is 48p and field is 1
         if ((seconds & 0x80) == 0x80)
         {
             extractedField = 1;
@@ -356,19 +376,21 @@ public class Timecode
         bytes[3] = IntToBcd(hours);   // Hours
 
         // AFTER BCD conversion, set the status bits for progressive formats
+        // MXF System Stream field encoding (SMPTE 331M):
+        // 48p: 0x80 bit in seconds byte indicates field 1
+        // 50p/60p: 0x80 bit in hours byte indicates field 1
         if (Timebase is 48 or 50 or 60)
         {
-            if (Timebase == 50 && Field == 1)
+            if (Field == 1)
             {
-                bytes[3] |= 0x80; // Set 0x80 bit in hours byte for 50p field 1
-            }
-            else if (Timebase == 48 && Field == 1)
-            {
-                bytes[1] |= 0x80; // Set 0x80 bit in seconds byte for 48p field 1
-            }
-            else if (Timebase == 60 && Field == 1)
-            {
-                bytes[3] |= 0x80; // Set 0x80 bit in hours byte for 60p field 1
+                if (Timebase == 48)
+                {
+                    bytes[1] |= 0x80; // Set 0x80 bit in seconds byte for 48p field 1
+                }
+                else // 50p or 60p
+                {
+                    bytes[3] |= 0x80; // Set 0x80 bit in hours byte for 50p/60p field 1
+                }
             }
         }
 
@@ -380,21 +402,32 @@ public class Timecode
     }
 
     /// <summary>
+    /// Validates that the timebase is one of the supported values
+    /// </summary>
+    /// <param name="timebase">The timebase to validate</param>
+    /// <exception cref="ArgumentException">Thrown when timebase is not supported</exception>
+    private static void ValidateTimebase(int timebase)
+    {
+        if (timebase is not (24 or 25 or 30 or 48 or 50 or 60))
+        {
+            throw new ArgumentException($"Timebase must be 24, 25, 30, 48, 50, or 60. Got: {timebase}", nameof(timebase));
+        }
+    }
+
+    /// <summary>
     /// Efficiently converts an integer to BCD (Binary Coded Decimal) byte
     /// Inverse of BcdToInt method
     /// </summary>
     /// <param name="value">Integer value to convert (0-99)</param>
     /// <returns>BCD byte representation</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static byte IntToBcd(int value)
     {
         if (value < 0 || value > 99)
             throw new ArgumentOutOfRangeException(nameof(value), "Value must be between 0 and 99 for BCD conversion");
 
-        //return (byte)(((value / 10) << 4) | (value % 10));
-        // More efficient BCD conversion
+        // Convert to BCD: high nibble = tens digit, low nibble = ones digit
         return (byte)((value / 10 << 4) | (value % 10));
-        // This avoids the division and modulus operations by using bitwise operations
-        // and is faster for small values like those in timecodes.
     }
 
     /// <summary>
@@ -403,6 +436,7 @@ public class Timecode
     /// </summary>
     /// <param name="bcd">BCD byte to convert</param>
     /// <returns>Integer representation</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static int BcdToInt(byte bcd)
     {
         return ((bcd >> 4) * 10) + (bcd & 0x0F);
@@ -642,8 +676,8 @@ public class Timecode
     /// <exception cref="ArgumentException">Thrown when timecodes have different timebases or drop frame settings</exception>
     public static bool operator <(Timecode? left, Timecode? right)
     {
-        if (left is null || right is null)
-            throw new ArgumentNullException(left is null ? nameof(left) : nameof(right));
+        ArgumentNullException.ThrowIfNull(left);
+        ArgumentNullException.ThrowIfNull(right);
         if (left.Timebase != right.Timebase || left.DropFrame != right.DropFrame)
             throw new ArgumentException("Cannot compare timecodes with different timebases or drop frame settings");
         return left.FrameNumber < right.FrameNumber;
@@ -658,8 +692,8 @@ public class Timecode
     /// <exception cref="ArgumentException">Thrown when timecodes have different timebases or drop frame settings</exception>
     public static bool operator >(Timecode? left, Timecode? right)
     {
-        if (left is null || right is null)
-            throw new ArgumentNullException(left is null ? nameof(left) : nameof(right));
+        ArgumentNullException.ThrowIfNull(left);
+        ArgumentNullException.ThrowIfNull(right);
         if (left.Timebase != right.Timebase || left.DropFrame != right.DropFrame)
             throw new ArgumentException("Cannot compare timecodes with different timebases or drop frame settings");
         return left.FrameNumber > right.FrameNumber;
@@ -688,13 +722,25 @@ public class Timecode
     }
 
     /// <summary>
+    /// Determines whether the specified timecode is equal to the current timecode.
+    /// </summary>
+    /// <param name="other">The timecode to compare with the current timecode</param>
+    /// <returns>True if the specified timecode is equal to the current timecode; otherwise, false</returns>
+    public bool Equals(Timecode? other)
+    {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
+        return FrameNumber == other.FrameNumber && Timebase == other.Timebase && DropFrame == other.DropFrame;
+    }
+
+    /// <summary>
     /// Determines whether the specified object is equal to the current timecode.
     /// </summary>
     /// <param name="obj">The object to compare with the current timecode</param>
     /// <returns>True if the specified object is equal to the current timecode; otherwise, false</returns>
     public override bool Equals(object? obj)
     {
-        return obj is Timecode other && this == other;
+        return obj is Timecode other && Equals(other);
     }
 
     /// <summary>
@@ -704,5 +750,29 @@ public class Timecode
     public override int GetHashCode()
     {
         return HashCode.Combine(FrameNumber, Timebase, DropFrame);
+    }
+
+    /// <summary>
+    /// Compares the current timecode with another timecode and returns an integer that indicates
+    /// whether the current timecode precedes, follows, or occurs in the same position in the sort
+    /// order as the other timecode.
+    /// </summary>
+    /// <param name="other">The timecode to compare with this instance</param>
+    /// <returns>
+    /// A value that indicates the relative order of the objects being compared:
+    /// Less than zero: This instance precedes other in the sort order.
+    /// Zero: This instance occurs in the same position in the sort order as other.
+    /// Greater than zero: This instance follows other in the sort order.
+    /// </returns>
+    /// <exception cref="ArgumentException">Thrown when timecodes have different timebases or drop frame settings</exception>
+    public int CompareTo(Timecode? other)
+    {
+        if (other is null) return 1;
+        if (ReferenceEquals(this, other)) return 0;
+
+        if (Timebase != other.Timebase || DropFrame != other.DropFrame)
+            throw new ArgumentException("Cannot compare timecodes with different timebases or drop frame settings");
+
+        return FrameNumber.CompareTo(other.FrameNumber);
     }
 }
