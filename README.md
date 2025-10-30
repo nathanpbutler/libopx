@@ -106,7 +106,7 @@ dotnet test
 
 ## Dependencies
 
-- System.CommandLine (v2.0.0-beta6)
+- System.CommandLine (v2.0.0-rc.2.25502.107)
 - xUnit (testing)
 - coverlet (code coverage)
 

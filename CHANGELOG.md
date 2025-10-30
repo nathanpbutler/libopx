@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2025-10-30
+
 ### Added
 
 * RCWT (Raw Captions With Time) format support (initial implementation) (`aeb967a`)
@@ -24,9 +26,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+* **BREAKING: Timecode class refactored with property encapsulation** - All properties
+  (Hours, Minutes, Seconds, Frames, Timebase, DropFrame) now have private setters for
+  better immutability. Implements IEquatable<Timecode> and IComparable<Timecode>
+  interfaces with improved drop frame calculation logic and enhanced validation
 * Refactored BIN class to MXFData nested class to clarify that BIN files are
   extracted MXF data streams, not a standalone format. CLI continues to accept
   *.bin file extension for backward compatibility
+* Refactored MXF class to simplify key extraction logic and remove unnecessary
+  restripe condition
+* Code quality improvements addressing GitHub security scanning alerts
 * Unified CLI command set and memory benchmark tooling to complete async parsing
   implementation (`b383475`)
 * Migrated from Git LFS to GitHub releases for sample file distribution
@@ -193,7 +202,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Publishing**: Single-file deployment with ReadyToRun optimization
 * **Dependencies**: Minimal external dependencies with System.CommandLine for CLI
 
-[unreleased]: https://github.com/nathanpbutler/libopx/compare/v1.4.0...HEAD
+[unreleased]: https://github.com/nathanpbutler/libopx/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/nathanpbutler/libopx/compare/v1.4.0...v2.0.0
 [1.4.0]: https://github.com/nathanpbutler/libopx/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/nathanpbutler/libopx/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/nathanpbutler/libopx/compare/v1.1.0...v1.2.0
