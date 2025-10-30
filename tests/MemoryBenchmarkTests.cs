@@ -26,13 +26,10 @@ namespace libopx.Tests
         public async Task VBI_AsyncVsSync_MemoryAllocationComparison()
         {
             var vbiPath = "input.vbi";
-            if (!File.Exists(vbiPath))
+            if (!File.Exists(vbiPath) && !await SampleFiles.EnsureAsync(vbiPath))
             {
-                if (!await SampleFiles.EnsureAsync(vbiPath))
-                {
-                    _output.WriteLine($"Skipping test - sample file not available: {vbiPath}");
-                    return;
-                }
+                _output.WriteLine($"Skipping test - sample file not available: {vbiPath}");
+                return;
             }
 
             var fileInfo = new FileInfo(vbiPath);
@@ -76,13 +73,10 @@ namespace libopx.Tests
         public async Task T42_AsyncVsSync_MemoryAllocationComparison()
         {
             var t42Path = "input.t42";
-            if (!File.Exists(t42Path))
+            if (!File.Exists(t42Path) && !await SampleFiles.EnsureAsync(t42Path))
             {
-                if (!await SampleFiles.EnsureAsync(t42Path))
-                {
-                    _output.WriteLine($"Skipping test - sample file not available: {t42Path}");
-                    return;
-                }
+                _output.WriteLine($"Skipping test - sample file not available: {t42Path}");
+                return;
             }
 
             var fileInfo = new FileInfo(t42Path);
@@ -126,13 +120,10 @@ namespace libopx.Tests
         public async Task LargeMXFData_AsyncVsSync_MemoryAllocationComparison()
         {
             var binPath = "rick.bin";
-            if (!File.Exists(binPath))
+            if (!File.Exists(binPath) && !await SampleFiles.EnsureAsync(binPath))
             {
-                if (!await SampleFiles.EnsureAsync(binPath))
-                {
-                    _output.WriteLine($"Skipping test - sample file not available: {binPath}");
-                    return;
-                }
+                _output.WriteLine($"Skipping test - sample file not available: {binPath}");
+                return;
             }
 
             var fileInfo = new FileInfo(binPath);
@@ -176,13 +167,10 @@ namespace libopx.Tests
         public async Task MXF_AsyncVsSync_MemoryAllocationComparison()
         {
             var mxfPath = "input.mxf";
-            if (!File.Exists(mxfPath))
+            if (!File.Exists(mxfPath) && !await SampleFiles.EnsureAsync(mxfPath))
             {
-                if (!await SampleFiles.EnsureAsync(mxfPath))
-                {
-                    _output.WriteLine($"Skipping test - sample file not available: {mxfPath}");
-                    return;
-                }
+                _output.WriteLine($"Skipping test - sample file not available: {mxfPath}");
+                return;
             }
 
             var fileInfo = new FileInfo(mxfPath);
@@ -191,7 +179,7 @@ namespace libopx.Tests
             // Test sync method
             var syncResults = await MeasureMemoryUsage(() =>
             {
-                using var mxf = new nathanbutlerDEV.libopx.Formats.MXF(mxfPath);
+                using var mxf = new MXF(mxfPath);
                 mxf.Function = nathanbutlerDEV.libopx.Enums.Function.Filter;
                 mxf.AddRequiredKey(nathanbutlerDEV.libopx.KeyType.Data);
                 var packets = mxf.Parse(magazine: null, rows: null).ToList();
@@ -201,7 +189,7 @@ namespace libopx.Tests
             // Test async method
             var asyncResults = await MeasureMemoryUsage(async () =>
             {
-                using var mxf = new nathanbutlerDEV.libopx.Formats.MXF(mxfPath);
+                using var mxf = new MXF(mxfPath);
                 mxf.Function = nathanbutlerDEV.libopx.Enums.Function.Filter;
                 mxf.AddRequiredKey(nathanbutlerDEV.libopx.KeyType.Data);
                 var packets = new List<nathanbutlerDEV.libopx.Packet>();
@@ -285,8 +273,9 @@ namespace libopx.Tests
 
         private static double CalculateReduction(double before, double after)
         {
-            if (before == 0) return 0;
-            return ((before - after) / before) * 100.0;
+            const double epsilon = 1e-10;
+            if (Math.Abs(before) < epsilon) return 0;
+            return (before - after) / before * 100.0;
         }
 
         private class MemoryTestResults

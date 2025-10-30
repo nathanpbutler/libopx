@@ -618,6 +618,7 @@ public class Functions
             }
 
             // Set up output stream
+            // Note: Console.OpenStandardOutput() should NOT be disposed
             Stream outputStream = output != null
                 ? new FileStream(output.FullName, FileMode.Create, FileAccess.Write, FileShare.None)
                 : Console.OpenStandardOutput();
@@ -760,6 +761,7 @@ public class Functions
             }
             finally
             {
+                // Only dispose if we created a FileStream (not Console output)
                 if (output != null)
                 {
                     outputStream?.Dispose();
@@ -813,10 +815,11 @@ public class Functions
                 Console.WriteLine($"         Rows: [{string.Join(", ", rows)}]");
                 Console.WriteLine($"   Line count: {lineCount}");
             }
-            
+
 
             // Set up output stream
-            var outputStream = output != null
+            // Note: Console.OpenStandardOutput() should NOT be disposed
+            Stream outputStream = output != null
                 ? new FileStream(output.FullName, FileMode.Create, FileAccess.Write, FileShare.None)
                 : Console.OpenStandardOutput();
 
@@ -960,6 +963,7 @@ public class Functions
             }
             finally
             {
+                // Only dispose if we created a FileStream (not Console output)
                 if (output != null)
                 {
                     await outputStream.DisposeAsync();
@@ -1234,7 +1238,7 @@ public class Functions
             {
                 t42Data = VBI.ToT42(line.Data);
             }
-            catch
+            catch (Exception)
             {
                 return true; // If conversion fails, consider it empty
             }
@@ -1278,115 +1282,65 @@ public class Functions
         // Create GSI (General Subtitle Information) block - 1024 bytes
         var gsi = new byte[Constants.STL_GSI_BLOCK_SIZE];
 
-        // Code Page Number (CPN) - bytes 0-2: "437" for Latin
-        var cpn = Encoding.ASCII.GetBytes("437");
-        Array.Copy(cpn, 0, gsi, 0, Math.Min(cpn.Length, 3));
+        // Helper to write ASCII string at offset
+        void WriteAscii(string value, int offset, int maxLength)
+        {
+            var bytes = Encoding.ASCII.GetBytes(value);
+            Array.Copy(bytes, 0, gsi, offset, Math.Min(bytes.Length, maxLength));
+        }
 
-        // Disk Format Code (DFC) - byte 3: "STL25.01" (8 bytes starting at byte 3)
-        var dfc = Encoding.ASCII.GetBytes("STL25.01");
-        Array.Copy(dfc, 0, gsi, 3, Math.Min(dfc.Length, 8));
+        // Helper to fill range with spaces
+        void FillSpaces(int start, int end)
+        {
+            Array.Fill(gsi, (byte)0x20, start, end - start);
+        }
 
-        // Display Standard Code (DSC) - byte 11: 0x31 ('1') for Open subtitling
-        gsi[11] = 0x31;
+        // Write header fields
+        WriteAscii("437", 0, 3);                            // CPN - Code Page Number (Latin)
+        WriteAscii("STL25.01", 3, 8);                       // DFC - Disk Format Code
+        gsi[11] = 0x31;                                     // DSC - Display Standard Code (Open subtitling)
+        WriteAscii("00", 12, 2);                            // CCT - Character Code Table (Latin)
+        WriteAscii("09", 14, 2);                            // LC - Language Code (English)
+        WriteAscii("libopx teletext conversion", 16, 32);  // OPT - Original Programme Title
 
-        // Character Code Table (CCT) - bytes 12-13: "00" for Latin
-        gsi[12] = 0x30;
-        gsi[13] = 0x30;
+        // Fill empty text fields with spaces
+        FillSpaces(48, 80);      // OET - Original Episode Title
+        FillSpaces(80, 112);     // TPT - Translated Programme Title
+        FillSpaces(112, 144);    // TET - Translated Episode Title
+        FillSpaces(144, 176);    // TN - Translator's Name
+        FillSpaces(176, 208);    // TC - Translator's Contact
+        FillSpaces(208, 224);    // SLR - Subtitle List Reference Code
 
-        // Language Code (LC) - bytes 14-15: "09" (hex) for English
-        gsi[14] = 0x30;
-        gsi[15] = 0x39;
-
-        // Original Programme Title (OPT) - bytes 16-47: "libopx teletext conversion"
-        var opt = Encoding.ASCII.GetBytes("libopx teletext conversion");
-        Array.Copy(opt, 0, gsi, 16, Math.Min(opt.Length, 32));
-
-        // Original Episode Title (OET) - bytes 48-79: empty/spaces
-        for (int i = 48; i < 80; i++) gsi[i] = 0x20;
-
-        // Translated Programme Title (TPT) - bytes 80-111: empty/spaces
-        for (int i = 80; i < 112; i++) gsi[i] = 0x20;
-
-        // Translated Episode Title (TET) - bytes 112-143: empty/spaces
-        for (int i = 112; i < 144; i++) gsi[i] = 0x20;
-
-        // Translator's Name (TN) - bytes 144-175: empty/spaces
-        for (int i = 144; i < 176; i++) gsi[i] = 0x20;
-
-        // Translator's Contact (TC) - bytes 176-207: empty/spaces
-        for (int i = 176; i < 208; i++) gsi[i] = 0x20;
-
-        // Subtitle List Reference Code (SLR) - bytes 208-223: empty/spaces
-        for (int i = 208; i < 224; i++) gsi[i] = 0x20;
-
-        // Creation Date (CD) - bytes 224-229: YYMMDD format (current date)
+        // Date and revision information
         var now = DateTime.Now;
-        var cd = Encoding.ASCII.GetBytes(now.ToString("yyMMdd"));
-        Array.Copy(cd, 0, gsi, 224, 6);
+        var dateBytes = Encoding.ASCII.GetBytes(now.ToString("yyMMdd"));
+        Array.Copy(dateBytes, 0, gsi, 224, 6);  // CD - Creation Date
+        Array.Copy(dateBytes, 0, gsi, 230, 6);  // RD - Revision Date
+        WriteAscii("01", 236, 2);               // RN - Revision Number
 
-        // Revision Date (RD) - bytes 230-235: YYMMDD format (current date)
-        Array.Copy(cd, 0, gsi, 230, 6);
+        // Counts and configuration
+        WriteAscii("00000", 238, 5);  // TNB - Total Number of TTI blocks
+        WriteAscii("00000", 243, 5);  // TNS - Total Number of Subtitles
+        WriteAscii("001", 248, 3);    // TNG - Total Number of Subtitle Groups
+        WriteAscii("38", 251, 2);     // MNC - Maximum Number of Displayable Characters
+        WriteAscii("23", 253, 2);     // MNR - Maximum Number of Displayable Rows
 
-        // Revision Number (RN) - bytes 236-237: "01"
-        gsi[236] = 0x30;
-        gsi[237] = 0x31;
+        // Timecode information
+        gsi[255] = 0x31;              // TCS - Time Code Status (intended for use)
+        WriteAscii("00000000", 256, 8);  // TCP - Time Code: Start-of-Programme
+        WriteAscii("00000000", 264, 8);  // TCF - Time Code: First In-Cue
 
-        // Total Number of TTI blocks (TNB) - bytes 238-242: "00000" (will be updated if known)
-        var tnb = Encoding.ASCII.GetBytes("00000");
-        Array.Copy(tnb, 0, gsi, 238, 5);
+        // Disk information
+        gsi[272] = 0x31;              // TND - Total Number of Disks
+        gsi[273] = 0x31;              // DSN - Disk Sequence Number
+        WriteAscii("AUS", 274, 3);    // CO - Country of Origin
+        WriteAscii("libopx", 277, 32); // PUB - Publisher
 
-        // Total Number of Subtitles (TNS) - bytes 243-247: "00000"
-        var tns = Encoding.ASCII.GetBytes("00000");
-        Array.Copy(tns, 0, gsi, 243, 5);
-
-        // Total Number of Subtitle Groups (TNG) - bytes 248-250: "001"
-        var tng = Encoding.ASCII.GetBytes("001");
-        Array.Copy(tng, 0, gsi, 248, 3);
-
-        // Maximum Number of Displayable Characters (MNC) - bytes 251-252: "38" (38 chars per row)
-        gsi[251] = 0x33;
-        gsi[252] = 0x38;
-
-        // Maximum Number of Displayable Rows (MNR) - bytes 253-254: "23" (23 rows)
-        gsi[253] = 0x32;
-        gsi[254] = 0x33;
-
-        // Time Code: Status (TCS) - byte 255: 0x31 ('1') for intended for use
-        gsi[255] = 0x31;
-
-        // Time Code: Start-of-Programme (TCP) - bytes 256-263: "00000000" (HH:MM:SS:FF)
-        var tcp = Encoding.ASCII.GetBytes("00000000");
-        Array.Copy(tcp, 0, gsi, 256, 8);
-
-        // Time Code: First In-Cue (TCF) - bytes 264-271: "00000000"
-        Array.Copy(tcp, 0, gsi, 264, 8);
-
-        // Total Number of Disks (TND) - byte 272: 0x31 ('1')
-        gsi[272] = 0x31;
-
-        // Disk Sequence Number (DSN) - byte 273: 0x31 ('1')
-        gsi[273] = 0x31;
-
-        // Country of Origin (CO) - bytes 274-276: "AUS"
-        var co = Encoding.ASCII.GetBytes("AUS");
-        Array.Copy(co, 0, gsi, 274, 3);
-
-        // Publisher (PUB) - bytes 277-308: "libopx"
-        var pub = Encoding.ASCII.GetBytes("libopx");
-        Array.Copy(pub, 0, gsi, 277, Math.Min(pub.Length, 32));
-        for (int i = 277 + pub.Length; i < 309; i++) gsi[i] = 0x20;
-
-        // Editor's Name (EN) - bytes 309-340: empty/spaces
-        for (int i = 309; i < 341; i++) gsi[i] = 0x20;
-
-        // Editor's Contact Details (ECD) - bytes 341-372: empty/spaces
-        for (int i = 341; i < 373; i++) gsi[i] = 0x20;
-
-        // Spare bytes (373-447): spaces
-        for (int i = 373; i < 448; i++) gsi[i] = 0x20;
-
-        // User-Defined Area (UDA) - bytes 448-1023: spaces
-        for (int i = 448; i < 1024; i++) gsi[i] = 0x20;
+        // Fill remaining fields with spaces
+        FillSpaces(309, 341);   // EN - Editor's Name
+        FillSpaces(341, 373);   // ECD - Editor's Contact Details
+        FillSpaces(373, 448);   // Spare bytes
+        FillSpaces(448, 1024);  // UDA - User-Defined Area
 
         // Write GSI block to output
         await output.WriteAsync(gsi, cancellationToken);
@@ -1443,7 +1397,8 @@ public class Functions
         float range = max - min;
 
         // If range is 0, set range to 1
-        if (range == 0)
+        const float epsilon = 1e-7f;
+        if (Math.Abs(range) < epsilon)
         {
             range = 1;
         }
