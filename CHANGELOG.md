@@ -91,7 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * **BREAKING: Timecode class refactored with property encapsulation** - All properties
   (Hours, Minutes, Seconds, Frames, Timebase, DropFrame) now have private setters for
-  better immutability. Implements IEquatable<Timecode> and IComparable<Timecode>
+  better immutability. Implements `IEquatable<Timecode>` and `IComparable<Timecode>`
   interfaces with improved drop frame calculation logic and enhanced validation
 * Refactored BIN class to MXFData nested class to clarify that BIN files are
   extracted MXF data streams, not a standalone format. CLI continues to accept

@@ -12,6 +12,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    if: ${{ !contains(github.ref, '-beta') }}
 
     steps:
     - uses: actions/checkout@v5
@@ -68,7 +69,7 @@ jobs:
       run: dotnet pack lib/libopx.csproj --configuration Release --no-build --output ./nupkg --include-symbols
 
     - name: Publish to NuGet
-      run: dotnet nuget push ./nupkg/*.nupkg --skip-duplicate --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+      run: dotnet nuget push ./nupkg/*.nupkg --skip-duplicate --api-key ${{ env.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
       if: github.repository == 'nathanpbutler/libopx' && env.NUGET_API_KEY != ''
       env:
         NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
@@ -143,18 +144,26 @@ jobs:
   create-release:
     needs: [test, publish-nuget, build-binaries]
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v5
-    
+
+    - name: Extract changelog section
+      id: changelog
+      uses: mindsers/changelog-reader-action@v2
+      with:
+        path: ./CHANGELOG.md
+        version: ${{ github.ref_name }}
+
     - name: Download all artifacts
       uses: actions/download-artifact@v6
       with:
         path: ./artifacts
-    
+
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
+        body: ${{ steps.changelog.outputs.changes }}
         files: |
           artifacts/opx-win-x64/opx-win-x64.zip
           artifacts/opx-win-arm64/opx-win-arm64.zip
@@ -162,7 +171,6 @@ jobs:
           artifacts/opx-linux-arm64/opx-linux-arm64.tar.gz
           artifacts/opx-osx-x64/opx-osx-x64.tar.gz
           artifacts/opx-osx-arm64/opx-osx-arm64.tar.gz
-        generate_release_notes: true
         draft: false
         prerelease: false
         token: ${{ secrets.GITHUB_TOKEN }}
