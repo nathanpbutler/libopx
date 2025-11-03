@@ -15,7 +15,7 @@ This document outlines a major architecture redesign for libopx v3.0 that will:
 - **Enable composition** - Operations can now be chained (filter + convert in one pass)
 
 **Breaking Changes:** Yes (v3.0.0)
-**Migration Path:** Phased rollout from v2.2 � v3.0 with deprecation warnings
+**Migration Path:** Phased rollout from v2.2 to v3.0 with deprecation warnings
 
 ---
 
@@ -119,7 +119,7 @@ Common Properties Across All Format Classes:
 - Function: Function
 - LineCount: int = 2
 
-Common Constructors (3 per class � 5 classes = 15 total):
+Common Constructors (3 per class x 5 classes = 15 total):
 - Constructor(string filePath)
 - Constructor() [stdin]
 - Constructor(Stream stream)
@@ -132,6 +132,35 @@ Common Methods:
 
 Total Lines of Duplicated Code: ~800 lines
 Maintenance Burden: 5x (change in one place requires 5 updates)
+```
+
+### 1.3.2 Current MXF Limitations
+
+**No Direct Video VBI Extraction:**
+
+Currently, libopx can extract VBI data from MXF ancillary data (ANC) streams but cannot extract VBI lines embedded within the video stream itself. This requires a manual preprocessing step:
+
+```bash
+# Current workaround (2-stage process)
+ffmpeg -v error -i input.mxf -vf crop=720:2:0:28 -f rawvideo -pix_fmt gray - | opx filter -c
+```
+
+**Issues with Current Approach:**
+
+- Requires FFmpeg as external dependency
+- Two-process overhead (IPC, pipe buffering)
+- No integration with magazine/row filtering
+- Cannot combine with format conversion in single pass
+- Users must understand FFmpeg video filter syntax
+- Crop parameters vary by video format (PAL/NTSC)
+
+**Target Solution (v2.4):**
+
+Direct VBI extraction from MXF video frames using FFmpeg.AutoGen:
+
+```bash
+# Single command, integrated workflow
+opx convert input.mxf --extract-vbi -m 8 -r 20,22 -o output.t42
 ```
 
 ---
@@ -564,6 +593,45 @@ public static class FormatConverter
 }
 ```
 
+### 2.7 FFmpeg.AutoGen Integration (CLI-only)
+
+**Architecture Decision:** FFmpeg.AutoGen will be integrated into the `opx` CLI tool only, NOT the `libopx` library, to avoid adding native dependencies to the library.
+
+```plaintext
+┌──────────────────────────────────────────┐
+│           opx CLI                        │
+│  - Commands (System.CommandLine)         │
+│  - FFmpeg.AutoGen wrapper (video decode) │
+└───────────────────┬──────────────────────┘
+                    │
+         ┌──────────┴──────────┐
+         ▼                     ▼
+┌─────────────────┐   ┌──────────────────┐
+│  libopx         │   │ FFmpeg.AutoGen   │
+│  (Pure .NET)    │   │ (Native bindings)│
+│  - Format I/O   │   │ - Video decode   │
+│  - Parsing      │   │ - Frame access   │
+│  - Conversion   │   │ - VBI extraction │
+└─────────────────┘   └──────────────────┘
+```
+
+**VBI Extraction Pipeline:**
+
+```plaintext
+MXF → FFmpeg Decode → Video Frame → Extract Lines (default: 28:2) →
+  Convert to VBI → Filter (mag/rows) → Convert Format → Output
+```
+
+**Key Design Points:**
+
+1. **CLI-only dependency** - Library remains dependency-free
+2. **PAL format focus** - Default extracts line 28, count 2 (matching FFmpeg workflow)
+3. **Configurable extraction** - `--vbi-lines offset:count` for custom ranges
+4. **Integrated filtering** - Apply magazine/row filters during extraction
+5. **Format conversion** - Output as T42, VBI, or other formats
+6. **Performance** - Stream processing, no full frame buffering
+7. **Default behavior** - Without `--extract-vbi`, MXF extracts from ANC data stream
+
 ---
 
 ## 3. Command Unification
@@ -613,6 +681,10 @@ Options:
   -d, --demux                Extract all keys found
   -n, --names                Use key names instead of hex
   --klv                      Include KLV headers in output
+
+  # MXF Video VBI-specific
+  --extract-vbi              Extract VBI from video frames (default: ANC data stream)
+  --vbi-lines <offset:count> VBI line offset and count (default: 28:2)
 ```
 
 ### 3.3 Command Examples
@@ -667,6 +739,29 @@ opx convert input.mxf --demux --names --klv -o output_base
 
 # Extract and filter
 opx convert input.mxf --extract data -m 8 -o filtered_d.raw
+```
+
+**MXF Video VBI Extraction:**
+
+```bash
+# Extract VBI from video frames to T42 (default: line 28, count 2)
+opx convert input.mxf --extract-vbi -o output.t42
+
+# Extract specific lines (e.g., line 7 with count 16 for teletext)
+opx convert input.mxf --extract-vbi --vbi-lines 7:16 -o output.t42
+
+# Extract with magazine filtering (integrated)
+opx convert input.mxf --extract-vbi -m 8 -r 20,22 -o filtered.t42
+
+# Extract to VBI format
+opx convert input.mxf --extract-vbi -of vbi -o output.vbi
+
+# Note: Without --extract-vbi, MXF defaults to ANC data stream extraction
+opx convert input.mxf --extract data -o anc_data.t42
+
+# Compare with old workaround (deprecated)
+# Old: ffmpeg -i input.mxf -vf crop=720:2:0:28 -f rawvideo -pix_fmt gray - | opx filter -c
+# New: opx convert input.mxf --extract-vbi
 ```
 
 ### 3.4 Backward Compatibility Strategy
@@ -947,7 +1042,7 @@ public class T42 : FormatIOBase
 
 ### Phase 3: Centralize Conversions (v2.4.0)
 
-**Goal:** Move all format conversion logic to FormatConverter.
+**Goal:** Move all format conversion logic to FormatConverter + add MXF video VBI extraction.
 
 **Tasks:**
 
@@ -959,6 +1054,13 @@ public class T42 : FormatIOBase
 6. Update all format handlers to use FormatConverter
 7. Add `[Obsolete]` attributes to old methods
 8. Update documentation
+9. **Add FFmpeg.AutoGen integration (CLI-only)**
+   - Add FFmpeg.AutoGen NuGet package to opx project
+   - Create `VideoVBIExtractor` class in opx/Core/
+   - Implement PAL/NTSC line extraction
+   - Integrate with existing ParseOptions
+   - Add `--extract-vbi` command-line option
+   - Add tests with sample MXF files
 
 **Deliverables:**
 
@@ -967,6 +1069,11 @@ public class T42 : FormatIOBase
 - [ ] Updated handlers to use FormatConverter
 - [ ] Migration guide in docs
 - [ ] All tests updated
+- [ ] `opx/Core/VideoVBIExtractor.cs`
+- [ ] Updated Commands.cs with `--extract-vbi` option
+- [ ] Integration tests with MXF video files
+- [ ] Documentation in docs/NEXT.md
+- [ ] Example usage in README.md
 
 **Code Example:**
 
@@ -1224,6 +1331,32 @@ opx convert input.mxf --demux --names --klv -o output_base
 
 # Extract and filter
 opx convert input.mxf --extract data -m 8 -r 20,22 -o filtered_d.t42
+```
+
+**MXF Video VBI Extraction:**
+
+```bash
+# Extract VBI from video frames to T42 (default: line 28, count 2)
+opx convert archive.mxf --extract-vbi -o teletext.t42
+
+# Extract specific magazine and rows
+opx convert archive.mxf --extract-vbi -m 8 -r 20-24 -o subtitles.t42
+
+# Extract to EBU STL subtitle format
+opx convert archive.mxf --extract-vbi -m 8 -of stl -o subtitles.stl
+
+# Extract specific VBI line range (e.g., line 7 with 16 lines for full teletext)
+opx convert archive.mxf --extract-vbi --vbi-lines 7:16 -o teletext_full.t42
+
+# Compare ANC vs video frame extraction
+opx convert archive.mxf --extract data -o anc_vbi.t42
+opx convert archive.mxf --extract-vbi -o video_vbi.t42
+diff anc_vbi.t42 video_vbi.t42
+
+# Automated batch processing
+for file in archive/*.mxf; do
+  opx convert "$file" --extract-vbi -m 8 -of stl -o "subtitles/$(basename "$file" .mxf).stl"
+done
 ```
 
 **Piping:**
@@ -1547,7 +1680,7 @@ public void FormatIO_Parse_Performance()
 - Run full test suite
 - Run performance benchmarks
 - Manual testing of CLI commands
-- Test migration path (v2.x � v3.0)
+- Test migration path (v2.x to v3.0)
 
 ---
 
@@ -1602,7 +1735,7 @@ public IEnumerable<Line> Parse()
 **Baseline (v2.1):**
 
 - Parse 10MB VBI file
-- Convert VBI � T42
+- Convert VBI to T42
 - Filter MXF by magazine
 - Extract MXF streams
 
@@ -1639,7 +1772,7 @@ public IEnumerable<Line> Parse()
 - [ ] **Q4:** Threading model for async operations?
   - **Decision:** Use async/await, no explicit threads
 
-- [ ] **Q5:** Should we support format chains? (e.g., VBI � T42 � RCWT)
+- [ ] **Q5:** Should we support format chains? (e.g., VBI to T42 to RCWT)
   - **Decision:** Yes, via fluent API
 
 - [ ] **Q6:** Versioning strategy for NuGet package?
@@ -1650,7 +1783,7 @@ public IEnumerable<Line> Parse()
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | 2025-01-31 | Unify filter/extract/convert into single `convert` command | Simpler mental model, enables composition |
-| 2025-01-31 | Phased rollout (v2.2 � v3.0) | Minimize disruption, allow migration time |
+| 2025-01-31 | Phased rollout (v2.2 to v3.0) | Minimize disruption, allow migration time |
 | 2025-01-31 | IFormatHandler interface | Consistent handling, extensibility |
 | 2025-01-31 | FormatIO as main entry point | Single API surface, auto-detection |
 | 2025-01-31 | Centralize conversions in FormatConverter | Single source of truth, easier to test |
@@ -1659,7 +1792,7 @@ public IEnumerable<Line> Parse()
 
 ## 10. Release Timeline
 
-### v2.2.0 - Internal Refactoring (Month 1)
+### 10.1 v2.2.0 - Internal Refactoring (Month 1)
 
 **Focus:** Extract common code without breaking changes
 
@@ -1673,7 +1806,7 @@ public IEnumerable<Line> Parse()
 
 ---
 
-### v2.3.0 - Introduce Abstractions (Month 2-3)
+### 10.2 v2.3.0 - Introduce Abstractions (Month 2-3)
 
 **Focus:** New API available alongside old
 
@@ -1688,7 +1821,7 @@ public IEnumerable<Line> Parse()
 
 ---
 
-### v2.4.0 - Centralize Conversions (Month 4)
+### 10.3 v2.4.0 - Centralize Conversions (Month 4)
 
 **Focus:** Unify conversion logic, begin deprecation
 
@@ -1703,7 +1836,7 @@ public IEnumerable<Line> Parse()
 
 ---
 
-### v2.5.0 - Migration Period (Month 5)
+### 10.4 v2.5.0 - Migration Period (Month 5)
 
 **Focus:** New `convert` command available
 
@@ -1717,7 +1850,7 @@ public IEnumerable<Line> Parse()
 
 ---
 
-### v3.0.0 - Breaking Changes (Month 6) <�
+### 10.5 v3.0.0 - Breaking Changes (Month 6)
 
 **Focus:** Clean API, remove deprecated code
 
@@ -1733,7 +1866,132 @@ public IEnumerable<Line> Parse()
 
 ---
 
-## 11. Success Metrics
+## 11 Advanced Features
+
+### 11.1 MXF Video VBI Extraction
+
+**Overview:**
+
+Starting in v2.4, `opx` can extract VBI (Vertical Blanking Interval) data embedded in the video stream of MXF files, eliminating the need for FFmpeg preprocessing.
+
+**Background:**
+
+VBI data in broadcast video files can exist in two locations:
+
+1. **Ancillary Data (ANC) packets** - Already supported by libopx
+2. **Embedded in video frames** - New feature using FFmpeg.AutoGen
+
+Traditional approach requires manual FFmpeg preprocessing:
+
+```bash
+ffmpeg -v error -i input.mxf -vf crop=720:2:0:28 -f rawvideo -pix_fmt gray - | opx filter -c
+```
+
+**New Approach:**
+
+```bash
+# Single integrated command
+opx convert input.mxf --extract-vbi -m 8 -o output.t42
+```
+
+**Technical Details:**
+
+- Uses FFmpeg.AutoGen for video frame decoding
+- Default extracts line 28 with count of 2 (matching FFmpeg crop workflow)
+- PAL format support (720x576, 25fps)
+- Configurable line offset and count via `--vbi-lines`
+- Processes frames sequentially (streaming, no full load)
+- Integrates with existing filtering and conversion pipeline
+- Without `--extract-vbi` flag, MXF defaults to ANC data stream extraction
+
+**Architecture:**
+
+```plaintext
+Input MXF → FFmpeg Decode → Extract VBI Lines →
+  Parse Teletext → Filter (mag/rows) → Convert Format → Output
+```
+
+**Implementation Notes:**
+
+1. **CLI-only feature** - Not part of libopx library (avoids native deps)
+2. **FFmpeg.AutoGen wrapper** - Thin abstraction over FFmpeg libraries
+3. **Line extraction** - Configurable range via `--vbi-lines`
+4. **Format conversion** - Outputs to T42, VBI, RCWT, STL, etc.
+5. **Performance** - Comparable to FFmpeg preprocessing but single-process
+
+**Command-Line Interface:**
+
+```bash
+opx convert [input.mxf] --extract-vbi [options]
+
+VBI Extraction Options:
+  --extract-vbi              Enable VBI extraction from video frames
+                             (default: MXF extracts from ANC data stream)
+  --vbi-lines <offset:count> Line offset and count (default: 28:2)
+
+Standard Options (apply after extraction):
+  -m, --magazine <num>       Filter by magazine
+  -r, --rows <list>          Filter by rows
+  -of, --output-format       Convert to format (t42, vbi, stl, etc.)
+  -o, --output <path>        Output file
+```
+
+**Use Cases:**
+
+1. **Archive digitization** - Extract teletext from video frames
+2. **Quality comparison** - Compare VBI data vs ANC data
+3. **Format migration** - Convert embedded VBI to standalone files
+4. **Automated workflows** - Single-command processing pipelines
+
+**Examples:**
+
+```bash
+# Basic extraction (default: line 28, count 2)
+opx convert archive.mxf --extract-vbi -o teletext.t42
+
+# Extract specific magazine and rows
+opx convert archive.mxf --extract-vbi -m 8 -r 20-24 -o subtitles.t42
+
+# Extract to EBU STL subtitle format
+opx convert archive.mxf --extract-vbi -m 8 -of stl -o subtitles.stl
+
+# Extract specific VBI line range (line 7, count 16 for full teletext)
+opx convert archive.mxf --extract-vbi --vbi-lines 7:16 -o teletext_full.t42
+
+# Compare VBI data sources (ANC vs video frames)
+opx convert dual.mxf --extract data -o anc_vbi.t42
+opx convert dual.mxf --extract-vbi -o video_vbi.t42
+diff anc_vbi.t42 video_vbi.t42
+
+# Default MXF behavior (extracts from ANC data stream, not video)
+opx convert archive.mxf -o anc_teletext.t42
+```
+
+**Performance Notes:**
+
+- Single-process execution (vs 2-process FFmpeg pipe)
+- Streaming frame processing (low memory usage)
+- Typical speed: 2-5x realtime on modern hardware
+- No intermediate files required
+
+**Limitations:**
+
+- Requires FFmpeg libraries installed on system
+- PAL format only in v2.4 (NTSC support planned for future release)
+- Video codec support depends on FFmpeg build
+- CLI-only feature (not available in libopx library API)
+
+**Future Enhancements:**
+
+- NTSC format support (720x480, 29.97fps)
+- GPU-accelerated decoding (FFmpeg hardware acceleration)
+- Parallel frame processing for multi-stream MXF
+- Custom VBI line extraction patterns
+- VBI quality metrics and validation
+
+---
+
+## 12. Success Metrics
 
 ### Code Quality
 
@@ -1758,7 +2016,7 @@ public IEnumerable<Line> Parse()
 
 ---
 
-## 12. References
+## 13. References
 
 ### Standards & Specifications
 
