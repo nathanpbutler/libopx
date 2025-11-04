@@ -2,7 +2,7 @@
 
 **Status:** Planning
 **Target Release:** v3.0.0
-**Last Updated:** 2025-11-04
+**Last Updated:** 2025-11-04 (Updated for v2.1.2 TS architectural changes)
 
 ## Executive Summary
 
@@ -67,10 +67,11 @@ This document outlines a major architecture redesign for libopx v3.0 that will:
 
 **Code Duplication (~80%):**
 
-- Each format class has identical: `InputFile`, `OutputFile`, `Input`, `Output`, `InputFormat`, `OutputFormat`, `Function`, `LineCount`
+- Each format class has identical: `InputFile`, `OutputFile`, `Input`, `Output`, `OutputFormat`, `Function`
 - Identical constructor patterns: from file, from stdin, from stream
 - Identical disposal patterns
 - Identical output routing logic
+- Note: `InputFormat` exists in VBI/T42/TS only; `LineCount` exists in VBI/T42 only (TS uses `FrameRate` for PTS-based timecode generation)
 
 **Scattered Conversion Logic:**
 
@@ -109,15 +110,19 @@ This document outlines a major architecture redesign for libopx v3.0 that will:
 **Duplication Analysis:**
 
 ```plaintext
-Common Properties Across All Format Classes:
+Common Properties Across All Format Classes (7 total):
 - InputFile: FileInfo? = null
 - OutputFile: FileInfo? = null
 - Input: Stream (required)
 - Output: Stream (lazy)
-- InputFormat: Format
 - OutputFormat: Format?
 - Function: Function
-- LineCount: int = 2
+- _outputStream: Stream? (private field)
+
+Format-Specific Properties (NOT common):
+- InputFormat: Format (VBI, T42, TS only - not in MXF/MXFData)
+- LineCount: int = 2 (VBI, T42 only - TS uses FrameRate for PTS-based timecodes)
+- FrameRate: int = 25 (TS only - for PTS-to-timecode conversion)
 
 Common Constructors (3 per class x 5 classes = 15 total):
 - Constructor(string filePath)
@@ -130,11 +135,40 @@ Common Methods:
 - Parse() / ParseAsync()
 - Dispose()
 
-Total Lines of Duplicated Code: ~800 lines
+Total Lines of Duplicated Code: ~600-800 lines
 Maintenance Burden: 5x (change in one place requires 5 updates)
 ```
 
-### 1.3.2 Current MXF Limitations
+### 1.3.2 TS Format Architecture Changes (v2.1.2)
+
+**Packet-Based Architecture:**
+
+In v2.1.2, the TS parser was significantly refactored to return `IEnumerable<Packet>` instead of `IEnumerable<Line>`, introducing PTS-based timecode generation:
+
+**Changes:**
+
+- **Removed:** `LineCount` property (line-based timecode incrementation)
+- **Added:** `FrameRate` property for PTS-to-timecode conversion (default 25 fps)
+- **Added:** Automatic packet size detection (188 vs 192-byte packets)
+- **Added:** Automatic frame rate detection via PTS delta analysis
+- **Added:** Video stream tracking for frame rate detection
+
+**Why This Matters for v2.2.0:**
+
+The TS format now has fundamentally different timecode handling:
+
+- **VBI/T42:** Use `LineCount` to increment timecodes every N lines
+- **TS:** Extracts PTS (Presentation Time Stamp) from PES packet headers and converts to SMPTE timecodes at detected/configured frame rate
+
+This means `LineCount` cannot be in `FormatIOBase` - it's format-specific to VBI/T42.
+
+**Impact on Phase 1:**
+
+- FormatIOBase will have 7 common properties (not 8)
+- Format-specific properties remain in child classes
+- TS will keep `FrameRate`, VBI/T42 will keep `LineCount`
+
+### 1.3.3 Current MXF Limitations
 
 **No Direct Video VBI Extraction:**
 
@@ -828,6 +862,7 @@ opx convert -m 8 input.vbi
 // lib/Core/FormatIOBase.cs
 public abstract class FormatIOBase : IDisposable
 {
+    // Common I/O properties (7 total)
     public FileInfo? InputFile { get; set; }
     public FileInfo? OutputFile { get; set; }
     private Stream? _outputStream;
@@ -836,9 +871,11 @@ public abstract class FormatIOBase : IDisposable
         ? Console.OpenStandardOutput()
         : OutputFile.Open(FileMode.Create, FileAccess.Write, FileShare.Read);
 
-    public Format InputFormat { get; set; }
     public Format? OutputFormat { get; set; }
-    public int LineCount { get; set; } = 2;
+    public Function Function { get; set; } = Function.Filter;
+
+    // Note: InputFormat, LineCount, FrameRate are format-specific
+    // and remain in child classes (VBI, T42, TS, etc.)
 
     public void SetOutput(string outputFile)
     {
@@ -864,36 +901,59 @@ public abstract class FormatIOBase : IDisposable
 // lib/Formats/VBI.cs (updated)
 public class VBI : FormatIOBase
 {
-    // Remove duplicate properties - inherited from FormatIOBase
-    // Keep VBI-specific logic
+    // Format-specific properties (not in base class)
+    public Format InputFormat { get; set; } = Format.VBI;
+    public int LineCount { get; set; } = 2;
+    public int LineLength => InputFormat == Format.VBI_DOUBLE
+        ? Constants.VBI_DOUBLE_LINE_SIZE
+        : Constants.VBI_LINE_SIZE;
+    public static readonly Format[] ValidOutputs = [Format.VBI, Format.VBI_DOUBLE, Format.T42, Format.RCWT, Format.STL];
 
     [SetsRequiredMembers]
-    public VBI(string inputFile)
+    public VBI(string inputFile, Format? vbiType = Format.VBI)
     {
         InputFile = new FileInfo(inputFile);
         if (!InputFile.Exists)
             throw new FileNotFoundException("The specified VBI file does not exist.", inputFile);
 
-        InputFormat = InputFile.Extension.ToLower() switch
+        InputFormat = vbiType ?? (InputFile.Extension.ToLower() switch
         {
             ".vbi" => Format.VBI,
             ".vbid" => Format.VBI_DOUBLE,
             _ => Format.VBI
-        };
+        });
 
         Input = InputFile.OpenRead();
     }
 
     // ... rest of VBI-specific implementation
 }
+
+// lib/Formats/TS.cs (updated)
+public class TS : FormatIOBase
+{
+    // Format-specific properties (not in base class)
+    public Format InputFormat { get; set; } = Format.TS;
+    public int FrameRate { get; set; } = 25;  // For PTS-to-timecode conversion
+    public int[]? PIDs { get; set; } = null;
+    public bool AutoDetect { get; set; } = true;
+    public bool Verbose { get; set; } = false;
+    public static readonly Format[] ValidOutputs = [Format.T42, Format.VBI, Format.VBI_DOUBLE, Format.RCWT, Format.STL];
+
+    // Note: TS uses FrameRate instead of LineCount because it extracts PTS
+    // (Presentation Time Stamp) from PES packets for accurate timecodes
+
+    // ... rest of TS-specific implementation
+}
 ```
 
 **Success Criteria:**
 
-- [ ] ~400 lines of code removed (duplicated properties/methods)
+- [ ] ~300-400 lines of code removed (duplicated I/O properties/methods)
 - [ ] All 5 format classes inherit from FormatIOBase
 - [ ] 100% test coverage maintained
 - [ ] No breaking changes to public API
+- [ ] Format-specific properties (InputFormat, LineCount, FrameRate) remain in child classes
 
 ---
 
@@ -1995,7 +2055,7 @@ opx convert archive.mxf -o anc_teletext.t42
 
 ### Code Quality
 
-- [ ] 60%+ reduction in duplicated code (~800 lines removed)
+- [ ] 60%+ reduction in duplicated code (~600-800 lines removed)
 - [ ] <5% performance regression
 - [ ] 85%+ test coverage maintained
 - [ ] Zero memory leaks
@@ -2046,6 +2106,6 @@ This is a living document. If you have suggestions or questions about the v3.0 r
 2. Tag with `v3.0-design` label
 3. Reference this document
 
-**Last Updated:** 2025-01-31
-**Document Version:** 1.0
-**Status:** Planning Phase
+**Last Updated:** 2025-11-04 (Updated for v2.1.2 TS changes)
+**Document Version:** 1.1
+**Status:** Planning Phase - Ready for v2.2.0 Phase 1 Implementation
