@@ -845,6 +845,16 @@ opx convert -m 8 input.vbi
 
 ## 4. Implementation Phases
 
+### Overview: Consolidated Release Strategy
+
+To avoid flooding NuGet with rapid incremental releases, phases are bundled into meaningful milestones:
+
+- **v2.2.0** - Phases 1 + 2: Internal foundation (FormatIOBase + IFormatHandler abstractions)
+- **v2.4.0** - Phase 3: New API available with deprecation warnings
+- **v3.0.0** - Phase 4: Breaking changes and unified CLI
+
+---
+
 ### Phase 1: Extract Common I/O (v2.2.0) ✅ COMPLETE
 
 **Goal:** Internal refactoring without breaking changes.
@@ -974,6 +984,7 @@ public class TS : FormatIOBase
 **Technical Debt Cleanup:**
 
 During Phase 1, the orphaned `AsyncProcessingHelpers` class was identified and removed from `lib/AsyncHelpers.cs`:
+
 - **Removed:** 288 lines of unused async wrapper methods (ProcessVBIAsync, ProcessT42Async, ProcessMXFDataAsync, ProcessMXFAsync, ProcessExtractAsync, ProcessConvertAsync, ProcessLargeVBIExample)
 - **Why:** These methods became redundant after `Functions.cs` was enhanced with `FilterAsync()`, `ExtractAsync()`, `RestripeAsync()`, and `ConvertAsync()` methods in v1.5.0
 - **Kept:** `ProgressReporter` utility class (80 lines) - still useful for progress reporting in long-running operations
@@ -981,9 +992,11 @@ During Phase 1, the orphaned `AsyncProcessingHelpers` class was identified and r
 
 ---
 
-### Phase 2: Define Abstractions (v2.3.0)
+### Phase 2: Define Abstractions (v2.2.0)
 
 **Goal:** Introduce interfaces while maintaining backward compatibility.
+
+**Note:** Combined with Phase 1 into v2.2.0 to deliver a complete internal foundation in one release.
 
 **Tasks:**
 
@@ -1124,9 +1137,11 @@ public class T42 : FormatIOBase
 
 ---
 
-### Phase 3: Centralize Conversions (v2.4.0)
+### Phase 3: Centralize Conversions & New API (v2.4.0)
 
-**Goal:** Move all format conversion logic to FormatConverter + add MXF video VBI extraction.
+**Goal:** Move all format conversion logic to FormatConverter + introduce new FormatIO public API + add MXF video VBI extraction.
+
+**Note:** v2.3.0 skipped - combining conversion centralization with new API introduction to avoid intermediate releases.
 
 **Tasks:**
 
@@ -1138,17 +1153,22 @@ public class T42 : FormatIOBase
 6. Update all format handlers to use FormatConverter
 7. Add `[Obsolete]` attributes to old methods
 8. Update documentation
-9. **Add FFmpeg.AutoGen integration (CLI-only)**
-   - Add FFmpeg.AutoGen NuGet package to opx project
-   - Create `VideoVBIExtractor` class in opx/Core/
-   - Implement PAL/NTSC line extraction
-   - Integrate with existing ParseOptions
-   - Add `--extract-vbi` command-line option
-   - Add tests with sample MXF files
+9. Add FFmpeg.AutoGen NuGet package to opx project
+10. Create `VideoVBIExtractor` class in opx/Core/
+11. Implement PAL/NTSC line extraction
+12. Integrate with existing ParseOptions
+13. Add `--extract-vbi` command-line option
+14. Add tests with sample MXF files
+15. Implement complete `FormatIO` public API class with fluent API
+16. Implement `Open()`, `OpenStdin()`, `Parse()`, `ConvertTo()`, `SaveTo()` methods
+17. Add async variants for all operations
+18. Make old API available alongside new API (both work simultaneously)
+19. Add deprecation warnings to guide users toward new API
 
 **Deliverables:**
 
 - [ ] `lib/Core/FormatConverter.cs`
+- [ ] `lib/FormatIO.cs` (new public API)
 - [ ] Deprecated methods in VBI, T42, Line classes
 - [ ] Updated handlers to use FormatConverter
 - [ ] Migration guide in docs
@@ -1158,6 +1178,7 @@ public class T42 : FormatIOBase
 - [ ] Integration tests with MXF video files
 - [ ] Documentation in docs/NEXT.md
 - [ ] Example usage in README.md
+- [ ] Side-by-side API comparison examples (old vs new)
 
 **Code Example:**
 
@@ -1188,39 +1209,44 @@ warning CS0618: 'VBI.ToT42(byte[], bool)' is obsolete:
 **Success Criteria:**
 
 - [ ] All conversion logic in one place (FormatConverter)
+- [ ] New FormatIO API fully functional alongside old API
 - [ ] Old methods still work but show warnings
 - [ ] All handlers use FormatConverter
 - [ ] Documentation updated with migration examples
 - [ ] All tests pass with deprecation warnings
+- [ ] FFmpeg.AutoGen integration working for video VBI extraction
+- [ ] Users have clear migration path from old to new API
 
 ---
 
-### Phase 4: New Unified API (v3.0.0) ⚠️ BREAKING
+### Phase 4: Breaking Changes & Unified CLI (v3.0.0) ⚠️ BREAKING
 
-**Goal:** Launch new public API, remove deprecated code.
+**Goal:** Remove deprecated code, unify CLI commands.
+
+**Note:** v2.5.0 skipped - going directly from v2.4.0 to v3.0.0 after sufficient migration period (2-3 months).
 
 **Tasks:**
 
-1. Implement complete `FormatIO` public API
-2. Implement all format handlers (VBI, T42, TS, MXF, ANC)
-3. Create new unified `convert` command in CLI
-4. Remove old `filter`, `extract`, convert commands
-5. Remove deprecated methods from format classes
-6. Update all documentation
-7. Create migration guide with examples
-8. Update README with v3.0 examples
-9. Write blog post / changelog
+1. Remove old `filter` command from CLI
+2. Remove old `extract` command from CLI
+3. Remove old separate `convert` command (replace with unified version)
+4. Create new unified `convert` command in CLI
+5. Remove deprecated methods from format classes (VBI.ToT42(), T42.ToVBI(), etc.)
+6. Remove backward compatibility wrappers
+7. Update all documentation to reflect breaking changes
+8. Finalize migration guide with examples
+9. Update README with v3.0 examples
+10. Write blog post / changelog announcement
 
 **Deliverables:**
 
-- [ ] `lib/FormatIO.cs` (complete implementation)
-- [ ] All handlers implemented (VBIHandler, T42Handler, etc.)
-- [ ] New `convert` command in CLI
-- [ ] Removed old commands and deprecated code
-- [ ] Updated README.md
-- [ ] `docs/MIGRATION.md` guide
-- [ ] `CHANGELOG.md` v3.0 entry
-- [ ] Blog post draft
+- [ ] New unified `convert` command in CLI (replaces filter/extract/convert)
+- [ ] Removed old commands (`filter`, `extract`, old `convert`)
+- [ ] Removed deprecated code (VBI.ToT42(), T42.ToVBI(), etc.)
+- [ ] Updated README.md with v3.0 examples only
+- [ ] Complete `docs/MIGRATION.md` guide
+- [ ] `CHANGELOG.md` v3.0 entry with breaking changes list
+- [ ] Blog post / announcement draft
 
 **Breaking Changes:**
 
@@ -1600,16 +1626,20 @@ foreach (var line in io.Parse(magazine: 8))
 # Both: cat input.vbi | opx convert -m 8 -of t42 > output.t42
 ```
 
-### 6.3 Deprecation Timeline
+### 6.3 Deprecation Timeline (Consolidated)
 
-| Version | Status | Available Commands |
-|---------|--------|-------------------|
-| v2.1 (current) | Stable | filter, extract, convert, restripe |
-| v2.2 | Internal refactoring | filter, extract, convert, restripe |
-| v2.3 | New API available | filter, extract, convert, restripe |
-| v2.4 | Deprecation warnings | filter, extract, convert (old), **convert** (new), restripe |
-| v2.5 | Migration period | filter, extract, **convert** (unified), restripe |
-| **v3.0** | **Breaking** | **convert**, restripe |
+| Version | Status | Available Commands | Library API |
+|---------|--------|-------------------|-------------|
+| v2.1 (current) | Stable | filter, extract, convert, restripe | VBI, T42, TS, MXF classes |
+| v2.2 | Internal refactoring + abstractions | filter, extract, convert, restripe | Same + IFormatHandler, FormatRegistry |
+| v2.4 | New API + deprecation warnings | filter⚠️, extract⚠️, convert⚠️, restripe | Old API⚠️ + **FormatIO (new)** |
+| **v3.0** | **Breaking** | **convert (unified)**, restripe | **FormatIO only** |
+
+**Key:**
+
+- ⚠️ = Shows deprecation warnings
+- **Bold** = Recommended/new approach
+- v2.3.0 and v2.5.0 skipped to avoid rapid release churn
 
 ---
 
@@ -1874,79 +1904,73 @@ public IEnumerable<Line> Parse()
 
 ---
 
-## 10. Release Timeline
+## 10. Release Timeline (Consolidated)
 
-### 10.1 v2.2.0 - Internal Refactoring (Month 1)
+### 10.1 v2.2.0 - Internal Foundation (Phases 1 + 2)
 
-**Focus:** Extract common code without breaking changes
+**Focus:** Extract common code + introduce abstractions without breaking changes
 
-- [ ] Create FormatIOBase
-- [ ] Refactor all format classes
+**Includes:**
+
+- [x] Phase 1: FormatIOBase, common I/O patterns
+- [ ] Phase 2: IFormatHandler interface, FormatRegistry, ParseOptions
+- [ ] All format handlers implemented
 - [ ] 100% test coverage maintained
 - [ ] Performance benchmarks established
 - [ ] Internal documentation
 
-**Release Date:** TBD
-
----
-
-### 10.2 v2.3.0 - Introduce Abstractions (Month 2-3)
-
-**Focus:** New API available alongside old
-
-- [ ] Define IFormatHandler interface
-- [ ] Implement FormatRegistry
-- [ ] Create T42Handler proof of concept
-- [ ] Implement all format handlers
-- [ ] New API tested and documented
-- [ ] Old API still fully functional
+**Timeline:** Month 1-2
 
 **Release Date:** TBD
 
 ---
 
-### 10.3 v2.4.0 - Centralize Conversions (Month 4)
+### 10.2 v2.4.0 - New API + Deprecation (Phase 3)
 
-**Focus:** Unify conversion logic, begin deprecation
+**Focus:** New public FormatIO API available, deprecation warnings, FFmpeg integration
 
-- [ ] Create FormatConverter class
-- [ ] Move all conversion methods
-- [ ] Add `[Obsolete]` attributes
-- [ ] Update documentation with warnings
+**Includes:**
+
+- [ ] FormatConverter with centralized conversion logic
+- [ ] Complete FormatIO public API (Open, Parse, ConvertTo, SaveTo)
+- [ ] FFmpeg.AutoGen integration for MXF video VBI extraction
+- [ ] Add `[Obsolete]` attributes to old methods
+- [ ] Old API works alongside new API (both functional)
 - [ ] Migration guide published
+- [ ] Side-by-side API comparison examples
 - [ ] Deprecation blog post
 
-**Release Date:** TBD
-
----
-
-### 10.4 v2.5.0 - Migration Period (Month 5)
-
-**Focus:** New `convert` command available
-
-- [ ] Implement unified `convert` CLI command
-- [ ] Old commands show deprecation warnings
-- [ ] Side-by-side examples in docs
-- [ ] Community outreach (blog, Twitter, etc.)
-- [ ] Collect feedback
+**Timeline:** Month 3-4
 
 **Release Date:** TBD
 
+**Migration Period:** 2-3 months after release
+
 ---
 
-### 10.5 v3.0.0 - Breaking Changes (Month 6)
+### 10.3 v3.0.0 - Breaking Changes (Phase 4)
 
-**Focus:** Clean API, remove deprecated code
+**Focus:** Clean API, unified CLI, remove deprecated code
 
-- [ ] Remove old filter/extract commands
-- [ ] Remove deprecated methods
+**Includes:**
+
+- [ ] Remove old filter/extract/convert commands
+- [ ] New unified `convert` command only
+- [ ] Remove deprecated methods (VBI.ToT42(), etc.)
+- [ ] Remove backward compatibility wrappers
 - [ ] Update all documentation
 - [ ] Migration guide complete
 - [ ] Performance validation
 - [ ] v3.0 announcement blog post
-- [ ] Update README with new examples
+- [ ] Update README with new examples only
+
+**Timeline:** Month 6-7 (after 2-3 month migration period)
 
 **Release Date:** TBD
+
+---
+
+**Note:** v2.3.0 and v2.5.0 skipped to avoid flooding NuGet with intermediate releases. Each release represents a significant, stable milestone.
 
 ---
 
@@ -2130,6 +2154,6 @@ This is a living document. If you have suggestions or questions about the v3.0 r
 2. Tag with `v3.0-design` label
 3. Reference this document
 
-**Last Updated:** 2025-11-04 (Phase 1 Complete - AsyncHelpers cleanup)
-**Document Version:** 1.2
-**Status:** Phase 1 Complete ✅ - Ready for v2.2.0 Release
+**Last Updated:** 2025-11-04 (Release strategy consolidated to 3 milestones)
+**Document Version:** 1.3
+**Status:** Phase 1 Complete ✅ - Ready for v2.2.0 Release (includes Phase 2)

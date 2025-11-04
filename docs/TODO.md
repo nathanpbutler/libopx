@@ -2,6 +2,17 @@
 
 **Status:** Phase 1 COMPLETE ✅ | Ready for v2.2.0 Release
 **Last Updated:** 2025-11-04
+**Release Strategy:** Consolidated to 3 releases (v2.2.0, v2.4.0, v3.0.0)
+
+---
+
+## Consolidated Release Strategy
+
+To avoid flooding NuGet with rapid incremental releases:
+
+- **v2.2.0** - Phases 1 + 2: Internal foundation (FormatIOBase + IFormatHandler abstractions)
+- **v2.4.0** - Phase 3: New FormatIO API available with deprecation warnings
+- **v3.0.0** - Phase 4: Breaking changes and unified CLI
 
 ---
 
@@ -47,9 +58,11 @@
 
 ---
 
-## Phase 2: Define Abstractions (v2.3.0)
+## Phase 2: Define Abstractions (v2.2.0)
 
 **Goal:** Introduce interfaces while maintaining backward compatibility
+
+**Note:** Combined with Phase 1 into v2.2.0 to deliver a complete internal foundation in one release.
 
 - [ ] Define `IFormatHandler` interface
 - [ ] Create `FormatRegistry` class
@@ -76,9 +89,11 @@
 
 ---
 
-## Phase 3: Centralize Conversions (v2.4.0)
+## Phase 3: Centralize Conversions & New API (v2.4.0)
 
-**Goal:** Move all format conversion logic to FormatConverter + add MXF video VBI extraction
+**Goal:** Move all format conversion logic to FormatConverter + introduce new FormatIO public API + add MXF video VBI extraction
+
+**Note:** v2.3.0 skipped - combining conversion centralization with new API introduction to avoid intermediate releases.
 
 ### Core Conversion Tasks
 
@@ -105,35 +120,54 @@
 - [ ] Update documentation in docs/NEXT.md
 - [ ] Add example usage in README.md
 
+### FormatIO Public API
+
+- [ ] Implement complete `FormatIO` class with fluent API
+- [ ] Implement `Open()`, `OpenStdin()`, `Open(Stream)` methods
+- [ ] Implement `Parse()` and `ParseAsync()` methods
+- [ ] Implement `ConvertTo()` fluent method
+- [ ] Implement `Filter()` fluent method
+- [ ] Implement `SaveTo()` and `SaveToAsync()` methods
+- [ ] Implement `WithOptions()` for configuration
+- [ ] Add format auto-detection
+- [ ] Make old API available alongside new API (both work simultaneously)
+- [ ] Add deprecation warnings to old API methods
+- [ ] Create `lib/FormatIO.cs`
+- [ ] Add unit tests for FormatIO class
+- [ ] Add integration tests for all workflows
+- [ ] Create side-by-side API comparison examples
+
 **Success Criteria:**
 
 - [ ] All conversion logic in one place (FormatConverter)
+- [ ] New FormatIO API fully functional alongside old API
 - [ ] Old methods still work but show warnings
 - [ ] All handlers use FormatConverter
 - [ ] Documentation updated with migration examples
 - [ ] All tests pass with deprecation warnings
 - [ ] FFmpeg.AutoGen integration working for video VBI extraction
+- [ ] Users have clear migration path from old to new API
 
 ---
 
-## Phase 4: New Unified API (v3.0.0) ⚠️ BREAKING
+## Phase 4: Breaking Changes & Unified CLI (v3.0.0) ⚠️ BREAKING
 
-**Goal:** Launch new public API, remove deprecated code
+**Goal:** Remove deprecated code, unify CLI commands
 
-### Core API
-
-- [ ] Implement complete `FormatIO` public API
-- [ ] Implement all format handlers (VBI, T42, TS, MXF, ANC)
-- [ ] Create `lib/FormatIO.cs` (complete implementation)
-- [ ] Remove deprecated methods from format classes
+**Note:** v2.5.0 skipped - going directly from v2.4.0 to v3.0.0 after sufficient migration period (2-3 months).
 
 ### CLI Changes
 
-- [ ] Create new unified `convert` command in CLI
-- [ ] Remove old `filter` command
-- [ ] Remove old `extract` command
+- [ ] Remove old `filter` command from CLI
+- [ ] Remove old `extract` command from CLI
 - [ ] Remove old separate `convert` command (replace with unified version)
+- [ ] Create new unified `convert` command in CLI
 - [ ] Test all command variations
+
+### Library Cleanup
+
+- [ ] Remove deprecated methods from format classes (VBI.ToT42(), T42.ToVBI(), etc.)
+- [ ] Remove backward compatibility wrappers
 
 ### Documentation & Migration
 
@@ -198,38 +232,44 @@
 
 ---
 
-## Release Checklist
+## Release Checklist (Consolidated)
 
-### v2.2.0
+### v2.2.0 - Internal Foundation (Phases 1 + 2)
 
-- [ ] All Phase 1 tasks complete
+- [x] Phase 1 complete: FormatIOBase
+- [ ] Phase 2 complete: IFormatHandler, FormatRegistry, ParseOptions
+- [ ] All format handlers implemented
 - [ ] Tests passing
 - [ ] Internal documentation updated
 - [ ] Performance baseline established
+- [ ] No breaking changes to public API
 
-### v2.3.0
+### v2.4.0 - New API + Deprecation (Phase 3)
 
-- [ ] All Phase 2 tasks complete
-- [ ] New API available alongside old
-- [ ] Tests passing
-- [ ] Documentation updated
-
-### v2.4.0
-
-- [ ] All Phase 3 tasks complete
+- [ ] Phase 3 complete: FormatConverter
+- [ ] FormatIO public API implemented and tested
 - [ ] FFmpeg.AutoGen integration complete
 - [ ] Deprecation warnings in place
+- [ ] Old API works alongside new API
 - [ ] Migration guide published
+- [ ] Side-by-side examples documented
 - [ ] Tests passing
+- [ ] Deprecation blog post published
 
-### v3.0.0
+### v3.0.0 - Breaking Changes (Phase 4)
 
-- [ ] All Phase 4 tasks complete
+- [ ] Phase 4 complete: Unified CLI
 - [ ] Breaking changes documented
 - [ ] Migration guide complete
-- [ ] Performance validated
+- [ ] Old commands removed
+- [ ] Deprecated code removed
+- [ ] Performance validated (<5% regression)
 - [ ] Community announcement ready
 - [ ] NuGet package published
+
+---
+
+**Note:** v2.3.0 and v2.5.0 skipped to avoid flooding NuGet with intermediate releases.
 
 ---
 
