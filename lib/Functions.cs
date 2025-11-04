@@ -82,11 +82,13 @@ public class Functions
                     var ts = input is FileInfo inputTS && inputTS.Exists
                         ? new TS(inputTS.FullName)
                         : new TS(Console.OpenStandardInput());
-                    ts.LineCount = lineCount;
                     ts.Verbose = verbose;
-                    foreach (var line in ts.Parse(magazine, rows))
+                    foreach (var packet in ts.Parse(magazine, rows))
                     {
-                        Console.WriteLine(line);
+                        foreach (var line in packet.Lines)
+                        {
+                            Console.WriteLine(line);
+                        }
                     }
                     return 0;
                 case Format.MXF:
@@ -214,13 +216,15 @@ public class Functions
                     var ts = input is { Exists: true } inputTS
                         ? new TS(inputTS.FullName)
                         : new TS(Console.OpenStandardInput());
-                    ts.LineCount = lineCount;
                     ts.Verbose = verbose;
                     if (pids != null)
                         ts.PIDs = pids;
-                    await foreach (var line in ts.ParseAsync(magazine, rows, cancellationToken: cancellationToken))
+                    await foreach (var packet in ts.ParseAsync(magazine, rows, cancellationToken: cancellationToken))
                     {
-                        Console.WriteLine(line);
+                        foreach (var line in packet.Lines)
+                        {
+                            Console.WriteLine(line);
+                        }
                     }
                     return 0;
                 case Format.MXF:
@@ -869,25 +873,27 @@ public class Functions
                             ? new TS(inputTS.FullName)
                             : new TS(Console.OpenStandardInput());
                         ts.OutputFormat = outputFormat;
-                        ts.LineCount = lineCount;
                         ts.Verbose = verbose;
                         ts.SetOutput(outputStream);
-                        foreach (var line in ts.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
+                        foreach (var packet in ts.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
                         {
-                            byte[] dataToWrite = line.Data;
-                            if (outputFormat == Format.RCWT)
+                            foreach (var line in packet.Lines)
                             {
-                                var (fts, fieldNumber) = GetRCWTState(line.LineTimecode, verbose);
-                                dataToWrite = line.ToRCWT(fts, fieldNumber, verbose);
-                            }
-                            if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
-                            {
-                                var blankData = new byte[dataToWrite.Length];
-                                ts.Output.Write(blankData, 0, blankData.Length);
-                            }
-                            else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
-                            {
-                                ts.Output.Write(dataToWrite, 0, dataToWrite.Length);
+                                byte[] dataToWrite = line.Data;
+                                if (outputFormat == Format.RCWT)
+                                {
+                                    var (fts, fieldNumber) = GetRCWTState(line.LineTimecode, verbose);
+                                    dataToWrite = line.ToRCWT(fts, fieldNumber, verbose);
+                                }
+                                if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
+                                {
+                                    var blankData = new byte[dataToWrite.Length];
+                                    ts.Output.Write(blankData, 0, blankData.Length);
+                                }
+                                else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
+                                {
+                                    ts.Output.Write(dataToWrite, 0, dataToWrite.Length);
+                                }
                             }
                         }
                         return 0;
@@ -1120,14 +1126,16 @@ public class Functions
                             ? new TS(inputTS.FullName)
                             : new TS(Console.OpenStandardInput());
                         ts.OutputFormat = outputFormat;
-                        ts.LineCount = lineCount;
                         ts.Verbose = verbose;
                         if (pids != null)
                             ts.PIDs = pids;
                         ts.SetOutput(outputStream);
-                        await foreach (var line in ts.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken: cancellationToken))
+                        await foreach (var packet in ts.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken: cancellationToken))
                         {
-                            await WriteOutputAsync(line, ts.Output, outputFormat, magazine, rows, keepBlanks, verbose, cancellationToken);
+                            foreach (var line in packet.Lines)
+                            {
+                                await WriteOutputAsync(line, ts.Output, outputFormat, magazine, rows, keepBlanks, verbose, cancellationToken);
+                            }
                         }
                         return 0;
 

@@ -241,6 +241,22 @@ public class Constants
     /// </summary>
     public const byte TS_STREAM_TYPE_TELETEXT = 0x06;
     /// <summary>
+    /// Stream type identifier for MPEG-1 Video in PMT.
+    /// </summary>
+    public const byte TS_STREAM_TYPE_MPEG1_VIDEO = 0x01;
+    /// <summary>
+    /// Stream type identifier for MPEG-2 Video in PMT.
+    /// </summary>
+    public const byte TS_STREAM_TYPE_MPEG2_VIDEO = 0x02;
+    /// <summary>
+    /// Stream type identifier for H.264/AVC Video in PMT.
+    /// </summary>
+    public const byte TS_STREAM_TYPE_H264_VIDEO = 0x1B;
+    /// <summary>
+    /// Stream type identifier for H.265/HEVC Video in PMT.
+    /// </summary>
+    public const byte TS_STREAM_TYPE_H265_VIDEO = 0x24;
+    /// <summary>
     /// Descriptor tag for DVB teletext descriptor in PMT.
     /// </summary>
     public const byte TS_DESCRIPTOR_TAG_TELETEXT = 0x56;
@@ -265,9 +281,63 @@ public class Constants
     /// </summary>
     public const byte TS_DATA_UNIT_ID_TELETEXT_SUBTITLE = 0x03;
 
-    // Placeholders for future TS packet size variants
-    // public const int TS_PACKET_SIZE_WITH_TIMECODE = 192;  // 188 + 4-byte timecode
-    // public const int TS_PACKET_SIZE_WITH_FEC = 204;       // 188 + 16-byte Reed-Solomon FEC
+    /// <summary>
+    /// Size of MPEG-TS packet with 4-byte timecode suffix (192-byte variant).
+    /// </summary>
+    public const int TS_PACKET_SIZE_WITH_TIMECODE = 192;
+    /// <summary>
+    /// Size of MPEG-TS packet with 16-byte Reed-Solomon FEC (204-byte variant).
+    /// </summary>
+    public const int TS_PACKET_SIZE_WITH_FEC = 204;
+    /// <summary>
+    /// Size of the 4-byte timecode suffix in 192-byte TS packets.
+    /// </summary>
+    public const int TS_TIMECODE_SUFFIX_SIZE = 4;
+
+    /// <summary>
+    /// PTS/DTS flags present indicator bit in PES header flags byte (bit 7-6 = '10' for PTS only, '11' for both).
+    /// </summary>
+    public const byte TS_PES_PTS_DTS_FLAGS = 0xC0;
+    /// <summary>
+    /// PTS only present flag value (0x80 = bits 10xxxxxx).
+    /// </summary>
+    public const byte TS_PES_PTS_FLAG = 0x80;
+    /// <summary>
+    /// PTS and DTS both present flag value (0xC0 = bits 11xxxxxx).
+    /// </summary>
+    public const byte TS_PES_PTS_AND_DTS_FLAG = 0xC0;
+    /// <summary>
+    /// Marker bit value used in PTS/DTS timestamps (0x01).
+    /// </summary>
+    public const byte TS_PTS_MARKER_BIT = 0x01;
+    /// <summary>
+    /// PTS/DTS clock frequency in Hz (90 kHz).
+    /// </summary>
+    public const int TS_PTS_CLOCK_FREQUENCY = 90000;
+    /// <summary>
+    /// Maximum value for 33-bit PTS/DTS counter before wraparound (2^33).
+    /// </summary>
+    public const long TS_PTS_MAX_VALUE = 0x200000000; // 8589934592
+    /// <summary>
+    /// Offset to PES header flags byte (byte 7 of PES packet).
+    /// </summary>
+    public const int TS_PES_FLAGS_OFFSET = 7;
+    /// <summary>
+    /// Offset to PES header data length byte (byte 8 of PES packet).
+    /// </summary>
+    public const int TS_PES_HEADER_DATA_LENGTH_OFFSET = 8;
+    /// <summary>
+    /// Starting offset of PTS value in PES header (byte 9).
+    /// </summary>
+    public const int TS_PES_PTS_OFFSET = 9;
+    /// <summary>
+    /// Size of PTS/DTS timestamp in bytes (5 bytes each).
+    /// </summary>
+    public const int TS_PTS_SIZE = 5;
+    /// <summary>
+    /// Starting offset of DTS value in PES header (byte 14, after PTS).
+    /// </summary>
+    public const int TS_PES_DTS_OFFSET = 14;
 
     // Placeholder for DVB subtitle support
     // public const byte TS_STREAM_TYPE_DVB_SUBTITLE = 0x05;

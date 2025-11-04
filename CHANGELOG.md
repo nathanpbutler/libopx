@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.2] - 2025-11-04
+
+### Changed
+
+* **MPEG-TS parser now returns Packets instead of Lines** - The TS parser has been refactored to return `IEnumerable<Packet>` instead of `IEnumerable<Line>`, matching the MXF parser's packet-based architecture. Each packet represents a PES (Packetized Elementary Stream) frame containing multiple teletext lines. This provides better consistency across container formats and enables frame-level PTS timing.
+* **PTS-based timecode generation** - TS parser now extracts PTS (Presentation Time Stamp) values from PES packet headers and converts them to accurate timecodes. This provides proper audio/video synchronization for transport stream formats where data, audio, and video streams may not be perfectly aligned.
+
+### Added
+
+* **Automatic frame rate detection for MPEG-TS** - Implemented PTS delta analysis to automatically detect video frame rates (24, 25, 30, 48, 50, 60 fps) from transport streams. The parser analyzes PTS intervals between video frames to determine the correct timebase, similar to MediaInfo's frame rate detection.
+* **Video stream tracking in TS parser** - Added PMT (Program Map Table) parsing to identify and track video stream PIDs (MPEG-1, MPEG-2, H.264, H.265) for frame rate detection.
+* **PTS extraction and conversion utilities** - New methods for extracting 33-bit PTS values from PES headers and converting them to SMPTE timecodes at the correct timebase.
+
+### Removed
+
+* **TS.LineCount property** - Removed as the packet-based architecture makes this property obsolete. Use `packet.LineCount` to get the number of lines in a specific packet.
+
+### Technical Details
+
+* Added `DetectFrameRateFromVideo()` method (TS.cs) for automatic frame rate detection via PTS delta analysis
+* Added `TryExtractPTS()` method (TS.cs) for extracting PTS from PES packet headers
+* Added `ConvertPTSToTimecode()` method (TS.cs) for PTS-to-timecode conversion
+* Modified `ProcessPMT()` (TS.cs) to track video stream PIDs
+* Modified `Parse()` and `ParseAsync()` (TS.cs) to return `IEnumerable<Packet>`
+* Modified `ProcessPESPacketToPacket()` (TS.cs) to group teletext data by PES packet
+* Updated `Functions.cs` to iterate over `packet.Lines` for TS format
+* Added video stream type constants to `Constants.cs`
+* Added PTS/DTS parsing constants to `Constants.cs`
+
 ## [2.1.1] - 2025-10-30
 
 ### Fixed
@@ -265,7 +294,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Publishing**: Single-file deployment with ReadyToRun optimization
 * **Dependencies**: Minimal external dependencies with System.CommandLine for CLI
 
-[unreleased]: https://github.com/nathanpbutler/libopx/compare/v2.1.1...HEAD
+[unreleased]: https://github.com/nathanpbutler/libopx/compare/v2.1.2...HEAD
+[2.1.2]: https://github.com/nathanpbutler/libopx/compare/v2.1.1...v2.1.2
 [2.1.1]: https://github.com/nathanpbutler/libopx/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/nathanpbutler/libopx/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/nathanpbutler/libopx/compare/v1.4.0...v2.0.0
