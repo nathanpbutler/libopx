@@ -1,8 +1,8 @@
 # libopx v3.0 Architecture Redesign
 
-**Status:** In Progress - Phase 2 (v2.2.0) 60% Complete (3/5 formats)
+**Status:** In Progress - Phase 2 (v2.2.0) 80% Complete (4/5 formats)
 **Target Release:** v3.0.0
-**Last Updated:** 2025-11-04 (Phase 1 ✅, Phase 2 in progress: handlers for T42/VBI/ANC complete, TS/MXF remaining)
+**Last Updated:** 2025-11-04 (Phase 1 ✅, Phase 2 in progress: handlers for T42/VBI/ANC/TS complete, MXF remaining)
 
 ## Executive Summary
 
@@ -998,7 +998,7 @@ During Phase 1, the orphaned `AsyncProcessingHelpers` class was identified and r
 
 **Note:** Combined with Phase 1 into v2.2.0 to deliver a complete internal foundation in one release.
 
-**Status:** 60% Complete - 3/5 format handlers implemented (T42, VBI, ANC)
+**Status:** 80% Complete - 4/5 format handlers implemented (T42, VBI, ANC, TS)
 
 **Completed Tasks:**
 
@@ -1009,13 +1009,16 @@ During Phase 1, the orphaned `AsyncProcessingHelpers` class was identified and r
 5. ✅ Implement `T42Handler`, `VBIHandler`, `ANCHandler`
 6. ✅ Create adapter layer for T42, VBI, ANC classes
 7. ✅ Add tests for new infrastructure (33 new tests)
+8. ✅ Implement `TSHandler` (refactored ~1070 lines of stateful logic)
+9. ✅ Update TS.cs to delegate to TSHandler
+10. ✅ All existing tests passing (66/66)
 
 **Remaining Tasks:**
 
-8. ⚠️ Implement `TSHandler` (requires refactoring ~500 lines of stateful logic)
-9. ⚠️ Implement `MXFHandler` (requires refactoring ~1000+ lines of complex logic)
-10. ⚠️ Update TS.cs and MXF.cs to delegate to handlers
-11. ⚠️ Add tests for TSHandler and MXFHandler
+11. ⚠️ Implement `MXFHandler` (requires refactoring ~1000+ lines of complex logic)
+12. ⚠️ Update MXF.cs to delegate to MXFHandler
+13. ⚠️ Add tests for TSHandler (awaiting TS test files from user)
+14. ⚠️ Add tests for MXFHandler (awaiting MXF test files from user)
 
 **Deliverables:**
 
@@ -1026,9 +1029,9 @@ During Phase 1, the orphaned `AsyncProcessingHelpers` class was identified and r
 - [x] `lib/Handlers/T42Handler.cs` ✅
 - [x] `lib/Handlers/VBIHandler.cs` ✅
 - [x] `lib/Handlers/ANCHandler.cs` ✅
-- [ ] `lib/Handlers/TSHandler.cs` ⚠️
+- [x] `lib/Handlers/TSHandler.cs` ✅
 - [ ] `lib/Handlers/MXFHandler.cs` ⚠️
-- [x] Updated `T42.cs`, `VBI.cs`, `ANC.cs` to use handlers internally ✅
+- [x] Updated `T42.cs`, `VBI.cs`, `ANC.cs`, `TS.cs` to use handlers internally ✅
 - [x] Tests for new components (33 tests, 66/66 total passing) ✅
 
 **Code Example:**

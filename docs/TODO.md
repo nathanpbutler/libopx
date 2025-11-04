@@ -1,6 +1,6 @@
 # libopx v3.0 Implementation TODO
 
-**Status:** Phase 2 IN PROGRESS (3/5 formats complete) | v2.2.0 in development
+**Status:** Phase 2 IN PROGRESS (4/5 formats complete - 80%) | v2.2.0 in development
 **Last Updated:** 2025-11-04
 **Release Strategy:** Consolidated to 3 releases (v2.2.0, v2.4.0, v3.0.0)
 
@@ -88,40 +88,45 @@ To avoid flooding NuGet with rapid incremental releases:
 - [x] Create `/tests/Core/FormatRegistryTests.cs` (14 tests)
 - [x] Create `/tests/Handlers/T42HandlerTests.cs` (15 tests)
 - [x] All tests passing - **66/66 tests passing** ✅
+- [x] Implement `TSHandler` (Packet-based format)
+  - [x] Refactored ~1070 lines of TS parsing logic with internal state
+  - [x] Moved _pesBuffers, _continuityCounters, _pmtPIDs, _teletextPIDs, _videoPIDs into handler
+  - [x] Moved DetectPacketSize, DetectFrameRateFromVideo, ProcessPAT, ProcessPMT methods
+  - [x] TS.cs reduced from ~1000 lines to ~140 lines
+  - [x] All existing tests passing (awaiting TS test files for TSHandler-specific tests)
+- [x] Create `lib/Handlers/TSHandler.cs`
+- [x] Update `TS.cs` to delegate to TSHandler internally
 
 ### Remaining Work in Phase 2
 
-- [ ] Implement `TSHandler` (Packet-based format)
-  - Requires refactoring ~500 lines of TS parsing logic with internal state
-  - Move _pesBuffers, _continuityCounters, _pmtPIDs, _teletextPIDs, _videoPIDs into handler
-  - Move DetectPacketSize, DetectFrameRateFromVideo, ParsePAT, ParsePMT methods
 - [ ] Implement `MXFHandler` (Packet-based format)
   - Requires refactoring ~1000+ lines of MXF parsing logic
   - Move KLV parsing, demux mode, output stream management into handler
   - Handle complex state and extraction modes
-- [ ] Update `TS.cs` to delegate to TSHandler
-- [ ] Update `MXF.cs` to delegate to MXFHandler
-- [ ] Create tests for TSHandler
-- [ ] Create tests for MXFHandler
+- [ ] Create `lib/Handlers/MXFHandler.cs`
+- [ ] Update `MXF.cs` to delegate to MXFHandler internally
+- [ ] Create handler-specific tests (awaiting test files from user)
+  - [ ] `/tests/Handlers/TSHandlerTests.cs` (need TS test files)
+  - [ ] `/tests/Handlers/MXFHandlerTests.cs` (need MXF test files)
 
 **Implementation Notes:**
 
 - **Line-based formats complete:** T42 and VBI fully integrated with handler pattern ✅
 - **Simple packet format complete:** ANC fully integrated with handler pattern ✅
-- **Complex packet formats (TS, MXF) need refactoring:** ~1500 lines of stateful parsing logic to extract into handlers
-- Both formats currently work but don't follow the handler delegation pattern yet
+- **Complex packet format (TS) complete:** TSHandler fully integrated with ~1070 lines encapsulated ✅
+- **Complex packet format (MXF) remaining:** ~1000+ lines of stateful parsing logic to extract into handler
 
 **Success Criteria:**
 
 - [x] IFormatHandler interface fully tested ✅
 - [x] IPacketFormatHandler interface created ✅
 - [x] FormatRegistry can register/retrieve handlers ✅
-- [x] T42Handler, VBIHandler, ANCHandler implemented and tested (3/5 formats) ✅
-- [x] T42, VBI, ANC classes delegate to handlers (3/5 formats) ✅
+- [x] T42Handler, VBIHandler, ANCHandler, TSHandler implemented (4/5 formats) ✅
+- [x] T42, VBI, ANC, TS classes delegate to handlers (4/5 formats) ✅
 - [x] All existing tests still pass - 66/66 tests passing ✅
 - [x] No breaking changes to public API ✅
-- [ ] TSHandler and MXFHandler implemented and tested (2/5 formats remaining) ⚠️
-- [ ] TS and MXF classes delegate to handlers (2/5 formats remaining) ⚠️
+- [ ] MXFHandler implemented and tested (1/5 formats remaining) ⚠️
+- [ ] MXF class delegates to handler (1/5 formats remaining) ⚠️
 - [ ] All format handlers complete and consistent ⚠️
 
 ---

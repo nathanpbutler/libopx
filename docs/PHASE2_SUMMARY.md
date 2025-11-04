@@ -1,18 +1,19 @@
 # Phase 2 Progress Summary
 
 **Date:** 2025-11-04
-**Status:** 60% Complete (3/5 formats)
+**Status:** 80% Complete (4/5 formats)
 **Tests:** 66/66 passing ✅
 
 ## What's Complete
 
 ### Interfaces & Infrastructure ✅
+
 - **IFormatHandler** - Interface for Line-based formats (T42, VBI)
 - **IPacketFormatHandler** - Interface for Packet-based formats (TS, MXF, ANC)
 - **FormatRegistry** - Thread-safe handler registration and retrieval
 - **ParseOptions** - Extended configuration with StartTimecode and PIDs support
 
-### Format Handlers Implemented (3/5) ✅
+### Format Handlers Implemented (4/5) ✅
 
 1. **T42Handler** ✅
    - Line-based format
@@ -32,7 +33,24 @@
    - Parses MXF ancillary data extracted to binary files
    - Minimal internal state
 
+4. **TSHandler** ✅
+   - Packet-based format (complex)
+   - ~1070 lines of encapsulated logic
+   - Fully integrated with TS.cs (reduced from ~1000 to ~140 lines)
+   - Internal state management:
+     - `_pesBuffers` - PES packet assembly
+     - `_continuityCounters` - TS continuity tracking
+     - `_pmtPIDs`, `_teletextPIDs`, `_videoPIDs` - PID management
+     - `_frameRateDetected` - Frame rate detection state
+   - Key features:
+     - `DetectPacketSize()` - 188 vs 192 byte detection
+     - `DetectFrameRateFromVideo()` - PTS-based frame rate detection
+     - `ProcessPAT()`, `ProcessPMT()` - MPEG-TS table parsing
+     - `ProcessPESPacketToPacket()` - DVB teletext extraction
+   - All existing tests passing (awaiting TS test files for handler-specific tests)
+
 ### Testing ✅
+
 - **33 new tests added** (ParseOptions, FormatRegistry, T42Handler)
 - **All 66/66 tests passing**
 - **100% backward compatibility maintained**
@@ -40,21 +58,7 @@
 
 ## What Remains
 
-### Format Handlers (2/5) ⚠️
-
-4. **TSHandler** ⚠️
-   - Packet-based format (complex)
-   - ~500 lines of logic to refactor
-   - Extensive internal state:
-     - `_pesBuffers` - PES packet assembly
-     - `_continuityCounters` - TS continuity tracking
-     - `_pmtPIDs`, `_teletextPIDs`, `_videoPIDs` - PID management
-     - `_frameRateDetected` - Frame rate detection state
-   - Complex methods to move:
-     - `DetectPacketSize()` - 188 vs 192 byte detection
-     - `DetectFrameRateFromVideo()` - PTS-based frame rate detection
-     - `ParsePAT()`, `ParsePMT()` - MPEG-TS table parsing
-     - `ProcessTeletextPES()` - DVB teletext extraction
+### Format Handlers (1/5) ⚠️
 
 5. **MXFHandler** ⚠️
    - Packet-based format (very complex)
@@ -73,29 +77,32 @@
      - BER length decoding buffers
      - Progress reporting
 
-## Why TS/MXF Are Complex
+## Why MXF Is Complex
 
 ### State Management Issues
-Both formats maintain extensive mutable state across the parsing session:
-- **TS:** PES buffer assembly, continuity tracking, PID detection
-- **MXF:** Output stream management, KLV state, extraction modes
+
+MXF maintains extensive mutable state across the parsing session:
+
+- **MXF:** Output stream management, KLV state, extraction modes, multiple file streams
 
 ### Refactoring Challenges
-1. **Move ~1500 lines of stateful code** into handlers
+
+1. **Move ~1000+ lines of stateful code** into MXFHandler
 2. **Maintain backward compatibility** while delegating
-3. **Preserve all existing functionality** (auto-detection, demux, restripe)
-4. **Handle resource management** (file streams, buffers)
+3. **Preserve all existing functionality** (auto-detection, demux, restripe, KLV modes)
+4. **Handle resource management** (file streams, buffers, BER decoding)
 
 ### Recommended Approach
-1. Create TSHandler/MXFHandler with full state encapsulation
-2. Move detection/parsing methods into handlers
-3. Update TS.cs/MXF.cs to be thin delegation wrappers
-4. Add tests for new handlers
+
+1. Create MXFHandler with full state encapsulation
+2. Move KLV parsing and extraction methods into handler
+3. Update MXF.cs to be thin delegation wrapper
+4. Add tests for MXFHandler
 5. Verify all existing tests still pass
 
 ## Files Created in This Session
 
-```
+```plaintext
 lib/Core/
 ├── IFormatHandler.cs          (Line-based interface)
 ├── IPacketFormatHandler.cs    (Packet-based interface)
@@ -105,7 +112,8 @@ lib/Core/
 lib/Handlers/
 ├── T42Handler.cs              (Line format - complete)
 ├── VBIHandler.cs              (Line format - complete)
-└── ANCHandler.cs              (Packet format - complete)
+├── ANCHandler.cs              (Packet format - complete)
+└── TSHandler.cs               (Packet format - complete)
 
 tests/Core/
 ├── ParseOptionsTests.cs       (13 tests)
@@ -117,11 +125,12 @@ tests/Handlers/
 
 ## Updated Files
 
-```
+```plaintext
 lib/Formats/
 ├── T42.cs                     (Now delegates to T42Handler)
 ├── VBI.cs                     (Now delegates to VBIHandler)
-└── ANC.cs                     (Now delegates to ANCHandler)
+├── ANC.cs                     (Now delegates to ANCHandler)
+└── TS.cs                      (Now delegates to TSHandler)
 
 docs/
 ├── TODO.md                    (Updated Phase 2 status)
@@ -130,43 +139,32 @@ docs/
 
 ## Next Steps for Completion
 
-1. **Create TSHandler.cs**
-   - Extract ~500 lines from TS.cs
-   - Encapsulate all parsing state
-   - Move detection and parsing methods
-   - Implement IPacketFormatHandler interface
-
-2. **Update TS.cs**
-   - Create private TSHandler instance
-   - Delegate Parse/ParseAsync to handler
-   - Keep original methods as fallback (mark obsolete)
-
-3. **Create MXFHandler.cs**
+1. **Create MXFHandler.cs**
    - Extract ~1000+ lines from MXF.cs
    - Encapsulate KLV parsing, demux mode, stream management
    - Handle complex extraction modes
    - Implement IPacketFormatHandler interface
 
-4. **Update MXF.cs**
+2. **Update MXF.cs**
    - Create private MXFHandler instance
    - Delegate Parse/ParseAsync to handler
    - Preserve all existing functionality
 
-5. **Add Tests**
-   - TSHandlerTests.cs
-   - MXFHandlerTests.cs
+3. **Add Tests**
+   - TSHandlerTests.cs (awaiting TS test files from user)
+   - MXFHandlerTests.cs (awaiting MXF test files from user)
    - Verify all existing tests pass
 
-6. **Update Documentation**
+4. **Update Documentation**
    - Mark Phase 2 complete in TODO.md
    - Update NEXT.md implementation status
    - Ready for v2.2.0 release
 
 ## Metrics
 
-- **Code Created:** ~1200 lines (interfaces, handlers, tests)
-- **Code Refactored:** ~800 lines (T42, VBI, ANC delegation)
+- **Code Created:** ~2300 lines (interfaces, handlers, tests)
+- **Code Refactored:** ~1900 lines (T42, VBI, ANC, TS delegation)
 - **Tests Added:** 33 new tests (100% passing)
-- **Formats Complete:** 3/5 (60%)
-- **Estimated Remaining:** ~1500 lines to refactor for TS/MXF
-- **Time Investment:** Continue in fresh chat session
+- **Formats Complete:** 4/5 (80%)
+- **Estimated Remaining:** ~1000 lines to refactor for MXF
+- **Time Investment:** Continue MXFHandler in fresh chat session when test files available
