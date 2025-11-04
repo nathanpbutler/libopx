@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using nathanbutlerDEV.libopx.Core;
 using nathanbutlerDEV.libopx.Enums;
+using nathanbutlerDEV.libopx.Handlers;
 
 namespace nathanbutlerDEV.libopx.Formats;
 
@@ -13,6 +14,11 @@ namespace nathanbutlerDEV.libopx.Formats;
 /// </summary>
 public class ANC : FormatIOBase
 {
+    /// <summary>
+    /// Internal handler for ANC format parsing operations.
+    /// </summary>
+    private static readonly ANCHandler _handler = new();
+
     private readonly byte[] _packetHeader = new byte[Constants.PACKET_HEADER_SIZE];
     private readonly byte[] _lineHeader = new byte[Constants.LINE_HEADER_SIZE];
 
@@ -75,6 +81,24 @@ public class ANC : FormatIOBase
     /// <param name="startTimecode">Optional starting timecode for packet numbering</param>
     /// <returns>An enumerable of parsed packets matching the filter criteria</returns>
     public IEnumerable<Packet> Parse(int? magazine = null, int[]? rows = null, Timecode? startTimecode = null)
+    {
+        // Create options from parameters
+        var options = new ParseOptions
+        {
+            Magazine = magazine,
+            Rows = rows,
+            OutputFormat = OutputFormat ?? Format.T42,
+            StartTimecode = startTimecode
+        };
+
+        // Delegate to handler
+        return _handler.Parse(Input, options);
+    }
+
+    /// <summary>
+    /// [Obsolete] Original Parse implementation - kept for reference.
+    /// </summary>
+    private IEnumerable<Packet> ParseOriginal(int? magazine = null, int[]? rows = null, Timecode? startTimecode = null)
     {
         // Use default rows if not specified
         rows ??= Constants.DEFAULT_ROWS;
@@ -144,6 +168,31 @@ public class ANC : FormatIOBase
     /// <param name="cancellationToken">Token to cancel the operation</param>
     /// <returns>An async enumerable of parsed packets matching the filter criteria</returns>
     public async IAsyncEnumerable<Packet> ParseAsync(
+        int? magazine = null,
+        int[]? rows = null,
+        Timecode? startTimecode = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        // Create options from parameters
+        var options = new ParseOptions
+        {
+            Magazine = magazine,
+            Rows = rows,
+            OutputFormat = OutputFormat ?? Format.T42,
+            StartTimecode = startTimecode
+        };
+
+        // Delegate to handler
+        await foreach (var packet in _handler.ParseAsync(Input, options, cancellationToken))
+        {
+            yield return packet;
+        }
+    }
+
+    /// <summary>
+    /// [Obsolete] Original ParseAsync implementation - kept for reference.
+    /// </summary>
+    private async IAsyncEnumerable<Packet> ParseAsyncOriginal(
         int? magazine = null,
         int[]? rows = null,
         Timecode? startTimecode = null,

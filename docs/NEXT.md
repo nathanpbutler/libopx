@@ -1,8 +1,8 @@
 # libopx v3.0 Architecture Redesign
 
-**Status:** In Progress - Phase 1 (v2.2.0) ~70% Complete
+**Status:** In Progress - Phase 2 (v2.2.0) 60% Complete (3/5 formats)
 **Target Release:** v3.0.0
-**Last Updated:** 2025-11-04 (Phase 1 refactoring in progress; ANC rename from MXFData)
+**Last Updated:** 2025-11-04 (Phase 1 ✅, Phase 2 in progress: handlers for T42/VBI/ANC complete, TS/MXF remaining)
 
 ## Executive Summary
 
@@ -992,28 +992,44 @@ During Phase 1, the orphaned `AsyncProcessingHelpers` class was identified and r
 
 ---
 
-### Phase 2: Define Abstractions (v2.2.0)
+### Phase 2: Define Abstractions (v2.2.0) 🔄 IN PROGRESS
 
 **Goal:** Introduce interfaces while maintaining backward compatibility.
 
 **Note:** Combined with Phase 1 into v2.2.0 to deliver a complete internal foundation in one release.
 
-**Tasks:**
+**Status:** 60% Complete - 3/5 format handlers implemented (T42, VBI, ANC)
 
-1. Define `IFormatHandler` interface
-2. Create `FormatRegistry` class
-3. Implement `T42Handler` as proof of concept
-4. Create adapter layer so `T42` class delegates to `T42Handler`
-5. Add tests for new infrastructure
+**Completed Tasks:**
+
+1. ✅ Define `IFormatHandler` interface for Line-based formats
+2. ✅ Define `IPacketFormatHandler` interface for Packet-based formats
+3. ✅ Create `FormatRegistry` class
+4. ✅ Extend `ParseOptions` with StartTimecode and PIDs
+5. ✅ Implement `T42Handler`, `VBIHandler`, `ANCHandler`
+6. ✅ Create adapter layer for T42, VBI, ANC classes
+7. ✅ Add tests for new infrastructure (33 new tests)
+
+**Remaining Tasks:**
+
+8. ⚠️ Implement `TSHandler` (requires refactoring ~500 lines of stateful logic)
+9. ⚠️ Implement `MXFHandler` (requires refactoring ~1000+ lines of complex logic)
+10. ⚠️ Update TS.cs and MXF.cs to delegate to handlers
+11. ⚠️ Add tests for TSHandler and MXFHandler
 
 **Deliverables:**
 
-- [ ] `lib/Core/IFormatHandler.cs`
-- [ ] `lib/Core/FormatRegistry.cs`
-- [ ] `lib/Core/ParseOptions.cs`
-- [ ] `lib/Handlers/T42Handler.cs`
-- [ ] Updated `T42.cs` to use T42Handler internally
-- [ ] Tests for new components
+- [x] `lib/Core/IFormatHandler.cs` ✅
+- [x] `lib/Core/IPacketFormatHandler.cs` ✅
+- [x] `lib/Core/FormatRegistry.cs` ✅
+- [x] `lib/Core/ParseOptions.cs` ✅ (extended with StartTimecode, PIDs)
+- [x] `lib/Handlers/T42Handler.cs` ✅
+- [x] `lib/Handlers/VBIHandler.cs` ✅
+- [x] `lib/Handlers/ANCHandler.cs` ✅
+- [ ] `lib/Handlers/TSHandler.cs` ⚠️
+- [ ] `lib/Handlers/MXFHandler.cs` ⚠️
+- [x] Updated `T42.cs`, `VBI.cs`, `ANC.cs` to use handlers internally ✅
+- [x] Tests for new components (33 tests, 66/66 total passing) ✅
 
 **Code Example:**
 

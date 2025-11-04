@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using nathanbutlerDEV.libopx.Core;
 using nathanbutlerDEV.libopx.Enums;
+using nathanbutlerDEV.libopx.Handlers;
 
 namespace nathanbutlerDEV.libopx.Formats;
 
@@ -15,6 +16,11 @@ namespace nathanbutlerDEV.libopx.Formats;
 /// </summary>
 public class T42 : FormatIOBase
 {
+    /// <summary>
+    /// Internal handler for T42 format parsing operations.
+    /// </summary>
+    private static readonly T42Handler _handler = new();
+
     /// <summary>
     /// Gets or sets the input format. Default is T42.
     /// </summary>
@@ -33,7 +39,7 @@ public class T42 : FormatIOBase
     /// <summary>
     /// Gets the array of valid output formats supported by the T42 parser.
     /// </summary>
-    public static readonly Format[] ValidOutputs = [Format.T42, Format.VBI, Format.VBI_DOUBLE];
+    public static readonly Format[] ValidOutputs = [Format.T42, Format.VBI, Format.VBI_DOUBLE, Format.RCWT, Format.STL];
 
     /// <summary>
     /// Constructor for T42 format from file
@@ -86,103 +92,17 @@ public class T42 : FormatIOBase
     /// <returns>An enumerable of parsed lines matching the filter criteria</returns>
     public IEnumerable<Line> Parse(int? magazine = null, int[]? rows = null)
     {
-        // Use default rows if not specified
-        rows ??= Constants.DEFAULT_ROWS;
-
-        // If OutputFormat is not set, use the provided outputFormat
-        var outputFormat = OutputFormat ?? Format.T42;
-
-        // Initialize RCWT state if needed
-        if (outputFormat == Format.RCWT)
+        // Create options from parameters
+        var options = new ParseOptions
         {
-            Functions.ResetRCWTHeader();
-        }
+            Magazine = magazine,
+            Rows = rows,
+            OutputFormat = OutputFormat ?? Format.T42,
+            LineCount = LineCount
+        };
 
-        int lineNumber = 0;
-        var timecode = new Timecode(0);
-        var t42Buffer = new byte[LineLength];
-
-        while (Input.Read(t42Buffer, 0, LineLength) == LineLength)
-        {
-            // Increment timecode if LineCount is reached
-            if (lineNumber % LineCount == 0 && lineNumber != 0)
-            {
-                timecode = timecode.GetNext();
-            }
-
-            // Create a basic Line object for T42 data
-            var line = new Line()
-            {
-                LineNumber = lineNumber,
-                Data = [.. t42Buffer],
-                Length = LineLength,
-                SampleCoding = 0x31, // T42 sample coding
-                SampleCount = LineLength,
-                LineTimecode = timecode,
-            };
-            
-            // Explicitly set the cached type to T42 for proper ToRCWT conversion
-            line.SetCachedType(Format.T42);
-
-            // Extract T42 metadata
-            if (t42Buffer.Length >= Constants.T42_LINE_SIZE && t42Buffer.Any(b => b != 0))
-            {
-                line.Magazine = GetMagazine(t42Buffer[0]);
-                line.Row = GetRow([.. t42Buffer.Take(2)]);
-                line.Text = GetText([.. t42Buffer.Skip(2)], line.Row == 0);
-            }
-            else
-            {
-                // Empty data, skip this line
-                lineNumber++;
-                continue;
-            }
-
-            // Process the T42 data based on output format
-            if (outputFormat == Format.VBI || outputFormat == Format.VBI_DOUBLE)
-            {
-                try
-                {
-                    // Convert T42 to VBI using the corrected method
-                    var vbiData = ToVBI(t42Buffer, outputFormat);
-
-                    // Update line properties for VBI
-                    line.Data = vbiData;
-                    line.Length = vbiData.Length;
-                    line.SampleCoding = outputFormat == Format.VBI_DOUBLE ? 0x32 : 0x31;
-                    line.SampleCount = vbiData.Length;
-
-                    // For VBI output, clear T42-specific metadata
-                    line.Magazine = -1;
-                    line.Row = -1;
-                    line.Text = Constants.T42_BLANK_LINE;
-                }
-                catch
-                {
-                    // If conversion fails, skip this line
-                    lineNumber++;
-                    continue;
-                }
-            }
-            // For RCWT output, keep the T42 data - WriteOutputAsync will handle RCWT packet generation
-            // This prevents double-conversion (T42 -> RCWT -> RCWT)
-
-            // Apply filtering if specified
-            if (magazine.HasValue && line.Magazine != magazine.Value)
-            {
-                lineNumber++;
-                continue;
-            }
-
-            if (rows != null && !rows.Contains(line.Row))
-            {
-                lineNumber++;
-                continue;
-            }
-
-            yield return line;
-            lineNumber++;
-        }
+        // Delegate to handler
+        return _handler.Parse(Input, options);
     }
 
     /// <summary>
@@ -193,111 +113,23 @@ public class T42 : FormatIOBase
     /// <param name="cancellationToken">Token to cancel the operation</param>
     /// <returns>An async enumerable of parsed lines matching the filter criteria</returns>
     public async IAsyncEnumerable<Line> ParseAsync(
-        int? magazine = null, 
+        int? magazine = null,
         int[]? rows = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        rows ??= Constants.DEFAULT_ROWS;
-        var outputFormat = OutputFormat ?? Format.T42;
-
-        // Initialize RCWT state if needed
-        if (outputFormat == Format.RCWT)
+        // Create options from parameters
+        var options = new ParseOptions
         {
-            Functions.ResetRCWTHeader();
-        }
+            Magazine = magazine,
+            Rows = rows,
+            OutputFormat = OutputFormat ?? Format.T42,
+            LineCount = LineCount
+        };
 
-        int lineNumber = 0;
-        var timecode = new Timecode(0);
-        
-        var arrayPool = ArrayPool<byte>.Shared;
-        var t42Buffer = arrayPool.Rent(LineLength);
-
-        try
+        // Delegate to handler
+        await foreach (var line in _handler.ParseAsync(Input, options, cancellationToken))
         {
-            while (true)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                var bufferMemory = t42Buffer.AsMemory(0, LineLength);
-                var bytesRead = await Input.ReadAsync(bufferMemory, cancellationToken);
-
-                if (bytesRead != LineLength)
-                    break;
-
-                if (lineNumber % LineCount == 0 && lineNumber != 0)
-                {
-                    timecode = timecode.GetNext();
-                }
-
-                var line = new Line()
-                {
-                    LineNumber = lineNumber,
-                    Data = t42Buffer.AsSpan(0, LineLength).ToArray(),
-                    Length = LineLength,
-                    SampleCoding = 0x31,
-                    SampleCount = LineLength,
-                    LineTimecode = timecode,
-                };
-                
-                // Explicitly set the cached type to T42 for proper ToRCWT conversion
-                line.SetCachedType(Format.T42);
-
-                // Extract T42 metadata
-                if (line.Data.Length >= Constants.T42_LINE_SIZE && line.Data.Any(b => b != 0))
-                {
-                    line.Magazine = GetMagazine(line.Data[0]);
-                    line.Row = GetRow([.. line.Data.Take(2)]);
-                    line.Text = GetText([.. line.Data.Skip(2)], line.Row == 0);
-                }
-                else
-                {
-                    lineNumber++;
-                    continue;
-                }
-
-                // Format conversion logic (same as synchronous version)
-                if (outputFormat == Format.VBI || outputFormat == Format.VBI_DOUBLE)
-                {
-                    try
-                    {
-                        var vbiData = ToVBI(line.Data, outputFormat);
-                        line.Data = vbiData;
-                        line.Length = vbiData.Length;
-                        line.SampleCoding = outputFormat == Format.VBI_DOUBLE ? 0x32 : 0x31;
-                        line.SampleCount = vbiData.Length;
-                        line.Magazine = -1;
-                        line.Row = -1;
-                        line.Text = Constants.T42_BLANK_LINE;
-                    }
-                    catch
-                    {
-                        lineNumber++;
-                        continue;
-                    }
-                }
-                // For RCWT output, keep the T42 data - WriteOutputAsync will handle RCWT packet generation
-                // This prevents double-conversion (T42 -> RCWT -> RCWT)
-
-                // Apply filtering
-                if (magazine.HasValue && line.Magazine != magazine.Value)
-                {
-                    lineNumber++;
-                    continue;
-                }
-
-                if (rows != null && !rows.Contains(line.Row))
-                {
-                    lineNumber++;
-                    continue;
-                }
-
-                yield return line;
-                lineNumber++;
-            }
-        }
-        finally
-        {
-            arrayPool.Return(t42Buffer);
+            yield return line;
         }
     }
 
