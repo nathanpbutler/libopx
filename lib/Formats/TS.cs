@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using nathanbutlerDEV.libopx.Core;
 using nathanbutlerDEV.libopx.Enums;
 
 namespace nathanbutlerDEV.libopx.Formats;
@@ -9,49 +10,17 @@ namespace nathanbutlerDEV.libopx.Formats;
 /// Parser for MPEG Transport Stream (TS) format files with support for extracting teletext data.
 /// Handles PAT/PMT parsing, PID filtering, and DVB teletext extraction with automatic stream detection.
 /// </summary>
-public class TS : IDisposable
+public class TS : FormatIOBase
 {
-    /// <summary>
-    /// Gets or sets the input file. If null, reads from stdin.
-    /// </summary>
-    public FileInfo? InputFile { get; set; } = null;
-
-    /// <summary>
-    /// Gets or sets the output file. If null, writes to stdout.
-    /// </summary>
-    public FileInfo? OutputFile { get; set; } = null;
-
-    private Stream? _outputStream;
-
-    /// <summary>
-    /// Gets or sets the input stream for reading TS data.
-    /// </summary>
-    public required Stream Input { get; set; }
-
-    /// <summary>
-    /// Gets the output stream for writing processed data.
-    /// </summary>
-    public Stream Output => _outputStream ??= OutputFile == null ? Console.OpenStandardOutput() : OutputFile.Open(FileMode.Create, FileAccess.Write, FileShare.Read);
-
     /// <summary>
     /// Gets or sets the input format. Default is TS.
     /// </summary>
     public Format InputFormat { get; set; } = Format.TS;
 
     /// <summary>
-    /// Gets or sets the output format for processed data. Default is T42.
-    /// </summary>
-    public Format? OutputFormat { get; set; } = Format.T42;
-
-    /// <summary>
     /// Gets the array of valid output formats supported by the TS parser.
     /// </summary>
     public static readonly Format[] ValidOutputs = [Format.T42, Format.VBI, Format.VBI_DOUBLE, Format.RCWT, Format.STL];
-
-    /// <summary>
-    /// Gets or sets the function mode for processing. Default is Filter.
-    /// </summary>
-    public Function Function { get; set; } = Function.Filter;
 
     /// <summary>
     /// Gets or sets the PIDs to filter. If null, auto-detection is used to find all teletext streams.
@@ -99,6 +68,7 @@ public class TS : IDisposable
         }
 
         Input = InputFile.OpenRead();
+        OutputFormat = Format.T42; // Set default output format
     }
 
     /// <summary>
@@ -109,36 +79,20 @@ public class TS : IDisposable
     {
         InputFile = null;
         Input = Console.OpenStandardInput();
+        OutputFormat = Format.T42; // Set default output format
     }
 
     /// <summary>
     /// Constructor for TS format with custom stream.
     /// </summary>
     /// <param name="inputStream">The input stream to read from</param>
+    /// <exception cref="ArgumentNullException">Thrown if inputStream is null</exception>
     [SetsRequiredMembers]
     public TS(Stream inputStream)
     {
         InputFile = null;
         Input = inputStream ?? throw new ArgumentNullException(nameof(inputStream));
-    }
-
-    /// <summary>
-    /// Sets the output file for writing.
-    /// </summary>
-    /// <param name="outputFile">Path to the output file</param>
-    public void SetOutput(string outputFile)
-    {
-        OutputFile = new FileInfo(outputFile);
-    }
-
-    /// <summary>
-    /// Sets the output stream for writing.
-    /// </summary>
-    /// <param name="outputStream">The output stream to write to</param>
-    public void SetOutput(Stream outputStream)
-    {
-        OutputFile = null;
-        _outputStream = outputStream ?? throw new ArgumentNullException(nameof(outputStream), "Output stream cannot be null.");
+        OutputFormat = Format.T42; // Set default output format
     }
 
     /// <summary>
@@ -1036,27 +990,18 @@ public class TS : IDisposable
     }
 
     /// <summary>
-    /// Disposes the resources used by the TS parser.
+    /// Disposes the resources used by the TS parser and clears internal state.
     /// </summary>
-    public void Dispose()
+    public override void Dispose()
     {
-        GC.SuppressFinalize(this);
-
-        // Only dispose streams we created (not stdin/stdout)
-        if (InputFile != null)
-        {
-            Input?.Dispose();
-        }
-        if (OutputFile != null)
-        {
-            _outputStream?.Dispose();
-        }
-
-        // Clear internal state
+        // Clear TS-specific internal state
         _pesBuffers.Clear();
         _continuityCounters.Clear();
         _teletextPIDs.Clear();
         _videoPIDs.Clear();
         _pmtPIDs.Clear();
+
+        // Call base class disposal for streams
+        base.Dispose();
     }
 }

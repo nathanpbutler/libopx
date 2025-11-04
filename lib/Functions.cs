@@ -19,13 +19,13 @@ public class Functions
     /// <param name="magazine">The magazine number to filter by (null for all magazines).</param>
     /// <param name="rows">The number of rows to filter by.</param>
     /// <param name="lineCount">The number of lines per frame for timecode incrementation.</param>
-    /// <param name="inputFormat">The input format to use (e.g., MXFData, VBI, T42).</param>
+    /// <param name="inputFormat">The input format to use (e.g., ANC, VBI, T42).</param>
     /// <param name="verbose">Whether to enable verbose output.</param>
     /// <returns>An integer indicating the result of the filtering operation.</returns>
     /// <remarks>
     /// This function reads the specified input file or stdin, processes it according to the provided parameters,
     /// and outputs the filtered lines to stdout. The input format determines how the data is parsed and processed.
-    /// Supported formats include MXFData, VBI, VBI_DOUBLE, and T42.
+    /// Supported formats include ANC, VBI, VBI_DOUBLE, and T42.
     /// </remarks>
     /// <exception cref="ArgumentException">Thrown if an unsupported input format is specified.</exception>
     /// <exception cref="FileNotFoundException">Thrown if the specified input file does not exist.</exception>
@@ -48,11 +48,11 @@ public class Functions
 
             switch (inputFormat)
             {
-                case Format.MXFData:
-                    var mxfData = input is FileInfo inputMXFData && inputMXFData.Exists
-                        ? new MXF.MXFData(inputMXFData.FullName)
-                        : new MXF.MXFData(Console.OpenStandardInput());
-                    foreach (var packet in mxfData.Parse(magazine, rows))
+                case Format.ANC:
+                    var anc = input is FileInfo inputANC && inputANC.Exists
+                        ? new ANC(inputANC.FullName)
+                        : new ANC(Console.OpenStandardInput());
+                    foreach (var packet in anc.Parse(magazine, rows))
                     {
                         Console.WriteLine(packet);
                     }
@@ -182,11 +182,11 @@ public class Functions
 
             switch (inputFormat)
             {
-                case Format.MXFData:
-                    var mxfData = input is { Exists: true } inputMXFData
-                        ? new MXF.MXFData(inputMXFData.FullName)
-                        : new MXF.MXFData(Console.OpenStandardInput());
-                    await foreach (var packet in mxfData.ParseAsync(magazine, rows, cancellationToken: cancellationToken))
+                case Format.ANC:
+                    var anc = input is { Exists: true } inputANC
+                        ? new ANC(inputANC.FullName)
+                        : new ANC(Console.OpenStandardInput());
+                    await foreach (var packet in anc.ParseAsync(magazine, rows, cancellationToken: cancellationToken))
                     {
                         Console.WriteLine(packet);
                     }
@@ -303,7 +303,7 @@ public class Functions
     {
         return format.TrimStart('.').ToLowerInvariant() switch
         {
-            "bin" => Format.MXFData,
+            "bin" => Format.ANC,
             "vbi" => Format.VBI,
             "vbid" => Format.VBI_DOUBLE,
             "t42" => Format.T42,
@@ -783,13 +783,13 @@ public class Functions
                 }
                 switch (inputFormat)
                 {
-                    case Format.MXFData:
-                        var mxfData = input is FileInfo inputMXFData && inputMXFData.Exists
-                            ? new MXF.MXFData(inputMXFData.FullName)
-                            : new MXF.MXFData(Console.OpenStandardInput());
-                        mxfData.OutputFormat = outputFormat;
-                        mxfData.SetOutput(outputStream);
-                        foreach (var packet in mxfData.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
+                    case Format.ANC:
+                        var anc = input is FileInfo inputANC && inputANC.Exists
+                            ? new ANC(inputANC.FullName)
+                            : new ANC(Console.OpenStandardInput());
+                        anc.OutputFormat = outputFormat;
+                        anc.SetOutput(outputStream);
+                        foreach (var packet in anc.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
                         {
                             foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
                             {
@@ -803,11 +803,11 @@ public class Functions
                                 if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
                                 {
                                     var blankData = new byte[dataToWrite.Length];
-                                    mxfData.Output.Write(blankData, 0, blankData.Length);
+                                    anc.Output.Write(blankData, 0, blankData.Length);
                                 }
                                 else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
                                 {
-                                    mxfData.Output.Write(dataToWrite, 0, dataToWrite.Length);
+                                    anc.Output.Write(dataToWrite, 0, dataToWrite.Length);
                                 }
                             }
                         }
@@ -1046,17 +1046,17 @@ public class Functions
                 
                 switch (inputFormat)
                 {
-                    case Format.MXFData:
-                        var mxfData = input is { Exists: true } inputMXFData
-                            ? new MXF.MXFData(inputMXFData.FullName)
-                            : new MXF.MXFData(Console.OpenStandardInput());
-                        mxfData.OutputFormat = outputFormat;
-                        mxfData.SetOutput(outputStream);
-                        await foreach (var packet in mxfData.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken: cancellationToken))
+                    case Format.ANC:
+                        var anc = input is { Exists: true } inputANC
+                            ? new ANC(inputANC.FullName)
+                            : new ANC(Console.OpenStandardInput());
+                        anc.OutputFormat = outputFormat;
+                        anc.SetOutput(outputStream);
+                        await foreach (var packet in anc.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken: cancellationToken))
                         {
                             foreach (var line in packet.Lines)
                             {
-                                await WriteOutputAsync(line, mxfData.Output, outputFormat, magazine, rows, keepBlanks, verbose, cancellationToken);
+                                await WriteOutputAsync(line, anc.Output, outputFormat, magazine, rows, keepBlanks, verbose, cancellationToken);
 
                                 /*if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
                                 {
@@ -1314,7 +1314,7 @@ public class Functions
             case Format.VBI:
             case Format.VBI_DOUBLE:
             case Format.T42:
-            case Format.MXFData:
+            case Format.ANC:
             case Format.MXF:
             case Format.Unknown:
             default:

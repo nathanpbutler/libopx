@@ -4,6 +4,7 @@ using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text;
+using nathanbutlerDEV.libopx.Core;
 using nathanbutlerDEV.libopx.Enums;
 
 namespace nathanbutlerDEV.libopx.Formats;
@@ -12,48 +13,25 @@ namespace nathanbutlerDEV.libopx.Formats;
 /// Parser for T42 teletext format files with support for conversion to VBI formats and teletext content extraction.
 /// Provides Hamming error correction and ANSI color formatting for teletext display.
 /// </summary>
-public class T42 : IDisposable
+public class T42 : FormatIOBase
 {
-    /// <summary>
-    /// Gets or sets the input file. If null, reads from stdin.
-    /// </summary>
-    public FileInfo? InputFile { get; set; } = null;
-    /// <summary>
-    /// Gets or sets the output file. If null, writes to stdout.
-    /// </summary>
-    public FileInfo? OutputFile { get; set; } = null;
-    private Stream? _outputStream;
-    /// <summary>
-    /// Gets or sets the input stream for reading T42 data.
-    /// </summary>
-    public required Stream Input { get; set; }
-    /// <summary>
-    /// Gets the output stream for writing processed data.
-    /// </summary>
-    public Stream Output => _outputStream ??= OutputFile == null ? Console.OpenStandardOutput() : OutputFile.Open(FileMode.Create, FileAccess.Write, FileShare.Read);
     /// <summary>
     /// Gets or sets the input format. Default is T42.
     /// </summary>
     public Format InputFormat { get; set; } = Format.T42;
-    /// <summary>
-    /// Gets or sets the output format for processed data. Default is T42.
-    /// </summary>
-    public Format? OutputFormat { get; set; } = Format.T42;
+
     /// <summary>
     /// Gets the standard length of a T42 teletext line in bytes.
     /// </summary>
     public static int LineLength => Constants.T42_LINE_SIZE;
-    /// <summary>
-    /// Gets or sets the function mode for processing. Default is Filter.
-    /// </summary>
-    public Function Function { get; set; } = Function.Filter;
+
     /// <summary>
     /// Gets or sets the number of lines per frame for timecode incrementation. Default is 2.
     /// </summary>
     public int LineCount { get; set; } = 2;
 
     /// <summary>
-    /// Valid outputs: t42/vbi/vbi_double
+    /// Gets the array of valid output formats supported by the T42 parser.
     /// </summary>
     public static readonly Format[] ValidOutputs = [Format.T42, Format.VBI, Format.VBI_DOUBLE];
 
@@ -73,6 +51,7 @@ public class T42 : IDisposable
         }
 
         Input = InputFile.OpenRead();
+        OutputFormat = Format.T42; // Set default output format
     }
 
     /// <summary>
@@ -83,35 +62,20 @@ public class T42 : IDisposable
     {
         InputFile = null;
         Input = Console.OpenStandardInput();
+        OutputFormat = Format.T42; // Set default output format
     }
 
     /// <summary>
     /// Constructor for T42 format with custom stream
     /// </summary>
+    /// <param name="inputStream">The input stream to read from</param>
+    /// <exception cref="ArgumentNullException">Thrown if inputStream is null</exception>
     [SetsRequiredMembers]
     public T42(Stream inputStream)
     {
         InputFile = null;
         Input = inputStream ?? throw new ArgumentNullException(nameof(inputStream));
-    }
-
-    /// <summary>
-    /// Sets the output file for writing
-    /// </summary>
-    /// <param name="outputFile">Path to the output file</param>
-    public void SetOutput(string outputFile)
-    {
-        OutputFile = new FileInfo(outputFile);
-    }
-    
-    /// <summary>
-    /// Sets the output stream for writing
-    /// </summary>
-    /// <param name="outputStream">The output stream to write to</param>
-    public void SetOutput(Stream outputStream)
-    {
-        OutputFile = null; // Clear OutputFile since we're using a custom stream
-        _outputStream = outputStream ?? throw new ArgumentNullException(nameof(outputStream), "Output stream cannot be null.");
+        OutputFormat = Format.T42; // Set default output format
     }
 
     /// <summary>
@@ -166,12 +130,10 @@ public class T42 : IDisposable
                 line.Magazine = GetMagazine(t42Buffer[0]);
                 line.Row = GetRow([.. t42Buffer.Take(2)]);
                 line.Text = GetText([.. t42Buffer.Skip(2)], line.Row == 0);
-                Console.Error.WriteLine($"DEBUG T42: Line {lineNumber} - Magazine: {line.Magazine}, Row: {line.Row}, HasData: {t42Buffer.Any(b => b != 0)}");
             }
             else
             {
                 // Empty data, skip this line
-                Console.Error.WriteLine($"DEBUG T42: Line {lineNumber} - Skipping empty data (length: {t42Buffer.Length}, hasNonZero: {t42Buffer.Any(b => b != 0)})");
                 lineNumber++;
                 continue;
             }
@@ -337,16 +299,6 @@ public class T42 : IDisposable
         {
             arrayPool.Return(t42Buffer);
         }
-    }
-
-    /// <summary>
-    /// Disposes the resources used by the T42 parser.
-    /// </summary>
-    public void Dispose()
-    {
-        GC.SuppressFinalize(this);
-        _outputStream?.Dispose();
-        Input?.Dispose();
     }
 
     /// <summary>

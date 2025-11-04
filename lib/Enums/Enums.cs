@@ -14,8 +14,8 @@ public enum Format
     VBI_DOUBLE,
     /// T42
     T42,
-    /// MXFData (extracted MXF data stream, use MXF.MXFData class)
-    MXFData,
+    /// ANC (Ancillary Data - extracted MXF data stream, use ANC class)
+    ANC,
     /// MXF
     MXF,
     /// RCWT (Raw Captions With Time)

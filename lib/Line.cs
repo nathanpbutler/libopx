@@ -137,7 +137,7 @@ public class Line : IDisposable
     /// <exception cref="ArgumentException">Thrown when the length is not between 0 and 10000</exception>
     public Line(byte[] header)
     {
-        // If the header is 14 bytes, then we are parsing an MXFData line
+        // If the header is 14 bytes, then we are parsing an ANC line
         if (header.Length != Constants.LINE_HEADER_SIZE)
             throw new ArgumentException($"Header must be exactly {Constants.LINE_HEADER_SIZE} bytes", nameof(header));
 

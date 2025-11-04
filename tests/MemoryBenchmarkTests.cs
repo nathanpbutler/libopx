@@ -117,7 +117,7 @@ namespace libopx.Tests
         }
 
         [Fact]
-        public async Task LargeMXFData_AsyncVsSync_MemoryAllocationComparison()
+        public async Task ANC_AsyncVsSync_MemoryAllocationComparison()
         {
             var binPath = "rick.bin";
             if (!File.Exists(binPath) && !await SampleFiles.EnsureAsync(binPath))
@@ -127,33 +127,33 @@ namespace libopx.Tests
             }
 
             var fileInfo = new FileInfo(binPath);
-            _output.WriteLine($"Testing with MXFData file: {fileInfo.Name} ({fileInfo.Length:N0} bytes)");
+            _output.WriteLine($"Testing with ANC file: {fileInfo.Name} ({fileInfo.Length:N0} bytes)");
 
             // Test sync method
             var syncResults = await MeasureMemoryUsage(() =>
             {
-                using var mxfData = new MXF.MXFData(binPath);
-                var packets = mxfData.Parse(magazine: null, rows: null).ToList();
+                using var anc = new ANC(binPath);
+                var packets = anc.Parse(magazine: null, rows: null).ToList();
                 return Task.FromResult(packets.Count);
-            }, "MXFData Sync Parse");
+            }, "ANC Sync Parse");
 
             // Test async method
             var asyncResults = await MeasureMemoryUsage(async () =>
             {
-                using var mxfData = new MXF.MXFData(binPath);
+                using var anc = new ANC(binPath);
                 var packets = new List<nathanbutlerDEV.libopx.Packet>();
-                await foreach (var packet in mxfData.ParseAsync(magazine: null, rows: null))
+                await foreach (var packet in anc.ParseAsync(magazine: null, rows: null))
                 {
                     packets.Add(packet);
                 }
                 return packets.Count;
-            }, "MXFData Async Parse");
+            }, "ANC Async Parse");
 
             // Calculate memory reduction
             var memoryReduction = CalculateReduction(syncResults.PeakMemoryMB, asyncResults.PeakMemoryMB);
             var allocationReduction = CalculateReduction(syncResults.Gen0Collections, asyncResults.Gen0Collections);
 
-            _output.WriteLine($"\n=== MXFData MEMORY COMPARISON ===");
+            _output.WriteLine($"\n=== ANC MEMORY COMPARISON ===");
             _output.WriteLine($"Sync  - Peak Memory: {syncResults.PeakMemoryMB:F2} MB, Gen0: {syncResults.Gen0Collections}, Packets: {syncResults.Result}");
             _output.WriteLine($"Async - Peak Memory: {asyncResults.PeakMemoryMB:F2} MB, Gen0: {asyncResults.Gen0Collections}, Packets: {asyncResults.Result}");
             _output.WriteLine($"Memory Reduction: {memoryReduction:F1}%");

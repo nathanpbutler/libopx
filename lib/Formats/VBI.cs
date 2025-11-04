@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using nathanbutlerDEV.libopx.Core;
 using nathanbutlerDEV.libopx.Enums;
 
 namespace nathanbutlerDEV.libopx.Formats;
@@ -11,45 +12,23 @@ namespace nathanbutlerDEV.libopx.Formats;
 /// Parser for VBI (Vertical Blanking Interval) format files with support for conversion to T42 teletext format.
 /// Handles both single and double-line VBI data with automatic format detection and filtering capabilities.
 /// </summary>
-public class VBI : IDisposable
+public class VBI : FormatIOBase
 {
-    /// <summary>
-    /// Gets or sets the input file. If null, reads from stdin.
-    /// </summary>
-    public FileInfo? InputFile { get; set; } = null;
-    /// <summary>
-    /// Gets or sets the output file. If null, writes to stdout.
-    /// </summary>
-    public FileInfo? OutputFile { get; set; } = null;
-    private Stream? _outputStream;
-    /// <summary>
-    /// Gets or sets the input stream for reading VBI data.
-    /// </summary>
-    public required Stream Input { get; set; }
-    /// <summary>
-    /// Gets the output stream for writing processed data.
-    /// </summary>
-    public Stream Output => _outputStream ??= OutputFile == null ? Console.OpenStandardOutput() : OutputFile.Open(FileMode.Create, FileAccess.Write, FileShare.Read);
     /// <summary>
     /// Gets or sets the input format. Default is VBI.
     /// </summary>
     public Format InputFormat { get; set; } = Format.VBI;
-    /// <summary>
-    /// Gets or sets the output format for processed data. Default is T42.
-    /// </summary>
-    public Format? OutputFormat { get; set; } = Format.T42;
+
     /// <summary>
     /// Gets the length of the VBI line based on the input format (single or double).
     /// </summary>
     public int LineLength => InputFormat == Format.VBI_DOUBLE ? Constants.VBI_DOUBLE_LINE_SIZE : Constants.VBI_LINE_SIZE;
+
     /// <summary>
     /// Gets the array of valid output formats supported by the VBI parser.
     /// </summary>
     public static readonly Format[] ValidOutputs = [Format.VBI, Format.VBI_DOUBLE, Format.T42, Format.RCWT, Format.STL];
-    /// <summary>
-    /// Gets or sets the function mode for processing. Default is Filter.
-    /// </summary>
-    public Function Function { get; set; } = Function.Filter;
+
     /// <summary>
     /// Gets or sets the number of lines per frame for timecode incrementation. Default is 2.
     /// </summary>
@@ -58,9 +37,9 @@ public class VBI : IDisposable
     /// <summary>
     /// Constructor for VBI format from file
     /// </summary>
-    /// <param name="inputFile"></param>
-    /// <param name="vbiType"></param>
-    /// <exception cref="FileNotFoundException"></exception>
+    /// <param name="inputFile">Path to the VBI file</param>
+    /// <param name="vbiType">The VBI format type (VBI or VBI_DOUBLE)</param>
+    /// <exception cref="FileNotFoundException">Thrown when the file does not exist</exception>
     [SetsRequiredMembers]
     public VBI(string inputFile, Format? vbiType = Format.VBI)
     {
@@ -79,6 +58,7 @@ public class VBI : IDisposable
         });
 
         Input = InputFile.OpenRead();
+        OutputFormat = Format.T42; // Set default output format
     }
 
     /// <summary>
@@ -89,38 +69,22 @@ public class VBI : IDisposable
     {
         InputFile = null;
         Input = Console.OpenStandardInput();
+        OutputFormat = Format.T42; // Set default output format
     }
-    
+
     /// <summary>
     /// Constructor for VBI format with custom stream
     /// </summary>
     /// <param name="inputStream">The input stream to read from</param>
-    /// <param name="vbiType">The VBI format type</param>
+    /// <param name="vbiType">The VBI format type (VBI or VBI_DOUBLE)</param>
+    /// <exception cref="ArgumentNullException">Thrown if inputStream is null</exception>
     [SetsRequiredMembers]
     public VBI(Stream inputStream, Format? vbiType = Format.VBI)
     {
         InputFile = null;
         Input = inputStream ?? throw new ArgumentNullException(nameof(inputStream));
         InputFormat = vbiType ?? Format.VBI;
-    }
-    
-    /// <summary>
-    /// Sets the output file for writing
-    /// </summary>
-    /// <param name="outputFile">Path to the output file</param>
-    public void SetOutput(string outputFile)
-    {
-        OutputFile = new FileInfo(outputFile);
-    }
-    
-    /// <summary>
-    /// Sets the output stream for writing
-    /// </summary>
-    /// <param name="outputStream">The output stream to write to</param>
-    public void SetOutput(Stream outputStream)
-    {
-        OutputFile = null; // Clear OutputFile since we're using a custom stream
-        _outputStream = outputStream ?? throw new ArgumentNullException(nameof(outputStream), "Output stream cannot be null.");
+        OutputFormat = Format.T42; // Set default output format
     }
 
     /// <summary>
@@ -173,7 +137,7 @@ public class VBI : IDisposable
             {
                 try
                 {
-                    // Convert VBI to T42 using the same approach as MXFData/MXF parsers
+                    // Convert VBI to T42 using the same approach as ANC/MXF parsers
                     var t42Data = ToT42(vbiBuffer);
 
                     // Update line properties for T42
@@ -367,23 +331,6 @@ public class VBI : IDisposable
         finally
         {
             arrayPool.Return(vbiBuffer);
-        }
-    }
-
-    /// <summary>
-    /// Disposes the resources used by the VBI parser.
-    /// </summary>
-    public void Dispose()
-    {
-        GC.SuppressFinalize(this);
-        // Only dispose streams we created (not stdin/stdout)
-        if (InputFile != null)
-        {
-            Input?.Dispose();
-        }
-        if (OutputFile != null)
-        {
-            _outputStream?.Dispose();
         }
     }
 
