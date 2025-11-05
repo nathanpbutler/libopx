@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using nathanbutlerDEV.libopx.Enums;
 
 namespace nathanbutlerDEV.libopx.Core;
@@ -8,18 +7,8 @@ namespace nathanbutlerDEV.libopx.Core;
 /// Defines the contract for parsing formats that produce Packet objects
 /// rather than Line objects.
 /// </summary>
-public interface IPacketFormatHandler
+public interface IPacketFormatHandler : IFormatHandlerBase
 {
-    /// <summary>
-    /// Gets the input format that this handler processes.
-    /// </summary>
-    Format InputFormat { get; }
-
-    /// <summary>
-    /// Gets the array of valid output formats supported by this handler.
-    /// </summary>
-    Format[] ValidOutputs { get; }
-
     /// <summary>
     /// Parses the input stream and returns an enumerable of packets with optional filtering.
     /// </summary>
@@ -39,5 +28,5 @@ public interface IPacketFormatHandler
     IAsyncEnumerable<Packet> ParseAsync(
         Stream inputStream,
         ParseOptions options,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default);
 }

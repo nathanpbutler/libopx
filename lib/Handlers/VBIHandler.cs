@@ -11,7 +11,7 @@ namespace nathanbutlerDEV.libopx.Handlers;
 /// Handles both single and double-line VBI data with automatic format detection
 /// and support for conversion to T42 teletext format.
 /// </summary>
-public class VBIHandler : IFormatHandler
+public class VBIHandler : ILineFormatHandler
 {
     /// <summary>
     /// Gets or sets the VBI input format (VBI or VBI_DOUBLE).

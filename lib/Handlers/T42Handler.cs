@@ -11,7 +11,7 @@ namespace nathanbutlerDEV.libopx.Handlers;
 /// Implements core parsing logic with support for conversion to VBI formats
 /// and teletext content extraction.
 /// </summary>
-public class T42Handler : IFormatHandler
+public class T42Handler : ILineFormatHandler
 {
     /// <inheritdoc />
     public Format InputFormat => Format.T42;

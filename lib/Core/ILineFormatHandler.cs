@@ -1,25 +1,14 @@
-using System.Runtime.CompilerServices;
 using nathanbutlerDEV.libopx.Enums;
 
 namespace nathanbutlerDEV.libopx.Core;
 
 /// <summary>
-/// Interface for format-specific parsing handlers.
-/// Defines the contract for parsing different teletext and video formats
-/// with support for both synchronous and asynchronous operations.
+/// Interface for line-based format handlers (T42, VBI).
+/// Defines the contract for parsing formats that produce Line objects
+/// rather than Packet objects.
 /// </summary>
-public interface IFormatHandler
+public interface ILineFormatHandler : IFormatHandlerBase
 {
-    /// <summary>
-    /// Gets the input format that this handler processes.
-    /// </summary>
-    Format InputFormat { get; }
-
-    /// <summary>
-    /// Gets the array of valid output formats supported by this handler.
-    /// </summary>
-    Format[] ValidOutputs { get; }
-
     /// <summary>
     /// Gets the length of a single line in bytes for this format.
     /// May vary based on format-specific parameters (e.g., VBI vs VBI_DOUBLE).
@@ -45,5 +34,5 @@ public interface IFormatHandler
     IAsyncEnumerable<Line> ParseAsync(
         Stream inputStream,
         ParseOptions options,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default);
 }

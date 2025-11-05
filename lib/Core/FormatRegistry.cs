@@ -10,7 +10,7 @@ namespace nathanbutlerDEV.libopx.Core;
 /// </summary>
 public static class FormatRegistry
 {
-    private static readonly ConcurrentDictionary<Format, IFormatHandler> _handlers = new();
+    private static readonly ConcurrentDictionary<Format, IFormatHandlerBase> _handlers = new();
 
     /// <summary>
     /// Registers a format handler for a specific format.
@@ -19,7 +19,7 @@ public static class FormatRegistry
     /// <param name="format">The format this handler processes</param>
     /// <param name="handler">The handler instance to register</param>
     /// <exception cref="ArgumentNullException">Thrown if handler is null</exception>
-    public static void Register(Format format, IFormatHandler handler)
+    public static void Register(Format format, IFormatHandlerBase handler)
     {
         if (handler == null)
             throw new ArgumentNullException(nameof(handler));
@@ -33,7 +33,7 @@ public static class FormatRegistry
     /// </summary>
     /// <param name="handler">The handler instance to register</param>
     /// <exception cref="ArgumentNullException">Thrown if handler is null</exception>
-    public static void Register(IFormatHandler handler)
+    public static void Register(IFormatHandlerBase handler)
     {
         if (handler == null)
             throw new ArgumentNullException(nameof(handler));
@@ -47,7 +47,7 @@ public static class FormatRegistry
     /// <param name="format">The format to get the handler for</param>
     /// <returns>The handler instance if found</returns>
     /// <exception cref="KeyNotFoundException">Thrown if no handler is registered for the format</exception>
-    public static IFormatHandler GetHandler(Format format)
+    public static IFormatHandlerBase GetHandler(Format format)
     {
         if (_handlers.TryGetValue(format, out var handler))
         {
@@ -63,7 +63,7 @@ public static class FormatRegistry
     /// <param name="format">The format to get the handler for</param>
     /// <param name="handler">The handler instance if found, otherwise null</param>
     /// <returns>True if a handler was found, false otherwise</returns>
-    public static bool TryGetHandler(Format format, out IFormatHandler? handler)
+    public static bool TryGetHandler(Format format, out IFormatHandlerBase? handler)
     {
         return _handlers.TryGetValue(format, out handler);
     }

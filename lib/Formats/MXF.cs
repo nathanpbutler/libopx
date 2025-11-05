@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using nathanbutlerDEV.libopx.Core;
 using nathanbutlerDEV.libopx.Enums;
+using nathanbutlerDEV.libopx.Handlers;
 using nathanbutlerDEV.libopx.SMPTE;
 
 namespace nathanbutlerDEV.libopx.Formats;
@@ -13,27 +14,25 @@ namespace nathanbutlerDEV.libopx.Formats;
 /// </summary>
 public class MXF : FormatIOBase
 {
-    /// <summary>
-    /// Buffer for storing KLV keys.
-    /// </summary>
-    private readonly byte[] _keyBuffer = new byte[Constants.KLV_KEY_SIZE];
-    /// <summary>
-    /// Buffer for storing SMPTE timecodes.
-    /// </summary>
-    private readonly byte[] _smpteBuffer = new byte[Constants.SMPTE_TIMECODE_SIZE];
 
     /// <summary>
     /// Gets or sets the start timecode extracted from the MXF file.
     /// </summary>
     public Timecode StartTimecode { get; set; } = new Timecode(0);
     /// <summary>
-    /// Gets or sets the list of SMPTE timecodes per-frame in the MXF file.
+    /// Handler instance for parsing operations.
     /// </summary>
-    public List<Timecode> SMPTETimecodes { get; set; } = [];
+    private MXFHandler? _handler;
+
     /// <summary>
-    /// Gets or sets the list of packets parsed from the MXF data stream.
+    /// Gets the list of SMPTE timecodes per-frame in the MXF file.
     /// </summary>
-    public List<Packet> Packets { get; set; } = [];
+    public List<Timecode> SMPTETimecodes => _handler?.SMPTETimecodes ?? [];
+
+    /// <summary>
+    /// Gets the list of packets parsed from the MXF data stream.
+    /// </summary>
+    public List<Packet> Packets => _handler?.Packets ?? [];
     /// <summary>
     /// Gets or sets the list of required key types for filtering during parsing.
     /// </summary>
@@ -66,40 +65,6 @@ public class MXF : FormatIOBase
     /// Gets or sets whether to print progress updates during parsing.
     /// </summary>
     public bool PrintProgress { get; set; } = false;
-    /// <summary>
-    /// Mapping of key types to file extensions for output files.
-    /// </summary>
-    private readonly Dictionary<KeyType, string> _keyTypeToExtension = new()
-    {
-        { KeyType.Data, "_d.raw" },
-        { KeyType.Video, "_v.raw" },
-        { KeyType.System, "_s.raw" },
-        { KeyType.TimecodeComponent, "_t.raw" },
-        { KeyType.Audio, "_a.raw" }
-    };
-    
-    /// <summary>
-    /// Cache the previous timecode for sequential checking to avoid recalculation.
-    /// </summary>
-    private Timecode? _lastTimecode;
-    
-    // Extraction-related fields
-    /// <summary>
-    /// Mapping of key types to output streams.
-    /// </summary>
-    private readonly Dictionary<KeyType, FileStream> _outputStreams = [];
-    /// <summary>
-    /// Mapping of key strings to output streams for demuxing.
-    /// </summary>
-    private readonly Dictionary<string, FileStream> _demuxStreams = [];
-    /// <summary>
-    /// Buffer for storing BER length values.
-    /// </summary>
-    private readonly List<byte> _berLengthBuffer = [];
-    /// <summary>
-    /// Buffer for storing KLV keys.
-    /// </summary>
-    private readonly HashSet<string> _foundKeys = [];
 
     /// <summary>
     /// Initializes a new instance of the MXF parser with the specified input file path.
@@ -196,6 +161,26 @@ public class MXF : FormatIOBase
     }
 
     /// <summary>
+    /// Gets or creates the MXF handler with current configuration.
+    /// </summary>
+    private MXFHandler GetHandler()
+    {
+        _handler = new MXFHandler(
+            StartTimecode,
+            InputFile?.FullName,
+            RequiredKeys,
+            CheckSequential,
+            DemuxMode,
+            UseKeyNames,
+            KlvMode,
+            OutputBasePath,
+            Verbose,
+            PrintProgress,
+            Function);
+        return _handler;
+    }
+
+    /// <summary>
     /// Checks if the file is a valid MXF file by reading the first 4 bytes.
     /// </summary>
     /// <returns>True if the file is a valid MXF file, otherwise false.</returns>
@@ -283,15 +268,16 @@ public class MXF : FormatIOBase
     public bool GetStartTimecode()
     {
         Input.Seek(0, SeekOrigin.Begin);
+        var keyBuffer = new byte[Constants.KLV_KEY_SIZE];
 
         while (Input.Position < 128000)
         {
-            var keyBytesRead = Input.Read(_keyBuffer, 0, Constants.KLV_KEY_SIZE);
+            var keyBytesRead = Input.Read(keyBuffer, 0, Constants.KLV_KEY_SIZE);
             if (keyBytesRead != Constants.KLV_KEY_SIZE) break;
 
-            var keyType = Keys.GetKeyType(_keyBuffer.AsSpan(0, Constants.KLV_KEY_SIZE));
+            var keyType = Keys.GetKeyType(keyBuffer.AsSpan(0, Constants.KLV_KEY_SIZE));
 
-            var length = ReadBerLength(Input);
+            var length = ReadBerLengthLocal(Input);
             if (length < 0) break;
 
             if (keyType == KeyType.TimecodeComponent)
@@ -317,427 +303,12 @@ public class MXF : FormatIOBase
     }
 
     /// <summary>
-    /// Parses the MXF file and returns an enumerable of packets with optional filtering.
-    /// Supports multiple operation modes including filtering, extraction, and restriping.
+    /// Local helper for reading BER length in GetStartTimecode.
     /// </summary>
-    /// <param name="magazine">Optional magazine number filter for teletext data (default: all magazines)</param>
-    /// <param name="rows">Optional array of row numbers to filter (default: all rows)</param>
-    /// <param name="startTimecode">Optional starting timecode override as string (HH:MM:SS:FF format)</param>
-    /// <returns>An enumerable of parsed packets matching the filter criteria</returns>
-    public IEnumerable<Packet> Parse(int? magazine = null, int[]? rows = null, string? startTimecode = null)
+    private static int ReadBerLengthLocal(Stream input)
     {
-        Input.Seek(0, SeekOrigin.Begin);
-        _lastTimecode = null; // Reset sequential checking
-        // Increment after each Data packet found
-        var timecode = startTimecode == null
-            ? StartTimecode
-            : new Timecode(startTimecode, StartTimecode.Timebase, StartTimecode.DropFrame);
-        // Increment after each System packet found
-        var smpteTimecode = startTimecode == null
-            ? StartTimecode
-            : new Timecode(startTimecode, StartTimecode.Timebase, StartTimecode.DropFrame);
-        // Used for TimecodeComponent packets
-        var timecodeComponent = startTimecode == null
-            ? StartTimecode
-            : new Timecode(startTimecode, StartTimecode.Timebase, StartTimecode.DropFrame);
-
-        int lineNumber = 0;
-
-        // Used to update progress (if Verbose is true) at minimum intervals (1000ms)
-        var restripeStart = DateTime.Now;
-        var restripeNow = DateTime.Now;
-
-        try
-        {
-            while (TryReadKlvHeader(out var keyType, out var length))
-            {
-
-                // Determine if we should extract or restripe this key
-                bool shouldExtract = Function == Function.Extract && (DemuxMode || RequiredKeys.Contains(keyType));
-
-                if (shouldExtract)
-                {
-                    ExtractPacket(keyType, length);
-                    continue; // Skip to next iteration after extraction
-                }
-
-                // Handle non-extraction processing
-                switch (keyType)
-                {
-                    case KeyType.TimecodeComponent:
-                        if (Function == Function.Restripe)
-                        {
-                            //RestripePacket(keyType, length, timecodeComponent);
-                            RestripeTimecodeComponent(length, timecodeComponent);
-                        }
-                        else
-                        {
-                            SkipPacket(length);
-                        }
-                        break;
-                    case KeyType.System:
-                        if (Function == Function.Restripe)
-                        {
-                            //RestripePacket(keyType, length, smpteTimecode);
-                            RestripeSystemPacket(length, smpteTimecode);
-                            smpteTimecode = smpteTimecode.GetNext(); // Increment timecode for the next packet
-                        }
-                        else if (ShouldProcessKey(KeyType.System))
-                        {
-                            ProcessSystemPacket(length);
-                        }
-                        else
-                        {
-                            SkipPacket(length);
-                        }
-                        break;
-
-                    case KeyType.Data:
-                        if (Function == Function.Filter)
-                        {
-                            var packet = FilterDataPacket(magazine, rows, timecode, lineNumber, OutputFormat ?? Format.T42);
-                            if (Verbose) Console.WriteLine($"Packet found at timecode {timecode}");
-                            // Only yield packets that have at least one line after filtering
-                            if (packet.Lines.Count > 0)
-                            {
-                                yield return packet;
-                            }
-                            timecode = timecode.GetNext(); // Increment timecode for the next packet
-                        }
-                        else
-                        {
-                            if (ShouldProcessKey(KeyType.Data))
-                            {
-                                ProcessDataPacket(length);
-                            }
-                            else
-                            {
-                                SkipPacket(length);
-                            }
-                        }
-                        break;
-
-                    case KeyType.Video:
-                    case KeyType.Audio:
-                    default:
-                        SkipPacket(length);
-                        break;
-
-                }
-
-                // If 1000ms have passed since the last progress update, print the current position
-                if (PrintProgress && (DateTime.Now - restripeNow).TotalMilliseconds >= 1000 && Function == Function.Restripe)
-                {
-                    restripeNow = DateTime.Now; // Reset the start time for the next interval
-                    var percentComplete = (double)Input.Position / Input.Length * 100;
-                    Console.WriteLine($"Progress: {percentComplete:F2}% complete. Current position: {Input.Position} bytes of {Input.Length} bytes.");
-                }
-            }
-
-            // Print total duration if PrintProgress is enabled
-            if (PrintProgress && Function == Function.Restripe)
-            {
-                var restripeEnd = DateTime.Now;
-                var totalDuration = (restripeEnd - restripeStart).TotalSeconds;
-                Console.WriteLine($"Restriping completed in {totalDuration:F2} seconds.");
-            }
-        }
-        finally
-        {
-            // Close any open extraction streams
-            CloseExtractionStreams();
-            Input.Seek(0, SeekOrigin.Begin);
-        }
-    }
-
-    /// <summary>
-    /// Asynchronously parses the MXF file and returns an async enumerable of packets with optional filtering.
-    /// Supports multiple operation modes including filtering, extraction, and restriping.
-    /// </summary>
-    /// <param name="magazine">Optional magazine number filter for teletext data (default: all magazines)</param>
-    /// <param name="rows">Optional array of row numbers to filter (default: all rows)</param>
-    /// <param name="startTimecode">Optional starting timecode override as string (HH:MM:SS:FF format)</param>
-    /// <param name="cancellationToken">Token to cancel the operation</param>
-    /// <returns>An async enumerable of parsed packets matching the filter criteria</returns>
-    public async IAsyncEnumerable<Packet> ParseAsync(
-        int? magazine = null, 
-        int[]? rows = null, 
-        string? startTimecode = null,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
-    {
-        Input.Seek(0, SeekOrigin.Begin);
-        _lastTimecode = null;
-        
-        var timecode = startTimecode == null
-            ? StartTimecode
-            : new Timecode(startTimecode, StartTimecode.Timebase, StartTimecode.DropFrame);
-        var smpteTimecode = startTimecode == null
-            ? StartTimecode
-            : new Timecode(startTimecode, StartTimecode.Timebase, StartTimecode.DropFrame);
-        var timecodeComponent = startTimecode == null
-            ? StartTimecode
-            : new Timecode(startTimecode, StartTimecode.Timebase, StartTimecode.DropFrame);
-
-        int lineNumber = 0;
-        var restripeStart = DateTime.Now;
-        var lastProgressUpdate = DateTime.Now;
-
-        try
-        {
-            while (await TryReadKlvHeaderAsync(cancellationToken) is var (keyType, length) && length >= 0)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                bool shouldExtract = Function == Function.Extract && (DemuxMode || RequiredKeys.Contains(keyType));
-
-                if (shouldExtract)
-                {
-                    await ExtractPacketAsync(keyType, length, cancellationToken);
-                    continue;
-                }
-
-                switch (keyType)
-                {
-                    case KeyType.TimecodeComponent:
-                        if (Function == Function.Restripe)
-                        {
-                            await RestripeTimecodeComponentAsync(length, timecodeComponent, cancellationToken);
-                        }
-                        else
-                        {
-                            await SkipPacketAsync(length, cancellationToken);
-                        }
-                        break;
-                        
-                    case KeyType.System:
-                        if (Function == Function.Restripe)
-                        {
-                            await RestripeSystemPacketAsync(length, smpteTimecode, cancellationToken);
-                            smpteTimecode = smpteTimecode.GetNext();
-                        }
-                        else if (ShouldProcessKey(KeyType.System))
-                        {
-                            await ProcessSystemPacketAsync(length, cancellationToken);
-                        }
-                        else
-                        {
-                            await SkipPacketAsync(length, cancellationToken);
-                        }
-                        break;
-
-                    case KeyType.Data:
-                        if (Function == Function.Filter)
-                        {
-                            var (packet, updatedLineNumber) = await FilterDataPacketAsync(magazine, rows, timecode, lineNumber, OutputFormat ?? Format.T42, cancellationToken);
-                            lineNumber = updatedLineNumber; // Update lineNumber with the value from FilterDataPacketAsync
-                            if (Verbose) Console.WriteLine($"Packet found at timecode {timecode}");
-                            
-                            if (packet.Lines.Count > 0)
-                            {
-                                yield return packet;
-                            }
-                            timecode = timecode.GetNext();
-                        }
-                        else
-                        {
-                            if (ShouldProcessKey(KeyType.Data))
-                            {
-                                await ProcessDataPacketAsync(length, cancellationToken);
-                            }
-                            else
-                            {
-                                await SkipPacketAsync(length, cancellationToken);
-                            }
-                        }
-                        break;
-
-                    case KeyType.Video:
-                    case KeyType.Audio:
-                    default:
-                        await SkipPacketAsync(length, cancellationToken);
-                        break;
-                }
-
-                // Progress reporting with throttling
-                if (PrintProgress && Function == Function.Restripe && 
-                    (DateTime.Now - lastProgressUpdate).TotalMilliseconds >= 1000)
-                {
-                    lastProgressUpdate = DateTime.Now;
-                    var percentComplete = (double)Input.Position / Input.Length * 100;
-                    Console.WriteLine($"Progress: {percentComplete:F2}% complete. Current position: {Input.Position} bytes of {Input.Length} bytes.");
-                }
-            }
-
-            if (PrintProgress && Function == Function.Restripe)
-            {
-                var restripeEnd = DateTime.Now;
-                var totalDuration = (restripeEnd - restripeStart).TotalSeconds;
-                Console.WriteLine($"Restriping completed in {totalDuration:F2} seconds.");
-            }
-        }
-        finally
-        {
-            CloseExtractionStreams();
-            Input.Seek(0, SeekOrigin.Begin);
-        }
-    }
-
-    private void ProcessSystemPacket(int length)
-    {
-        var offset = GetSystemMetadataOffset(length);
-        if (offset < 0)
-        {
-            SkipPacket(length);
-            return;
-        }
-
-        #region Myriadbits MXFInspect code
-        Input.Seek(1, SeekOrigin.Current); // Skip the first byte
-        int timebase = StartTimecode.Timebase;
-        bool dropFrame = StartTimecode.DropFrame;
-        var rate = Input.ReadByte();
-        int rateIndex = (rate & 0x1E) >> 1;
-        int[] rates = [0, 24, 25, 30, 48, 50, 60, 72, 75, 90, 96, 100, 120, 0, 0, 0];
-        if (rateIndex < 16)
-			timebase = rates[rateIndex];
-        if ((rate & 0x01) == 0x01) // 1.001 divider active?
-            dropFrame = true;
-        Input.Seek(-2, SeekOrigin.Current); // Go back to the start of the timecode
-
-        // If StartTimecode.Timebase and StartTimecode.DropFrame do not match what we have found, BREAK
-        if (StartTimecode.Timebase != timebase || StartTimecode.DropFrame != dropFrame)
-        {
-            throw new InvalidOperationException($"Material Package timecode {StartTimecode} does not match existing timebase {timebase} and drop frame {dropFrame}.");
-        }
-
-        #endregion
-
-        SkipPacket(offset);
-
-        var smpteRead = Input.Read(_smpteBuffer, 0, Constants.SMPTE_TIMECODE_SIZE);
-        if (smpteRead == Constants.SMPTE_TIMECODE_SIZE)
-        {
-            var smpte = Timecode.FromBytes(_smpteBuffer, StartTimecode.Timebase, StartTimecode.DropFrame);
-
-            if (CheckSequential && _lastTimecode != null)
-            {
-                var expectedPrevious = smpte.GetPrevious();
-                if (_lastTimecode != expectedPrevious)
-                {
-                    throw new InvalidDataException($"SMPTE timecodes are not sequential: {_lastTimecode} != {expectedPrevious}");
-                }
-            }
-
-            SMPTETimecodes.Add(smpte);
-            _lastTimecode = smpte;
-        }
-
-        var remainingBytes = length - offset - Constants.SMPTE_TIMECODE_SIZE;
-        if (remainingBytes > 0)
-        {
-            SkipPacket(remainingBytes);
-        }
-        else if (remainingBytes < 0)
-        {
-            throw new InvalidDataException("Invalid length for System Metadata Pack or Set.");
-        }
-    }
-
-    private void ProcessDataPacket(int length)
-    {
-        Span<byte> header = stackalloc byte[Constants.PACKET_HEADER_SIZE];
-        if (Input.Read(header) != Constants.PACKET_HEADER_SIZE)
-            throw new InvalidOperationException("Failed to read packet header.");
-
-        var data = new byte[length - Constants.PACKET_HEADER_SIZE];
-        if (Input.Read(data, 0, data.Length) != data.Length)
-            throw new InvalidOperationException("Failed to read data for Data key.");
-
-        var packet = new Packet(header.ToArray());
-        var lines = Packet.ParseLines(data);
-        packet.Lines.AddRange(lines);
-        Packets.Add(packet);
-    }
-
-    private Packet FilterDataPacket(int? magazine, int[]? rows, Timecode startTimecode, int lineNumber = 0, Format outputFormat = Format.T42)
-    {
-        Span<byte> header = stackalloc byte[Constants.PACKET_HEADER_SIZE];
-        Span<byte> lineHeader = stackalloc byte[Constants.LINE_HEADER_SIZE];
-        if (Input.Read(header) != Constants.PACKET_HEADER_SIZE)
-            throw new InvalidOperationException("Failed to read packet header for Data key.");
-        var packet = new Packet(header.ToArray())
-        {
-            Timecode = startTimecode
-        };
-        for (var l = 0; l < packet.LineCount; l++)
-        {
-            if (Input.Read(lineHeader) != Constants.LINE_HEADER_SIZE)
-                throw new InvalidOperationException("Failed to read line header for Data key.");
-            var line = new Line(lineHeader)
-            {
-                LineNumber = lineNumber, // Increment line number for each line
-                LineTimecode = startTimecode // Propagate packet timecode to line for RCWT
-            };
-
-            if (line.Length <= 0)
-            {
-                throw new InvalidDataException("Line length is invalid.");
-            }
-
-            // Use the more efficient ParseLine method
-            line.ParseLine(Input, outputFormat);
-
-            // Apply filtering if specified
-            if (magazine.HasValue && line.Magazine != magazine.Value)
-            {
-                lineNumber++;
-                continue; // Skip lines that don't match the magazine filter
-            }
-
-            if (rows != null && !rows.Contains(line.Row))
-            {
-                lineNumber++;
-                continue; // Skip lines that don't match the row filter
-            }
-
-            packet.Lines.Add(line);
-            lineNumber++; // Increment line number for each line processed
-        }
-        return packet;
-    }
-
-    /// <summary>
-    /// Parses and extracts all SMPTE timecodes from the MXF file's System metadata packets.
-    /// </summary>
-    /// <returns>True if timecodes were successfully parsed, false otherwise</returns>
-    public bool ParseSMPTETimecodes()
-    {
-        Input.Seek(0, SeekOrigin.Begin);
-        _lastTimecode = null;
-
-        while (TryReadKlvHeader(out var keyType, out var length))
-        {
-            if (keyType == KeyType.System)
-            {
-                ProcessSystemPacket(length);
-            }
-            else
-            {
-                SkipPacket(length);
-            }
-        }
-
-        Input.Seek(0, SeekOrigin.Begin);
-        return SMPTETimecodes.Count > 0;
-    }
-
-    private static int ReadBerLength(Stream input, List<byte>? lengthBuffer = null)
-    {
-        lengthBuffer?.Clear();
         var firstByte = input.ReadByte();
         if (firstByte == -1) return -1;
-        
-        lengthBuffer?.Add((byte)firstByte);
 
         if ((firstByte & 0x80) == 0)
         {
@@ -753,208 +324,110 @@ public class MXF : FormatIOBase
             {
                 var b = input.ReadByte();
                 if (b == -1) return -1;
-                lengthBuffer?.Add((byte)b);
                 length = (length << 8) | b;
             }
 
             return length;
         }
     }
-    
-    private void ExtractPacket(KeyType keyType, int length)
+
+    /// <summary>
+    /// Parses the MXF file and returns an enumerable of packets with optional filtering.
+    /// Supports multiple operation modes including filtering, extraction, and restriping.
+    /// </summary>
+    /// <param name="magazine">Optional magazine number filter for teletext data (default: all magazines)</param>
+    /// <param name="rows">Optional array of row numbers to filter (default: all rows)</param>
+    /// <param name="startTimecode">Optional starting timecode override as string (HH:MM:SS:FF format)</param>
+    /// <returns>An enumerable of parsed packets matching the filter criteria</returns>
+    public IEnumerable<Packet> Parse(int? magazine = null, int[]? rows = null, string? startTimecode = null)
     {
-        var outputStream = GetOrCreateExtractionStream(keyType);
-        if (outputStream == null)
+        var handler = GetHandler();
+        var options = new ParseOptions
         {
-            SkipPacket(length);
-            return;
-        }
-        
-        // Write KLV header if requested
-        if (KlvMode)
-        {
-            WriteKlvHeader(outputStream);
-        }
-        
-        // Write essence data
-        var essenceData = new byte[length];
-        var bytesRead = Input.Read(essenceData, 0, length);
-        if (bytesRead != length) throw new EndOfStreamException("Unexpected end of stream while reading value.");
-        outputStream.Write(essenceData, 0, length);
+            Magazine = magazine,
+            Rows = rows,
+            StartTimecode = startTimecode == null
+                ? null
+                : new Timecode(startTimecode, StartTimecode.Timebase, StartTimecode.DropFrame),
+            OutputFormat = OutputFormat ?? Format.T42
+        };
+        return handler.Parse(Input, options);
     }
-    
+
+    /// <summary>
+    /// Asynchronously parses the MXF file and returns an async enumerable of packets with optional filtering.
+    /// Supports multiple operation modes including filtering, extraction, and restriping.
+    /// </summary>
+    /// <param name="magazine">Optional magazine number filter for teletext data (default: all magazines)</param>
+    /// <param name="rows">Optional array of row numbers to filter (default: all rows)</param>
+    /// <param name="startTimecode">Optional starting timecode override as string (HH:MM:SS:FF format)</param>
+    /// <param name="cancellationToken">Token to cancel the operation</param>
+    /// <returns>An async enumerable of parsed packets matching the filter criteria</returns>
+    public async IAsyncEnumerable<Packet> ParseAsync(
+        int? magazine = null,
+        int[]? rows = null,
+        string? startTimecode = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var handler = GetHandler();
+        var options = new ParseOptions
+        {
+            Magazine = magazine,
+            Rows = rows,
+            StartTimecode = startTimecode == null
+                ? null
+                : new Timecode(startTimecode, StartTimecode.Timebase, StartTimecode.DropFrame),
+            OutputFormat = OutputFormat ?? Format.T42
+        };
+
+        await foreach (var packet in handler.ParseAsync(Input, options, cancellationToken))
+        {
+            yield return packet;
+        }
+    }
+
     private void CloseExtractionStreams()
     {
-        foreach (var stream in _outputStreams.Values)
-        {
-            stream?.Dispose();
-        }
-        _outputStreams.Clear();
-        
-        foreach (var stream in _demuxStreams.Values)
-        {
-            stream?.Dispose();
-        }
-        _demuxStreams.Clear();
-    }
-    
-    private static string BytesToHexString(byte[] bytes)
-    {
-        return Convert.ToHexString(bytes).ToLowerInvariant();
-    }
-    
-    private static string GetKeyName(byte[] keyBytes)
-    {
-        Type[] typesToSearch = [typeof(Essence), typeof(Keys)];
-        
-        foreach (var type in typesToSearch)
-        {
-            var fields = type.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
-            
-            foreach (var field in fields.Where(f => f.FieldType == typeof(byte[]) && f.Name != "FourCc"))
-            {
-                var fieldValue = (byte[])field.GetValue(null)!;
-
-                if (fieldValue.Length <= keyBytes.Length)
-                {
-                    var keyPrefix = keyBytes.Take(fieldValue.Length).ToArray();
-                    if (keyPrefix.SequenceEqual(fieldValue))
-                    {
-                        return field.Name.TrimStart('_');
-                    }
-                }
-            }
-        }
-        
-        var keyType = Keys.GetKeyType(keyBytes.AsSpan());
-        if (keyType != KeyType.Unknown)
-        {
-            return keyType.ToString();
-        }
-        
-        return BytesToHexString(keyBytes);
+        // Delegate to handler for cleanup
+        // Handler manages its own stream lifecycle
     }
 
-    private static byte[] CreateTagValueBytes(long value, int tagLength)
+
+    /// <summary>
+    /// Parses and extracts all SMPTE timecodes from the MXF file's System metadata packets.
+    /// </summary>
+    /// <returns>True if timecodes were successfully parsed, false otherwise</returns>
+    public bool ParseSMPTETimecodes()
     {
-        return tagLength switch
+        // Create a handler specifically for extracting SMPTE timecodes
+        _handler = new MXFHandler(
+            StartTimecode,
+            InputFile?.FullName,
+            [KeyType.System], // Only process System packets
+            CheckSequential,
+            false, // demuxMode
+            false, // useKeyNames
+            false, // klvMode
+            null, // outputBasePath
+            Verbose,
+            false, // printProgress
+            Function.Filter); // Use Filter mode but only process System packets
+
+        var options = new ParseOptions
         {
-            8 => BitConverter.GetBytes(value),
-            4 => BitConverter.GetBytes((int)value),
-            2 => BitConverter.GetBytes((short)value),
-            1 => [(byte)value],
-            _ => BitConverter.GetBytes((int)value)
+            OutputFormat = OutputFormat ?? Format.T42
         };
+
+        // Iterate through Parse to trigger System packet processing
+        // The handler will populate SMPTETimecodes as a side effect
+        foreach (var _ in _handler.Parse(Input, options))
+        {
+            // No-op, just trigger the iteration
+        }
+
+        return SMPTETimecodes.Count > 0;
     }
 
-    private void RestripeTimecodeComponent(int length, Timecode newTimecode)
-    {
-        var dataStartPosition = Input.Position;
-        var data = new byte[length];
-        var actualRead = Input.Read(data, 0, length);
-        if (actualRead != length)
-            throw new EndOfStreamException($"Expected to read {length} bytes but only read {actualRead}");
-
-        // Parse the TimecodeComponent to get the current start timecode
-        var timecodeComponent = TimecodeComponent.Parse(data);
-        var currentTimecode = new Timecode(timecodeComponent.StartTimecode, timecodeComponent.RoundedTimecodeTimebase, timecodeComponent.DropFrame);
-
-        if (Verbose)
-        {
-            Console.WriteLine($"Restriping TimecodeComponent: {currentTimecode} -> {newTimecode}");
-        }
-
-        // Find and update timecode-related tags
-        var t = 0;
-        while (t < data.Length)
-        {
-            if (t + 6 > data.Length) break;
-
-            var tagBytes = data[t..(t + 2)];
-            if (BitConverter.IsLittleEndian) Array.Reverse(tagBytes);
-            var tag = BitConverter.ToUInt16(tagBytes, 0);
-
-            var tagLengthBytes = data[(t + 2)..(t + 4)];
-            if (BitConverter.IsLittleEndian) Array.Reverse(tagLengthBytes);
-            var tagLength = BitConverter.ToUInt16(tagLengthBytes, 0);
-
-            byte[]? newValueBytes = tag switch
-            {
-                0x1501 => CreateTagValueBytes(newTimecode.FrameNumber, tagLength), // "Start Timecode"
-                0x1502 => CreateTagValueBytes(newTimecode.Timebase, tagLength),   // "Rounded Timecode Timebase"
-                0x1503 => CreateTagValueBytes(newTimecode.DropFrame ? 1 : 0, tagLength), // "Drop Frame"
-                _ => null
-            };
-
-            if (newValueBytes != null)
-            {
-                if (BitConverter.IsLittleEndian) Array.Reverse(newValueBytes);
-                Array.Copy(newValueBytes, 0, data, t + 4, Math.Min(newValueBytes.Length, tagLength));
-            }
-
-            t += 4 + tagLength;
-        }
-
-        // Write the modified data back to the input file
-        Input.Seek(dataStartPosition, SeekOrigin.Begin);
-        Input.Write(data, 0, length);
-    }
-
-    private void RestripeSystemPacket(int length, Timecode newTimecode)
-    {
-        var offset = GetSystemMetadataOffset(length);
-        if (offset < 0)
-        {
-            SkipPacket(length);
-            return;
-        }
-
-        #region Myriadbits MXFInspect code
-        Input.Seek(1, SeekOrigin.Current); // Skip the first byte
-        int timebase = StartTimecode.Timebase;
-        bool dropFrame = StartTimecode.DropFrame;
-        var rate = Input.ReadByte();
-        int rateIndex = (rate & 0x1E) >> 1;
-        int[] rates = [0, 24, 25, 30, 48, 50, 60, 72, 75, 90, 96, 100, 120, 0, 0, 0];
-        if (rateIndex < 16)
-			timebase = rates[rateIndex];
-        if ((rate & 0x01) == 0x01) // 1.001 divider active?
-            dropFrame = true;
-        Input.Seek(-2, SeekOrigin.Current); // Go back to the start of the timecode
-
-        // If newTimecode.Timebase and newTimecode.DropFrame do not match what we have found, BREAK
-        if (newTimecode.Timebase != timebase || newTimecode.DropFrame != dropFrame)
-        {
-            throw new InvalidOperationException($"New timecode {newTimecode} does not match existing timebase {timebase} and drop frame {dropFrame}.");
-        }
-
-        #endregion
-
-        SkipPacket(offset);
-        var timecodePosition = Input.Position;
-
-        var smpteRead = Input.Read(_smpteBuffer, 0, Constants.SMPTE_TIMECODE_SIZE);
-        if (smpteRead == Constants.SMPTE_TIMECODE_SIZE)
-        {
-            if (Verbose)
-            {
-                var currentTimecode = Timecode.FromBytes(_smpteBuffer, timebase, dropFrame);
-                Console.WriteLine($"Restriping System timecode at offset {offset}: {currentTimecode} -> {newTimecode}");
-            }
-
-            // Convert new timecode to bytes and write back to file
-            var newTimecodeBytes = newTimecode.ToBytes();
-            Input.Seek(timecodePosition, SeekOrigin.Begin);
-            Input.Write(newTimecodeBytes, 0, Constants.SMPTE_TIMECODE_SIZE);
-        }
-
-        var remainingBytes = length - offset - Constants.SMPTE_TIMECODE_SIZE;
-        if (remainingBytes > 0)
-        {
-            SkipPacket(remainingBytes);
-        }
-    }
-    
     /// <summary>
     /// Extract essence elements from the MXF file based on the configured extraction settings.
     /// </summary>
@@ -970,7 +443,7 @@ public class MXF : FormatIOBase
         UseKeyNames = useKeyNames ?? UseKeyNames;
         KlvMode = klvMode ?? KlvMode;
         Function = Function.Extract; // Set function to Extract
-        
+
         // If no specific keys are required and not in demux mode, default to extracting all
         if (!DemuxMode && RequiredKeys.Count == 0)
         {
@@ -980,7 +453,7 @@ public class MXF : FormatIOBase
             RequiredKeys.Add(KeyType.System);
             RequiredKeys.Add(KeyType.TimecodeComponent);
         }
-        
+
         // Run the parse method which will handle extraction
         var packets = Parse();
         foreach (var _ in packets)
@@ -989,508 +462,7 @@ public class MXF : FormatIOBase
             // We just need to iterate through to execute it
         }
     }
-    
-    private bool TryReadKlvHeader(out KeyType keyType, out int length)
-    {
-        keyType = KeyType.Unknown;
-        length = -1;
-        
-        var keyBytesRead = Input.Read(_keyBuffer, 0, Constants.KLV_KEY_SIZE);
-        if (keyBytesRead != Constants.KLV_KEY_SIZE) return false;
-        
-        keyType = Keys.GetKeyType(_keyBuffer.AsSpan(0, Constants.KLV_KEY_SIZE));
-        length = ReadBerLength(Input, _berLengthBuffer);
-        
-        return length >= 0;
-    }
-    
-    private void SkipPacket(int length)
-    {
-        Input.Seek(length, SeekOrigin.Current);
-    }
-    
-    private bool ShouldProcessKey(KeyType keyType)
-    {
-        return RequiredKeys.Contains(keyType);
-    }
-    
-    private FileStream CreateOutputStream(string identifier, string extension)
-    {
-        var outputPath = $"{OutputBasePath ?? Path.ChangeExtension(InputFile.FullName, null)}_{identifier}{extension}";
-        return new FileStream(outputPath, FileMode.Create, FileAccess.Write);
-    }
-    
-    private void WriteKlvHeader(Stream outputStream)
-    {
-        outputStream.Write(_keyBuffer, 0, Constants.KLV_KEY_SIZE);
-        outputStream.Write([.. _berLengthBuffer], 0, _berLengthBuffer.Count);
-    }
-    
-    private void CopyDataToStream(Stream outputStream, int length)
-    {
-        var buffer = new byte[Math.Min(length, 65536)];
-        var remaining = length;
-        while (remaining > 0)
-        {
-            var toRead = Math.Min(remaining, buffer.Length);
-            var bytesRead = Input.Read(buffer, 0, toRead);
-            if (bytesRead == 0)
-                break;
-            outputStream.Write(buffer, 0, bytesRead);
-            remaining -= bytesRead;
-        }
-    }
-    
-    private static int GetSystemMetadataOffset(int length)
-    {
-        if (length >= Constants.SYSTEM_METADATA_PACK_GC + Constants.SMPTE_TIMECODE_SIZE)
-        {
-            return Constants.SYSTEM_METADATA_PACK_GC;
-        }
-        else if (length >= Constants.SYSTEM_METADATA_SET_GC_OFFSET + Constants.SMPTE_TIMECODE_SIZE)
-        {
-            return Constants.SYSTEM_METADATA_SET_GC_OFFSET;
-        }
-        return -1;
-    }
 
-    /// <summary>
-    /// Asynchronously attempts to read a KLV header from the input stream
-    /// </summary>
-    private async Task<(KeyType keyType, int length)> TryReadKlvHeaderAsync(CancellationToken cancellationToken)
-    {
-        var keyMemory = _keyBuffer.AsMemory(0, Constants.KLV_KEY_SIZE);
-        var keyBytesRead = await Input.ReadAsync(keyMemory, cancellationToken);
-        
-        if (keyBytesRead != Constants.KLV_KEY_SIZE)
-            return (KeyType.Unknown, -1);
-
-        var keyType = Keys.GetKeyType(_keyBuffer.AsSpan(0, Constants.KLV_KEY_SIZE));
-        var length = await ReadBerLengthAsync(Input, _berLengthBuffer, cancellationToken);
-        return length >= 0 ? (keyType, length) : (KeyType.Unknown, -1);
-    }
-
-    /// <summary>
-    /// Asynchronously reads BER encoded length
-    /// </summary>
-    private static async Task<int> ReadBerLengthAsync(Stream input, List<byte> lengthBuffer, CancellationToken cancellationToken)
-    {
-        lengthBuffer.Clear();
-        var firstByteBuffer = new byte[1];
-        var bytesRead = await input.ReadAsync(firstByteBuffer.AsMemory(), cancellationToken);
-        if (bytesRead != 1) return -1;
-        
-        var firstByte = firstByteBuffer[0];
-        lengthBuffer.Add(firstByte);
-
-        if ((firstByte & 0x80) == 0)
-        {
-            return firstByte;
-        }
-        else
-        {
-            var byteCount = firstByte & 0x7F;
-            if (byteCount > 8) return -1;
-
-            var lengthBytes = new byte[byteCount];
-            var lengthBytesRead = await input.ReadAsync(lengthBytes.AsMemory(), cancellationToken);
-            if (lengthBytesRead != byteCount) return -1;
-            
-            lengthBuffer.AddRange(lengthBytes);
-
-            var length = 0;
-            for (var i = 0; i < byteCount; i++)
-            {
-                length = (length << 8) | lengthBytes[i];
-            }
-            return length;
-        }
-    }
-
-    /// <summary>
-    /// Asynchronously skips data in the stream
-    /// </summary>
-    private async Task SkipPacketAsync(int length, CancellationToken cancellationToken)
-    {
-        const int bufferSize = 65536; // 64KB buffer for efficient skipping
-        var arrayPool = ArrayPool<byte>.Shared;
-        var buffer = arrayPool.Rent(Math.Min(bufferSize, length));
-        
-        try
-        {
-            var remaining = length;
-            while (remaining > 0)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                
-                var toRead = Math.Min(remaining, buffer.Length);
-                var bytesRead = await Input.ReadAsync(buffer.AsMemory(0, toRead), cancellationToken);
-                
-                if (bytesRead == 0)
-                    throw new EndOfStreamException("Unexpected end of stream while skipping data.");
-                    
-                remaining -= bytesRead;
-            }
-        }
-        finally
-        {
-            arrayPool.Return(buffer);
-        }
-    }
-
-    /// <summary>
-    /// Asynchronously extracts packet data to output streams
-    /// </summary>
-    private async Task ExtractPacketAsync(KeyType keyType, int length, CancellationToken cancellationToken)
-    {
-        var outputStream = GetOrCreateExtractionStream(keyType);
-        if (outputStream == null)
-        {
-            await SkipPacketAsync(length, cancellationToken);
-            return;
-        }
-        
-        if (KlvMode)
-        {
-            await outputStream.WriteAsync(_keyBuffer.AsMemory(0, Constants.KLV_KEY_SIZE), cancellationToken);
-            await outputStream.WriteAsync(_berLengthBuffer.ToArray().AsMemory(), cancellationToken);
-        }
-        
-        await CopyDataToStreamAsync(outputStream, length, cancellationToken);
-    }
-
-    /// <summary>
-    /// Asynchronously copies data from input to output stream
-    /// </summary>
-    private async Task CopyDataToStreamAsync(Stream outputStream, int length, CancellationToken cancellationToken)
-    {
-        const int bufferSize = 65536; // 64KB buffer
-        var arrayPool = ArrayPool<byte>.Shared;
-        var buffer = arrayPool.Rent(Math.Min(length, bufferSize));
-        
-        try
-        {
-            var remaining = length;
-            while (remaining > 0)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                
-                var toRead = Math.Min(remaining, buffer.Length);
-                var bytesRead = await Input.ReadAsync(buffer.AsMemory(0, toRead), cancellationToken);
-                
-                if (bytesRead == 0)
-                    throw new EndOfStreamException("Unexpected end of stream while copying data.");
-                    
-                await outputStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
-                remaining -= bytesRead;
-            }
-        }
-        finally
-        {
-            arrayPool.Return(buffer);
-        }
-    }
-
-    /// <summary>
-    /// Asynchronously processes data packets for filtering
-    /// </summary>
-    private async Task<(Packet packet, int updatedLineNumber)> FilterDataPacketAsync(int? magazine, int[]? rows, Timecode startTimecode, int lineNumber = 0, Format outputFormat = Format.T42, CancellationToken cancellationToken = default)
-    {
-        var arrayPool = ArrayPool<byte>.Shared;
-        var headerBuffer = arrayPool.Rent(Constants.PACKET_HEADER_SIZE);
-        var lineHeaderBuffer = arrayPool.Rent(Constants.LINE_HEADER_SIZE);
-        
-        try
-        {
-            var headerMemory = headerBuffer.AsMemory(0, Constants.PACKET_HEADER_SIZE);
-            var headerBytesRead = await Input.ReadAsync(headerMemory, cancellationToken);
-            
-            if (headerBytesRead != Constants.PACKET_HEADER_SIZE)
-                throw new InvalidOperationException("Failed to read packet header for Data key.");
-
-            var packet = new Packet(headerBuffer.AsSpan(0, Constants.PACKET_HEADER_SIZE).ToArray())
-            {
-                Timecode = startTimecode
-            };
-
-            for (var l = 0; l < packet.LineCount; l++)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                var lineHeaderMemory = lineHeaderBuffer.AsMemory(0, Constants.LINE_HEADER_SIZE);
-                var lineHeaderBytesRead = await Input.ReadAsync(lineHeaderMemory, cancellationToken);
-                
-                if (lineHeaderBytesRead != Constants.LINE_HEADER_SIZE)
-                    throw new InvalidOperationException("Failed to read line header for Data key.");
-
-                var line = new Line(lineHeaderBuffer.AsSpan(0, Constants.LINE_HEADER_SIZE))
-                {
-                    LineNumber = lineNumber,
-                    LineTimecode = startTimecode
-                };
-
-                if (line.Length <= 0)
-                    throw new InvalidDataException("Line length is invalid.");
-
-                await line.ParseLineAsync(Input, outputFormat, cancellationToken);
-
-                // Apply filtering
-                if (magazine.HasValue && line.Magazine != magazine.Value)
-                {
-                    lineNumber++;
-                    continue;
-                }
-
-                if (rows != null && !rows.Contains(line.Row))
-                {
-                    lineNumber++;
-                    continue;
-                }
-
-                packet.Lines.Add(line);
-                lineNumber++;
-            }
-
-            return (packet, lineNumber);
-        }
-        finally
-        {
-            arrayPool.Return(headerBuffer);
-            arrayPool.Return(lineHeaderBuffer);
-        }
-    }
-
-
-    /// <summary>
-    /// Asynchronously restripes TimecodeComponent packets
-    /// </summary>
-    private async Task RestripeTimecodeComponentAsync(int length, Timecode newTimecode, CancellationToken cancellationToken)
-    {
-        var arrayPool = ArrayPool<byte>.Shared;
-        var dataBuffer = arrayPool.Rent(length);
-        
-        try
-        {
-            var dataMemory = dataBuffer.AsMemory(0, length);
-            var dataStartPosition = Input.Position;
-            var actualRead = await Input.ReadAsync(dataMemory, cancellationToken);
-            
-            if (actualRead != length)
-                throw new EndOfStreamException($"Expected to read {length} bytes but only read {actualRead}");
-
-            // Parse the TimecodeComponent to get the current start timecode
-            var data = dataBuffer.AsSpan(0, length);
-            var timecodeComponent = TimecodeComponent.Parse(data.ToArray());
-            var currentTimecode = new Timecode(timecodeComponent.StartTimecode, timecodeComponent.RoundedTimecodeTimebase, timecodeComponent.DropFrame);
-
-            if (Verbose)
-            {
-                Console.WriteLine($"Restriping TimecodeComponent: {currentTimecode} -> {newTimecode}");
-            }
-
-            // Find and update timecode-related tags
-            var t = 0;
-            while (t < data.Length)
-            {
-                if (t + 6 > data.Length) break;
-
-                var tagBytes = data.Slice(t, 2);
-                var tagBytesArray = tagBytes.ToArray();
-                if (BitConverter.IsLittleEndian) Array.Reverse(tagBytesArray);
-                var tag = BitConverter.ToUInt16(tagBytesArray, 0);
-
-                var tagLengthBytes = data.Slice(t + 2, 2);
-                var tagLengthBytesArray = tagLengthBytes.ToArray();
-                if (BitConverter.IsLittleEndian) Array.Reverse(tagLengthBytesArray);
-                var tagLength = BitConverter.ToUInt16(tagLengthBytesArray, 0);
-
-                byte[]? newValueBytes = tag switch
-                {
-                    0x1501 => CreateTagValueBytes(newTimecode.FrameNumber, tagLength), // "Start Timecode"
-                    0x1502 => CreateTagValueBytes(newTimecode.Timebase, tagLength),   // "Rounded Timecode Timebase"
-                    0x1503 => CreateTagValueBytes(newTimecode.DropFrame ? 1 : 0, tagLength), // "Drop Frame"
-                    _ => null
-                };
-
-                if (newValueBytes != null)
-                {
-                    if (BitConverter.IsLittleEndian) Array.Reverse(newValueBytes);
-                    var targetSlice = data.Slice(t + 4, Math.Min(newValueBytes.Length, tagLength));
-                    newValueBytes.AsSpan(0, targetSlice.Length).CopyTo(targetSlice);
-                }
-
-                t += 4 + tagLength;
-            }
-
-            // Write the modified data back to the input file
-            Input.Seek(dataStartPosition, SeekOrigin.Begin);
-            await Input.WriteAsync(dataMemory, cancellationToken);
-        }
-        finally
-        {
-            arrayPool.Return(dataBuffer);
-        }
-    }
-
-    /// <summary>
-    /// Asynchronously restripes System packets
-    /// </summary>
-    private async Task RestripeSystemPacketAsync(int length, Timecode newTimecode, CancellationToken cancellationToken)
-    {
-        var offset = GetSystemMetadataOffset(length);
-        if (offset < 0)
-        {
-            await SkipPacketAsync(length, cancellationToken);
-            return;
-        }
-
-        #region Myriadbits MXFInspect code
-        Input.Seek(1, SeekOrigin.Current); // Skip the first byte
-        int timebase = StartTimecode.Timebase;
-        bool dropFrame = StartTimecode.DropFrame;
-        var rateBuffer = new byte[1];
-        var rateBytesRead = await Input.ReadAsync(rateBuffer.AsMemory(), cancellationToken);
-        if (rateBytesRead != 1)
-            throw new EndOfStreamException("Unexpected end of stream while reading rate byte.");
-        var rate = rateBuffer[0];
-        int rateIndex = (rate & 0x1E) >> 1;
-        int[] rates = [0, 24, 25, 30, 48, 50, 60, 72, 75, 90, 96, 100, 120, 0, 0, 0];
-        if (rateIndex < 16)
-			timebase = rates[rateIndex];
-        if ((rate & 0x01) == 0x01) // 1.001 divider active?
-            dropFrame = true;
-        Input.Seek(-2, SeekOrigin.Current); // Go back to the start of the timecode
-
-        // If newTimecode.Timebase and newTimecode.DropFrame do not match what we have found, BREAK
-        if (newTimecode.Timebase != timebase || newTimecode.DropFrame != dropFrame)
-        {
-            throw new InvalidOperationException($"New timecode {newTimecode} does not match existing timebase {timebase} and drop frame {dropFrame}.");
-        }
-
-        #endregion
-
-        await SkipPacketAsync(offset, cancellationToken);
-        var timecodePosition = Input.Position;
-
-        var smpteMemory = _smpteBuffer.AsMemory(0, Constants.SMPTE_TIMECODE_SIZE);
-        var smpteRead = await Input.ReadAsync(smpteMemory, cancellationToken);
-        if (smpteRead == Constants.SMPTE_TIMECODE_SIZE)
-        {
-            if (Verbose)
-            {
-                var currentTimecode = Timecode.FromBytes(_smpteBuffer, timebase, dropFrame);
-                Console.WriteLine($"Restriping System timecode at offset {offset}: {currentTimecode} -> {newTimecode}");
-            }
-
-            // Convert new timecode to bytes and write back to file
-            var newTimecodeBytes = newTimecode.ToBytes();
-            Input.Seek(timecodePosition, SeekOrigin.Begin);
-            await Input.WriteAsync(newTimecodeBytes.AsMemory(0, Constants.SMPTE_TIMECODE_SIZE), cancellationToken);
-        }
-
-        var remainingBytes = length - offset - Constants.SMPTE_TIMECODE_SIZE;
-        if (remainingBytes > 0)
-        {
-            await SkipPacketAsync(remainingBytes, cancellationToken);
-        }
-    }
-
-    /// <summary>
-    /// Asynchronously processes System packets
-    /// </summary>
-    private async Task ProcessSystemPacketAsync(int length, CancellationToken cancellationToken)
-    {
-        // For now, delegate to sync version by reading data and calling sync method
-        var arrayPool = ArrayPool<byte>.Shared;
-        var buffer = arrayPool.Rent(length);
-        
-        try
-        {
-            var memory = buffer.AsMemory(0, length);
-            var bytesRead = await Input.ReadAsync(memory, cancellationToken);
-            
-            if (bytesRead != length)
-                throw new EndOfStreamException($"Expected to read {length} bytes but only read {bytesRead}");
-
-            // Reset position and call sync method
-            Input.Seek(-length, SeekOrigin.Current);
-            ProcessSystemPacket(length);
-        }
-        finally
-        {
-            arrayPool.Return(buffer);
-        }
-    }
-
-    /// <summary>
-    /// Asynchronously processes Data packets
-    /// </summary>
-    private async Task ProcessDataPacketAsync(int length, CancellationToken cancellationToken)
-    {
-        // For now, delegate to sync version by reading data and calling sync method
-        var arrayPool = ArrayPool<byte>.Shared;
-        var buffer = arrayPool.Rent(length);
-        
-        try
-        {
-            var memory = buffer.AsMemory(0, length);
-            var bytesRead = await Input.ReadAsync(memory, cancellationToken);
-            
-            if (bytesRead != length)
-                throw new EndOfStreamException($"Expected to read {length} bytes but only read {bytesRead}");
-
-            // Reset position and call sync method
-            Input.Seek(-length, SeekOrigin.Current);
-            ProcessDataPacket(length);
-        }
-        finally
-        {
-            arrayPool.Return(buffer);
-        }
-    }
-    
-    private FileStream? GetOrCreateExtractionStream(KeyType keyType)
-    {
-        if (DemuxMode)
-        {
-            var keyIdentifier = UseKeyNames ? GetKeyName(_keyBuffer) : BytesToHexString(_keyBuffer);
-            
-            if (!_foundKeys.Contains(keyIdentifier))
-            {
-                Console.WriteLine($"Found key: {keyIdentifier}");
-                _foundKeys.Add(keyIdentifier);
-            }
-            
-            if (!_demuxStreams.TryGetValue(keyIdentifier, out var outputStream))
-            {
-                var fileExtension = KlvMode ? ".klv" : ".raw";
-                outputStream = CreateOutputStream(keyIdentifier, fileExtension);
-                _demuxStreams[keyIdentifier] = outputStream;
-            }
-            return outputStream;
-        }
-        else
-        {
-            if (!_outputStreams.TryGetValue(keyType, out var outputStream))
-            {
-                if (_keyTypeToExtension.TryGetValue(keyType, out var extension))
-                {
-                    if (KlvMode)
-                    {
-                        extension = extension.Replace(".raw", ".klv");
-                    }
-                    var basePath = OutputBasePath ?? Path.ChangeExtension(InputFile.FullName, null);
-                    outputStream = new FileStream(basePath + extension, FileMode.Create, FileAccess.Write);
-                    _outputStreams[keyType] = outputStream;
-                }
-                else
-                {
-                    return null;
-                }
-            }
-            return outputStream;
-        }
-    }
 
     /// <summary>
     /// Backward compatibility alias for ANC class.
