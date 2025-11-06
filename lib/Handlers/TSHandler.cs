@@ -26,6 +26,7 @@ public class TSHandler : IPacketFormatHandler
     private HashSet<int> _videoPIDs = [];
     private int _packetSize = 0; // Detected packet size (188 or 192 bytes)
     private bool _frameRateDetected = false; // Flag to track if frame rate has been auto-detected
+    private long? _firstPTS = null; // First PTS value for normalization
 
     /// <inheritdoc />
     public Format InputFormat => Format.TS;
@@ -329,6 +330,7 @@ public class TSHandler : IPacketFormatHandler
         _videoPIDs.Clear();
         _packetSize = 0;
         _frameRateDetected = false;
+        _firstPTS = null;
     }
 
     /// <summary>
@@ -918,6 +920,7 @@ public class TSHandler : IPacketFormatHandler
 
     /// <summary>
     /// Converts PTS (Presentation Time Stamp) to a Timecode.
+    /// PTS values are normalized to start at 00:00:00:00 by subtracting the first PTS encountered.
     /// </summary>
     /// <param name="pts">PTS value in 90kHz ticks</param>
     /// <param name="timebase">The frame rate/timebase for the timecode (default: use FrameRate property)</param>
@@ -926,13 +929,24 @@ public class TSHandler : IPacketFormatHandler
     {
         timebase ??= _frameRate;
 
+        // Track the first PTS value for normalization
+        if (!_firstPTS.HasValue)
+        {
+            _firstPTS = pts;
+            if (_verbose)
+                Console.Error.WriteLine($"TS: First PTS value: {pts}");
+        }
+
+        // Normalize PTS by subtracting the first PTS value
+        long normalizedPTS = pts - _firstPTS.Value;
+
         // PTS is in 90kHz ticks (90000 ticks per second)
-        // Calculate frame number: (PTS * frame_rate) / 90000
+        // Calculate frame number: (normalized_PTS * frame_rate) / 90000
         // This avoids floating point precision issues
-        var frameNumber = (int)((pts * timebase.Value) / Constants.TS_PTS_CLOCK_FREQUENCY);
+        var frameNumber = (int)(normalizedPTS * timebase.Value / Constants.TS_PTS_CLOCK_FREQUENCY);
 
         if (_verbose)
-            Console.Error.WriteLine($"TS: Converting PTS {pts} to frame {frameNumber} at {timebase}fps");
+            Console.Error.WriteLine($"TS: Converting PTS {pts} (normalized: {normalizedPTS}) to frame {frameNumber} at {timebase}fps");
 
         return new Timecode(frameNumber, timebase.Value);
     }
