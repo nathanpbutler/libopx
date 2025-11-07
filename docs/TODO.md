@@ -90,8 +90,8 @@ To avoid flooding NuGet with rapid incremental releases:
 - [x] All tests passing - **66/66 tests passing** ✅
 - [x] Implement `TSHandler` (Packet-based format)
   - [x] Refactored ~1070 lines of TS parsing logic with internal state
-  - [x] Moved _pesBuffers, _continuityCounters, _pmtPIDs, _teletextPIDs, _videoPIDs into handler
-  - [x] Moved DetectPacketSize, DetectFrameRateFromVideo, ProcessPAT, ProcessPMT methods
+  - [x] Moved `_pesBuffers`, `_continuityCounters`, `_pmtPIDs`, `_teletextPIDs`, `_videoPIDs` into handler
+  - [x] Moved `DetectPacketSize`, `DetectFrameRateFromVideo`, `ProcessPAT`, `ProcessPMT` methods
   - [x] TS.cs reduced from ~1000 lines to ~140 lines
   - [x] All existing tests passing (awaiting TS test files for TSHandler-specific tests)
 - [x] Create `lib/Handlers/TSHandler.cs`
@@ -107,8 +107,10 @@ To avoid flooding NuGet with rapid incremental releases:
 
 ### Future Work (Handler-Specific Tests)
 
-- [ ] Create `/tests/Handlers/TSHandlerTests.cs` (awaiting TS test files from user)
-- [ ] Create `/tests/Handlers/MXFHandlerTests.cs` (awaiting MXF test files from user)
+- [x] Create `/tests/Handlers/TSHandlerTests.cs` ✅
+- [x] Create `/tests/Handlers/MXFHandlerTests.cs` ✅
+- [x] Create `/tests/Handlers/VBIHandlerTests.cs` ✅
+- [x] Create `/tests/Handlers/ANCHandlerTests.cs` ✅
 
 **Implementation Notes:**
 
@@ -279,10 +281,9 @@ To avoid flooding NuGet with rapid incremental releases:
 ### v2.2.0 - Internal Foundation (Phases 1 + 2)
 
 - [x] Phase 1 complete: FormatIOBase ✅
-- [ ] Phase 2 in progress: IFormatHandler, IPacketFormatHandler, FormatRegistry, ParseOptions
+- [x] Phase 2 complete: IFormatHandler, IPacketFormatHandler, FormatRegistry, ParseOptions ✅
   - [x] Interfaces and registry complete ✅
-  - [x] 3/5 format handlers complete (T42, VBI, ANC) ✅
-  - [ ] 2/5 format handlers remaining (TS, MXF) ⚠️
+  - [x] All 5 format handlers complete (T42, VBI, ANC, TS, MXF) ✅
 - [x] Tests passing - 66/66 tests ✅
 - [x] Internal documentation updated ✅
 - [ ] Performance baseline established

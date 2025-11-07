@@ -8,11 +8,28 @@ namespace nathanbutlerDEV.libopx.Tests.Handlers;
 
 /// <summary>
 /// Unit tests for the T42Handler class.
-/// Tests T42 format parsing with various options and output formats.
+/// Tests T42 format parsing with input.t42 sample file.
 /// </summary>
-public class T42HandlerTests : IDisposable
+public class T42HandlerTests : IAsyncLifetime, IDisposable
 {
     private readonly List<Stream> _streamsToDispose = [];
+    private byte[]? _sampleData;
+
+    public async Task InitializeAsync()
+    {
+        // Load input.t42 sample file once for all tests
+        var filePath = "input.t42";
+        if (!File.Exists(filePath))
+        {
+            await SampleFiles.EnsureAsync(filePath);
+        }
+        if (File.Exists(filePath))
+        {
+            _sampleData = await File.ReadAllBytesAsync(filePath);
+        }
+    }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     public void Dispose()
     {
@@ -81,7 +98,7 @@ public class T42HandlerTests : IDisposable
     {
         // Arrange
         var handler = new T42Handler();
-        var stream = new MemoryStream(T42.Sample);
+        var stream = new MemoryStream(_sampleData!);
         _streamsToDispose.Add(stream);
         var options = new ParseOptions { OutputFormat = Format.T42 };
 
@@ -102,7 +119,7 @@ public class T42HandlerTests : IDisposable
     {
         // Arrange
         var handler = new T42Handler();
-        var stream = new MemoryStream(T42.Sample);
+        var stream = new MemoryStream(_sampleData!);
         _streamsToDispose.Add(stream);
         var options = new ParseOptions
         {
@@ -122,7 +139,7 @@ public class T42HandlerTests : IDisposable
     {
         // Arrange
         var handler = new T42Handler();
-        var stream = new MemoryStream(T42.Sample);
+        var stream = new MemoryStream(_sampleData!);
         _streamsToDispose.Add(stream);
         var options = new ParseOptions { OutputFormat = Format.VBI };
 
@@ -143,7 +160,7 @@ public class T42HandlerTests : IDisposable
     {
         // Arrange
         var handler = new T42Handler();
-        var stream = new MemoryStream(T42.Sample);
+        var stream = new MemoryStream(_sampleData!);
         _streamsToDispose.Add(stream);
         var options = new ParseOptions { OutputFormat = Format.VBI_DOUBLE };
 
@@ -164,7 +181,7 @@ public class T42HandlerTests : IDisposable
     {
         // Arrange
         var handler = new T42Handler();
-        var stream = new MemoryStream(T42.Sample);
+        var stream = new MemoryStream(_sampleData!);
         _streamsToDispose.Add(stream);
         var options = new ParseOptions { OutputFormat = Format.T42 };
 
@@ -189,7 +206,7 @@ public class T42HandlerTests : IDisposable
     {
         // Arrange
         var handler = new T42Handler();
-        var stream = new MemoryStream(T42.Sample);
+        var stream = new MemoryStream(_sampleData!);
         _streamsToDispose.Add(stream);
         var options = new ParseOptions { OutputFormat = Format.T42 };
         var cts = new CancellationTokenSource();
@@ -210,7 +227,7 @@ public class T42HandlerTests : IDisposable
     {
         // Arrange
         var handler = new T42Handler();
-        var stream = new MemoryStream(T42.Sample);
+        var stream = new MemoryStream(_sampleData!);
         _streamsToDispose.Add(stream);
         var options = new ParseOptions
         {
@@ -230,7 +247,7 @@ public class T42HandlerTests : IDisposable
     {
         // Arrange
         var handler = new T42Handler();
-        var stream = new MemoryStream(T42.Sample);
+        var stream = new MemoryStream(_sampleData!);
         _streamsToDispose.Add(stream);
         var options = new ParseOptions
         {
@@ -253,5 +270,23 @@ public class T42HandlerTests : IDisposable
                 Assert.NotEqual(lines[0].LineTimecode, lines[2].LineTimecode);
             }
         }
+    }
+
+    [Fact]
+    public void Parse_ValidatesExpectedLineCount()
+    {
+        // Arrange
+        var handler = new T42Handler();
+        var stream = new MemoryStream(_sampleData!);
+        _streamsToDispose.Add(stream);
+        var options = new ParseOptions { OutputFormat = Format.T42 };
+
+        // Act
+        var lines = handler.Parse(stream, options).ToList();
+
+        // Assert
+        // input.t42 should contain 100 lines (2 lines per frame × 50 frames @ 25fps)
+        // Each frame has: 1 header row (8 00) + 1 caption row (8 21)
+        Assert.Equal(100, lines.Count);
     }
 }

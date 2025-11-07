@@ -192,6 +192,146 @@ public class ANCTests : IDisposable
 #pragma warning restore CS0618
     }
 
-    // Note: Full integration tests for Parse() and ParseAsync() with real MXF data
-    // are covered in MemoryBenchmarkTests.cs. These are unit tests for the class structure.
+    // Integration Tests with Real Data
+
+    [Fact]
+    public async Task Parse_WithInputBin_ReturnsExpectedPackets()
+    {
+        // Arrange
+        var filePath = "input.bin";
+        if (!File.Exists(filePath))
+        {
+            await SampleFiles.EnsureAsync(filePath);
+        }
+
+        // Skip test if sample file couldn't be downloaded
+        if (!File.Exists(filePath))
+        {
+            return;
+        }
+
+        // Act
+        using var anc = new ANC(filePath);
+        var packets = anc.Parse(magazine: null, rows: null).ToList();
+
+        // Assert
+        Assert.NotEmpty(packets);
+        Assert.All(packets, packet =>
+        {
+            Assert.NotNull(packet.Lines);
+            Assert.True(packet.Lines.Count > 0);
+        });
+    }
+
+    [Fact]
+    public async Task ParseAsync_WithInputBin_ReturnsExpectedPackets()
+    {
+        // Arrange
+        var filePath = "input.bin";
+        if (!File.Exists(filePath))
+        {
+            await SampleFiles.EnsureAsync(filePath);
+        }
+
+        // Skip test if sample file couldn't be downloaded
+        if (!File.Exists(filePath))
+        {
+            return;
+        }
+
+        // Act
+        using var anc = new ANC(filePath);
+        var packets = new List<Packet>();
+        await foreach (var packet in anc.ParseAsync(magazine: null, rows: null))
+        {
+            packets.Add(packet);
+        }
+
+        // Assert
+        Assert.NotEmpty(packets);
+        Assert.All(packets, packet =>
+        {
+            Assert.NotNull(packet.Lines);
+            Assert.True(packet.Lines.Count > 0);
+        });
+    }
+
+    [Fact]
+    public async Task Parse_WithInputBin_ValidatesExpectedPacketCount()
+    {
+        // Arrange
+        var filePath = "input.bin";
+        if (!File.Exists(filePath))
+        {
+            await SampleFiles.EnsureAsync(filePath);
+        }
+
+        // Skip test if sample file couldn't be downloaded
+        if (!File.Exists(filePath))
+        {
+            return;
+        }
+
+        // Act
+        using var anc = new ANC(filePath);
+        var packets = anc.Parse(magazine: null, rows: null).ToList();
+
+        // Assert
+        // input.bin should contain 50 packets (1 packet per frame × 50 frames @ 25fps)
+        Assert.Equal(50, packets.Count);
+    }
+
+    [Fact]
+    public async Task Parse_WithInputBin_MagazineFilter_FiltersCorrectly()
+    {
+        // Arrange
+        var filePath = "input.bin";
+        if (!File.Exists(filePath))
+        {
+            await SampleFiles.EnsureAsync(filePath);
+        }
+
+        // Skip test if sample file couldn't be downloaded
+        if (!File.Exists(filePath))
+        {
+            return;
+        }
+
+        // Act
+        using var anc = new ANC(filePath);
+        var packets = anc.Parse(magazine: 8, rows: null).ToList();
+
+        // Assert
+        Assert.All(packets, packet => Assert.Equal(8, packet.Magazine));
+    }
+
+    [Fact]
+    public async Task ParseAsync_WithCancellation_ThrowsOperationCanceledException()
+    {
+        // Arrange
+        var filePath = "input.bin";
+        if (!File.Exists(filePath))
+        {
+            await SampleFiles.EnsureAsync(filePath);
+        }
+
+        // Skip test if sample file couldn't be downloaded
+        if (!File.Exists(filePath))
+        {
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        cts.Cancel(); // Cancel immediately
+
+        // Act & Assert
+        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+        {
+            using var anc = new ANC(filePath);
+            await foreach (var packet in anc.ParseAsync(magazine: null, rows: null, cancellationToken: cts.Token))
+            {
+                // Should not reach here
+            }
+        });
+    }
 }

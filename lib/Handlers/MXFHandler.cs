@@ -201,6 +201,9 @@ public class MXFHandler : IPacketFormatHandler
     /// <returns>An enumerable of parsed packets matching the filter criteria</returns>
     public IEnumerable<Packet> Parse(Stream inputStream, ParseOptions options)
     {
+        ArgumentNullException.ThrowIfNull(inputStream);
+        ArgumentNullException.ThrowIfNull(options);
+
         inputStream.Seek(0, SeekOrigin.Begin);
         _lastTimecode = null; // Reset sequential checking
 
@@ -328,6 +331,9 @@ public class MXFHandler : IPacketFormatHandler
         ParseOptions options,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(inputStream);
+        ArgumentNullException.ThrowIfNull(options);
+
         inputStream.Seek(0, SeekOrigin.Begin);
         _lastTimecode = null;
 

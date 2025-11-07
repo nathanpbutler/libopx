@@ -8,7 +8,7 @@ using nathanbutlerDEV.libopx.Formats;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace libopx.Tests
+namespace nathanbutlerDEV.libopx.Tests
 {
     /// <summary>
     /// Memory allocation benchmarks to verify async parsing performance claims
@@ -119,7 +119,7 @@ namespace libopx.Tests
         [Fact]
         public async Task ANC_AsyncVsSync_MemoryAllocationComparison()
         {
-            var binPath = "rick.bin";
+            var binPath = "input.bin";
             if (!File.Exists(binPath) && !await SampleFiles.EnsureAsync(binPath))
             {
                 _output.WriteLine($"Skipping test - sample file not available: {binPath}");
@@ -224,6 +224,100 @@ namespace libopx.Tests
                 // Verify both methods process the same number of packets when they match
                 Assert.Equal(syncPackets, asyncPackets);
             }
+        }
+
+        [Fact]
+        public async Task TS_AsyncVsSync_MemoryAllocationComparison()
+        {
+            var tsPath = "input.ts";
+            if (!File.Exists(tsPath) && !await SampleFiles.EnsureAsync(tsPath))
+            {
+                _output.WriteLine($"Skipping test - sample file not available: {tsPath}");
+                return;
+            }
+
+            var fileInfo = new FileInfo(tsPath);
+            _output.WriteLine($"Testing with TS file: {fileInfo.Name} ({fileInfo.Length:N0} bytes)");
+
+            // Test sync method
+            var syncResults = await MeasureMemoryUsage(() =>
+            {
+                using var ts = new TS(tsPath);
+                var packets = ts.Parse(magazine: null, rows: null).ToList();
+                return Task.FromResult(packets.Count);
+            }, "TS Sync Parse");
+
+            // Test async method
+            var asyncResults = await MeasureMemoryUsage(async () =>
+            {
+                using var ts = new TS(tsPath);
+                var packets = new List<nathanbutlerDEV.libopx.Packet>();
+                await foreach (var packet in ts.ParseAsync(magazine: null, rows: null))
+                {
+                    packets.Add(packet);
+                }
+                return packets.Count;
+            }, "TS Async Parse");
+
+            // Calculate memory reduction
+            var memoryReduction = CalculateReduction(syncResults.PeakMemoryMB, asyncResults.PeakMemoryMB);
+            var allocationReduction = CalculateReduction(syncResults.Gen0Collections, asyncResults.Gen0Collections);
+
+            _output.WriteLine($"\n=== TS MEMORY COMPARISON ===");
+            _output.WriteLine($"Sync  - Peak Memory: {syncResults.PeakMemoryMB:F2} MB, Gen0: {syncResults.Gen0Collections}, Packets: {syncResults.Result}");
+            _output.WriteLine($"Async - Peak Memory: {asyncResults.PeakMemoryMB:F2} MB, Gen0: {asyncResults.Gen0Collections}, Packets: {asyncResults.Result}");
+            _output.WriteLine($"Memory Reduction: {memoryReduction:F1}%");
+            _output.WriteLine($"GC Gen0 Reduction: {allocationReduction:F1}%");
+
+            // Verify both methods process the same number of packets
+            Assert.Equal(syncResults.Result, asyncResults.Result);
+        }
+
+        [Fact]
+        public async Task VBID_AsyncVsSync_MemoryAllocationComparison()
+        {
+            var vbidPath = "input.vbid";
+            if (!File.Exists(vbidPath) && !await SampleFiles.EnsureAsync(vbidPath))
+            {
+                _output.WriteLine($"Skipping test - sample file not available: {vbidPath}");
+                return;
+            }
+
+            var fileInfo = new FileInfo(vbidPath);
+            _output.WriteLine($"Testing with VBI Double file: {fileInfo.Name} ({fileInfo.Length:N0} bytes)");
+
+            // Test sync method
+            var syncResults = await MeasureMemoryUsage(() =>
+            {
+                using var vbi = new VBI(vbidPath);
+                var lines = vbi.Parse(magazine: 8, rows: new[] { 20, 21, 22 }).ToList();
+                return Task.FromResult(lines.Count);
+            }, "VBID Sync Parse");
+
+            // Test async method
+            var asyncResults = await MeasureMemoryUsage(async () =>
+            {
+                using var vbi = new VBI(vbidPath);
+                var lines = new List<nathanbutlerDEV.libopx.Line>();
+                await foreach (var line in vbi.ParseAsync(magazine: 8, rows: new[] { 20, 21, 22 }))
+                {
+                    lines.Add(line);
+                }
+                return lines.Count;
+            }, "VBID Async Parse");
+
+            // Calculate memory reduction
+            var memoryReduction = CalculateReduction(syncResults.PeakMemoryMB, asyncResults.PeakMemoryMB);
+            var allocationReduction = CalculateReduction(syncResults.Gen0Collections, asyncResults.Gen0Collections);
+
+            _output.WriteLine($"\n=== VBI DOUBLE MEMORY COMPARISON ===");
+            _output.WriteLine($"Sync  - Peak Memory: {syncResults.PeakMemoryMB:F2} MB, Gen0: {syncResults.Gen0Collections}, Lines: {syncResults.Result}");
+            _output.WriteLine($"Async - Peak Memory: {asyncResults.PeakMemoryMB:F2} MB, Gen0: {asyncResults.Gen0Collections}, Lines: {asyncResults.Result}");
+            _output.WriteLine($"Memory Reduction: {memoryReduction:F1}%");
+            _output.WriteLine($"GC Gen0 Reduction: {allocationReduction:F1}%");
+
+            // Verify both methods process the same number of lines
+            Assert.Equal(syncResults.Result, asyncResults.Result);
         }
 
         private static async Task<MemoryTestResults> MeasureMemoryUsage<T>(Func<Task<T>> action, string testName)

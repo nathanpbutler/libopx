@@ -94,7 +94,7 @@ public class ParseOptionsTests
 
         // Assert - clone should have new values
         Assert.Equal(2, clone.Magazine);
-        Assert.Equal(new[] { 4, 5, 6 }, clone.Rows);
+        Assert.Equal([4, 5, 6], clone.Rows);
         Assert.Equal(Format.T42, clone.OutputFormat);
         Assert.Equal(5, clone.LineCount);
     }

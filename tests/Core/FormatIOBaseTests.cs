@@ -23,11 +23,15 @@ public class FormatIOBaseTests : IDisposable
             stream?.Dispose();
         }
 
+        // Give the OS time to release file handles
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+
         foreach (var file in _tempFilesToDelete)
         {
             if (File.Exists(file))
             {
-                File.Delete(file);
+                try { File.Delete(file); } catch { /* Best effort cleanup */ }
             }
         }
     }

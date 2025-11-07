@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!-- namespace: nathanbutlerDEV.libopx.Tests -->
+    <RootNamespace>nathanbutlerDEV.libopx.Tests</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
