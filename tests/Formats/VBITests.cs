@@ -8,10 +8,39 @@ namespace nathanbutlerDEV.libopx.Tests.Formats;
 /// Unit tests for the VBI (Vertical Blanking Interval) class.
 /// Tests class structure, constructors, and properties.
 /// </summary>
-public class VBITests : IDisposable
+[Collection("Sample Files Sequential")]
+public class VBITests : IAsyncLifetime, IDisposable
 {
     private readonly List<Stream> _streamsToDispose = [];
-    private readonly List<string> _tempFilesToDelete = [];
+    private string? _sampleFilePathVbi;
+    private string? _sampleFilePathVbid;
+
+    public async Task InitializeAsync()
+    {
+        // Load input.vbi sample file once for all tests
+        var filePathVbi = "input.vbi";
+        if (!File.Exists(filePathVbi))
+        {
+            await SampleFiles.EnsureAsync(filePathVbi);
+        }
+        if (File.Exists(filePathVbi))
+        {
+            _sampleFilePathVbi = filePathVbi;
+        }
+
+        // Load input.vbid sample file once for all tests
+        var filePathVbid = "input.vbid";
+        if (!File.Exists(filePathVbid))
+        {
+            await SampleFiles.EnsureAsync(filePathVbid);
+        }
+        if (File.Exists(filePathVbid))
+        {
+            _sampleFilePathVbid = filePathVbid;
+        }
+    }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     public void Dispose()
     {
@@ -21,30 +50,23 @@ public class VBITests : IDisposable
         {
             stream?.Dispose();
         }
-
-        foreach (var file in _tempFilesToDelete)
-        {
-            if (File.Exists(file))
-            {
-                File.Delete(file);
-            }
-        }
     }
 
     [Fact]
     public void Constructor_WithValidFile_InitializesCorrectly()
     {
-        // Arrange
-        var tempFile = Path.GetTempFileName();
-        _tempFilesToDelete.Add(tempFile);
-        File.WriteAllBytes(tempFile, new byte[1440]); // VBI line size * 10 lines
+        // Skip test if sample file couldn't be downloaded
+        if (_sampleFilePathVbi == null)
+        {
+            return;
+        }
 
         // Act
-        using var vbi = new VBI(tempFile);
+        using var vbi = new VBI(_sampleFilePathVbi);
 
         // Assert
         Assert.NotNull(vbi.InputFile);
-        Assert.Equal(tempFile, vbi.InputFile.FullName);
+        Assert.Equal(Path.GetFullPath(_sampleFilePathVbi), vbi.InputFile.FullName);
         Assert.NotNull(vbi.Input);
         Assert.Equal(Format.T42, vbi.OutputFormat); // Default output format
     }
@@ -147,11 +169,14 @@ public class VBITests : IDisposable
     [Fact]
     public void Dispose_ProperlyDisposesResources()
     {
+        // Skip test if sample file couldn't be downloaded
+        if (_sampleFilePathVbi == null)
+        {
+            return;
+        }
+
         // Arrange
-        var tempFile = Path.GetTempFileName();
-        _tempFilesToDelete.Add(tempFile);
-        File.WriteAllBytes(tempFile, new byte[1440]);
-        var vbi = new VBI(tempFile);
+        var vbi = new VBI(_sampleFilePathVbi, Format.VBI);
         var inputStream = vbi.Input;
 
         // Act
@@ -174,6 +199,104 @@ public class VBITests : IDisposable
 
         // Assert - Stream should still be usable
         Assert.True(customStream.CanRead);
+    }
+
+    // Integration Tests with Real Data
+
+    [Fact]
+    public void Parse_WithInputVBI_ReturnsExpectedLines()
+    {
+        // Skip test if sample file couldn't be downloaded
+        if (_sampleFilePathVbi == null)
+        {
+            return;
+        }
+
+        // Act
+        using var vbi = new VBI(_sampleFilePathVbi, Format.VBI);
+        var lines = vbi.Parse(magazine: null, rows: null).ToList();
+
+        // Assert
+        Assert.NotEmpty(lines);
+        Assert.All(lines, line =>
+        {
+            Assert.Equal(Constants.T42_LINE_SIZE, line.Length);
+            Assert.NotNull(line.Data);
+        });
+    }
+
+    [Fact]
+    public async Task ParseAsync_WithInputVBI_ReturnsExpectedLines()
+    {
+        // Skip test if sample file couldn't be downloaded
+        if (_sampleFilePathVbi == null)
+        {
+            return;
+        }
+
+        // Act
+        using var vbi = new VBI(_sampleFilePathVbi, Format.VBI);
+        var lines = new List<Line>();
+        await foreach (var line in vbi.ParseAsync(magazine: null, rows: null))
+        {
+            lines.Add(line);
+        }
+
+        // Assert
+        Assert.NotEmpty(lines);
+        Assert.All(lines, line =>
+        {
+            Assert.Equal(Constants.T42_LINE_SIZE, line.Length);
+            Assert.NotNull(line.Data);
+        });
+    }
+
+    [Fact]
+    public void Parse_WithInputVBID_ReturnsExpectedLines()
+    {
+        // Skip test if sample file couldn't be downloaded
+        if (_sampleFilePathVbid == null)
+        {
+            return;
+        }
+
+        // Act
+        using var vbi = new VBI(_sampleFilePathVbid, Format.VBI_DOUBLE);
+        var lines = vbi.Parse(magazine: null, rows: null).ToList();
+
+        // Assert
+        Assert.NotEmpty(lines);
+        Assert.All(lines, line =>
+        {
+            Assert.Equal(Constants.T42_LINE_SIZE, line.Length);
+            Assert.NotNull(line.Data);
+        });
+    }
+
+    [Fact]
+    public async Task ParseAsync_WithInputVBID_ReturnsExpectedLines()
+    {
+        // Skip test if sample file couldn't be downloaded
+        if (_sampleFilePathVbid == null)
+        {
+            return;
+        }
+
+        // Act
+        using var vbi = new VBI(_sampleFilePathVbid, Format.VBI_DOUBLE);
+        var lines = new List<Line>();
+        await foreach (var line in vbi.ParseAsync(magazine: null, rows: null))
+        {
+            lines.Add(line);
+        }
+
+        // Assert
+        Assert.NotEmpty(lines);
+        Assert.All(lines, line =>
+        {
+            Assert.Equal(Constants.T42_LINE_SIZE, line.Length);
+            Assert.NotNull(line.Data);
+        });
     }
 
 }

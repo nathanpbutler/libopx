@@ -8,10 +8,27 @@ namespace nathanbutlerDEV.libopx.Tests.Formats;
 /// Unit tests for the ANC (Ancillary Data) class.
 /// Tests parsing of extracted MXF ancillary data streams.
 /// </summary>
-public class ANCTests : IDisposable
+[Collection("Sample Files Sequential")]
+public class ANCTests : IAsyncLifetime, IDisposable
 {
     private readonly List<Stream> _streamsToDispose = [];
-    private readonly List<string> _tempFilesToDelete = [];
+    private string? _sampleFilePath;
+
+    public async Task InitializeAsync()
+    {
+        // Load input.bin sample file once for all tests
+        var filePath = "input.bin";
+        if (!File.Exists(filePath))
+        {
+            await SampleFiles.EnsureAsync(filePath);
+        }
+        if (File.Exists(filePath))
+        {
+            _sampleFilePath = filePath;
+        }
+    }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     public void Dispose()
     {
@@ -21,30 +38,23 @@ public class ANCTests : IDisposable
         {
             stream?.Dispose();
         }
-
-        foreach (var file in _tempFilesToDelete)
-        {
-            if (File.Exists(file))
-            {
-                File.Delete(file);
-            }
-        }
     }
 
     [Fact]
     public void Constructor_WithValidFile_InitializesCorrectly()
     {
-        // Arrange
-        var tempFile = Path.GetTempFileName();
-        _tempFilesToDelete.Add(tempFile);
-        File.WriteAllBytes(tempFile, new byte[100]); // Create a dummy file
+        // Skip test if sample file couldn't be downloaded
+        if (_sampleFilePath == null)
+        {
+            return;
+        }
 
         // Act
-        using var anc = new ANC(tempFile);
+        using var anc = new ANC(_sampleFilePath);
 
         // Assert
         Assert.NotNull(anc.InputFile);
-        Assert.Equal(tempFile, anc.InputFile.FullName);
+        Assert.Equal(Path.GetFullPath(_sampleFilePath), anc.InputFile.FullName);
         Assert.NotNull(anc.Input);
         Assert.Equal(Format.T42, anc.OutputFormat); // Default output format
     }
@@ -147,11 +157,14 @@ public class ANCTests : IDisposable
     [Fact]
     public void Dispose_ProperlyDisposesResources()
     {
+        // Skip test if sample file couldn't be downloaded
+        if (_sampleFilePath == null)
+        {
+            return;
+        }
+
         // Arrange
-        var tempFile = Path.GetTempFileName();
-        _tempFilesToDelete.Add(tempFile);
-        File.WriteAllBytes(tempFile, new byte[100]);
-        var anc = new ANC(tempFile);
+        var anc = new ANC(_sampleFilePath);
         var inputStream = anc.Input;
 
         // Act
@@ -195,23 +208,16 @@ public class ANCTests : IDisposable
     // Integration Tests with Real Data
 
     [Fact]
-    public async Task Parse_WithInputBin_ReturnsExpectedPackets()
+    public void Parse_WithInputBin_ReturnsExpectedPackets()
     {
-        // Arrange
-        var filePath = "input.bin";
-        if (!File.Exists(filePath))
-        {
-            await SampleFiles.EnsureAsync(filePath);
-        }
-
         // Skip test if sample file couldn't be downloaded
-        if (!File.Exists(filePath))
+        if (_sampleFilePath == null)
         {
             return;
         }
 
         // Act
-        using var anc = new ANC(filePath);
+        using var anc = new ANC(_sampleFilePath);
         var packets = anc.Parse(magazine: null, rows: null).ToList();
 
         // Assert
@@ -226,21 +232,14 @@ public class ANCTests : IDisposable
     [Fact]
     public async Task ParseAsync_WithInputBin_ReturnsExpectedPackets()
     {
-        // Arrange
-        var filePath = "input.bin";
-        if (!File.Exists(filePath))
-        {
-            await SampleFiles.EnsureAsync(filePath);
-        }
-
         // Skip test if sample file couldn't be downloaded
-        if (!File.Exists(filePath))
+        if (_sampleFilePath == null)
         {
             return;
         }
 
         // Act
-        using var anc = new ANC(filePath);
+        using var anc = new ANC(_sampleFilePath);
         var packets = new List<Packet>();
         await foreach (var packet in anc.ParseAsync(magazine: null, rows: null))
         {
@@ -257,23 +256,16 @@ public class ANCTests : IDisposable
     }
 
     [Fact]
-    public async Task Parse_WithInputBin_ValidatesExpectedPacketCount()
+    public void Parse_WithInputBin_ValidatesExpectedPacketCount()
     {
-        // Arrange
-        var filePath = "input.bin";
-        if (!File.Exists(filePath))
-        {
-            await SampleFiles.EnsureAsync(filePath);
-        }
-
         // Skip test if sample file couldn't be downloaded
-        if (!File.Exists(filePath))
+        if (_sampleFilePath == null)
         {
             return;
         }
 
         // Act
-        using var anc = new ANC(filePath);
+        using var anc = new ANC(_sampleFilePath);
         var packets = anc.Parse(magazine: null, rows: null).ToList();
 
         // Assert
@@ -282,23 +274,16 @@ public class ANCTests : IDisposable
     }
 
     [Fact]
-    public async Task Parse_WithInputBin_MagazineFilter_FiltersCorrectly()
+    public void Parse_WithInputBin_MagazineFilter_FiltersCorrectly()
     {
-        // Arrange
-        var filePath = "input.bin";
-        if (!File.Exists(filePath))
-        {
-            await SampleFiles.EnsureAsync(filePath);
-        }
-
         // Skip test if sample file couldn't be downloaded
-        if (!File.Exists(filePath))
+        if (_sampleFilePath == null)
         {
             return;
         }
 
         // Act
-        using var anc = new ANC(filePath);
+        using var anc = new ANC(_sampleFilePath);
         var packets = anc.Parse(magazine: 8, rows: null).ToList();
 
         // Assert
@@ -308,15 +293,8 @@ public class ANCTests : IDisposable
     [Fact]
     public async Task ParseAsync_WithCancellation_ThrowsOperationCanceledException()
     {
-        // Arrange
-        var filePath = "input.bin";
-        if (!File.Exists(filePath))
-        {
-            await SampleFiles.EnsureAsync(filePath);
-        }
-
         // Skip test if sample file couldn't be downloaded
-        if (!File.Exists(filePath))
+        if (_sampleFilePath == null)
         {
             return;
         }
@@ -327,7 +305,7 @@ public class ANCTests : IDisposable
         // Act & Assert
         await Assert.ThrowsAsync<OperationCanceledException>(async () =>
         {
-            using var anc = new ANC(filePath);
+            using var anc = new ANC(_sampleFilePath);
             await foreach (var packet in anc.ParseAsync(magazine: null, rows: null, cancellationToken: cts.Token))
             {
                 // Should not reach here

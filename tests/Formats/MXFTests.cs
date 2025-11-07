@@ -8,6 +8,7 @@ namespace nathanbutlerDEV.libopx.Tests.Formats;
 /// Unit tests for the MXF (Material Exchange Format) class.
 /// Tests class structure, constructors, and properties.
 /// </summary>
+[Collection("Sample Files Sequential")]
 public class MXFTests : IAsyncLifetime, IDisposable
 {
     private readonly List<Stream> _streamsToDispose = [];

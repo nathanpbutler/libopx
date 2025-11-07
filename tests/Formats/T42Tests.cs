@@ -8,10 +8,27 @@ namespace nathanbutlerDEV.libopx.Tests.Formats;
 /// Unit tests for the T42 class.
 /// Tests class structure, constructors, and properties.
 /// </summary>
-public class T42Tests : IDisposable
+[Collection("Sample Files Sequential")]
+public class T42Tests : IAsyncLifetime, IDisposable
 {
     private readonly List<Stream> _streamsToDispose = [];
-    private readonly List<string> _tempFilesToDelete = [];
+    private string? _sampleFilePath;
+
+    public async Task InitializeAsync()
+    {
+        // Load input.t42 sample file once for all tests
+        var filePath = "input.t42";
+        if (!File.Exists(filePath))
+        {
+            await SampleFiles.EnsureAsync(filePath);
+        }
+        if (File.Exists(filePath))
+        {
+            _sampleFilePath = filePath;
+        }
+    }
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     public void Dispose()
     {
@@ -21,30 +38,23 @@ public class T42Tests : IDisposable
         {
             stream?.Dispose();
         }
-
-        foreach (var file in _tempFilesToDelete)
-        {
-            if (File.Exists(file))
-            {
-                File.Delete(file);
-            }
-        }
     }
 
     [Fact]
     public void Constructor_WithValidFile_InitializesCorrectly()
     {
-        // Arrange
-        var tempFile = Path.GetTempFileName();
-        _tempFilesToDelete.Add(tempFile);
-        File.WriteAllBytes(tempFile, new byte[420]); // T42 line size * 10 lines
+        // Skip test if sample file couldn't be downloaded
+        if (_sampleFilePath == null)
+        {
+            return;
+        }
 
         // Act
-        using var t42 = new T42(tempFile);
+        using var t42 = new T42(_sampleFilePath);
 
         // Assert
         Assert.NotNull(t42.InputFile);
-        Assert.Equal(tempFile, t42.InputFile.FullName);
+        Assert.Equal(Path.GetFullPath(_sampleFilePath), t42.InputFile.FullName);
         Assert.NotNull(t42.Input);
         Assert.Equal(Format.T42, t42.OutputFormat); // Default output format
     }
@@ -147,11 +157,14 @@ public class T42Tests : IDisposable
     [Fact]
     public void Dispose_ProperlyDisposesResources()
     {
+        // Skip test if sample file couldn't be downloaded
+        if (_sampleFilePath == null)
+        {
+            return;
+        }
+
         // Arrange
-        var tempFile = Path.GetTempFileName();
-        _tempFilesToDelete.Add(tempFile);
-        File.WriteAllBytes(tempFile, new byte[420]);
-        var t42 = new T42(tempFile);
+        var t42 = new T42(_sampleFilePath);
         var inputStream = t42.Input;
 
         // Act
@@ -189,5 +202,55 @@ public class T42Tests : IDisposable
 
         // Assert
         Assert.Equal(2, t42.LineCount);
+    }
+
+    // Integration Tests with Real Data
+
+    [Fact]
+    public void Parse_WithInputT42_ReturnsExpectedLines()
+    {
+        // Skip test if sample file couldn't be downloaded
+        if (_sampleFilePath == null)
+        {
+            return;
+        }
+
+        // Act
+        using var t42 = new T42(_sampleFilePath);
+        var lines = t42.Parse(magazine: null, rows: null).ToList();
+
+        // Assert
+        Assert.NotEmpty(lines);
+        Assert.All(lines, line =>
+        {
+            Assert.Equal(Constants.T42_LINE_SIZE, line.Length);
+            Assert.NotNull(line.Data);
+        });
+    }
+
+    [Fact]
+    public async Task ParseAsync_WithInputT42_ReturnsExpectedLines()
+    {
+        // Skip test if sample file couldn't be downloaded
+        if (_sampleFilePath == null)
+        {
+            return;
+        }
+
+        // Act
+        using var t42 = new T42(_sampleFilePath);
+        var lines = new List<Line>();
+        await foreach (var line in t42.ParseAsync(magazine: null, rows: null))
+        {
+            lines.Add(line);
+        }
+
+        // Assert
+        Assert.NotEmpty(lines);
+        Assert.All(lines, line =>
+        {
+            Assert.Equal(Constants.T42_LINE_SIZE, line.Length);
+            Assert.NotNull(line.Data);
+        });
     }
 }

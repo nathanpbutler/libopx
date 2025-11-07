@@ -9,6 +9,7 @@ namespace nathanbutlerDEV.libopx.Tests.Handlers;
 /// Unit tests for the TSHandler class.
 /// Tests MPEG-TS format parsing with input.ts sample file.
 /// </summary>
+[Collection("Sample Files Sequential")]
 public class TSHandlerTests : IAsyncLifetime, IDisposable
 {
     private readonly List<Stream> _streamsToDispose = [];

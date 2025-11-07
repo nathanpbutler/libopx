@@ -9,6 +9,7 @@ namespace nathanbutlerDEV.libopx.Tests.Handlers;
 /// Unit tests for the MXFHandler class.
 /// Tests MXF format parsing, extraction, and restriping with input.mxf sample file.
 /// </summary>
+[Collection("Sample Files Sequential")]
 public class MXFHandlerTests : IAsyncLifetime, IDisposable
 {
     private readonly List<Stream> _streamsToDispose = [];

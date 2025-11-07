@@ -10,6 +10,7 @@ namespace nathanbutlerDEV.libopx.Tests.Handlers;
 /// Unit tests for the VBIHandler class.
 /// Tests VBI format parsing with input.vbi and input.vbid sample files.
 /// </summary>
+[Collection("Sample Files Sequential")]
 public class VBIHandlerTests : IAsyncLifetime, IDisposable
 {
     private readonly List<Stream> _streamsToDispose = [];

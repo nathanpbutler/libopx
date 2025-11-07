@@ -9,6 +9,7 @@ namespace nathanbutlerDEV.libopx.Tests.Handlers;
 /// Unit tests for the ANCHandler class.
 /// Tests ANC (Ancillary Data) format parsing with input.bin sample file.
 /// </summary>
+[Collection("Sample Files Sequential")]
 public class ANCHandlerTests : IAsyncLifetime, IDisposable
 {
     private readonly List<Stream> _streamsToDispose = [];

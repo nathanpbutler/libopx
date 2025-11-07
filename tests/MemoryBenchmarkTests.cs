@@ -13,6 +13,7 @@ namespace nathanbutlerDEV.libopx.Tests
     /// <summary>
     /// Memory allocation benchmarks to verify async parsing performance claims
     /// </summary>
+    [Collection("Sample Files Sequential")]
     public class MemoryBenchmarkTests
     {
         private readonly ITestOutputHelper _output;

@@ -10,6 +10,7 @@ namespace nathanbutlerDEV.libopx.Tests.Handlers;
 /// Unit tests for the T42Handler class.
 /// Tests T42 format parsing with input.t42 sample file.
 /// </summary>
+[Collection("Sample Files Sequential")]
 public class T42HandlerTests : IAsyncLifetime, IDisposable
 {
     private readonly List<Stream> _streamsToDispose = [];
