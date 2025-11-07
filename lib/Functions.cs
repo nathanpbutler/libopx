@@ -60,7 +60,7 @@ public class Functions
                 case Format.VBI:
                 case Format.VBI_DOUBLE:
                     var vbi = input is FileInfo inputVBI && inputVBI.Exists
-                        ? new VBI(inputVBI.FullName)
+                        ? new VBI(inputVBI.FullName, inputFormat)
                         : new VBI(Console.OpenStandardInput());
                     vbi.LineCount = lineCount;
                     foreach (var line in vbi.Parse(magazine, rows))
@@ -194,7 +194,7 @@ public class Functions
                 case Format.VBI:
                 case Format.VBI_DOUBLE:
                     var vbi = input is { Exists: true } inputVBI
-                        ? new VBI(inputVBI.FullName)
+                        ? new VBI(inputVBI.FullName, inputFormat)
                         : new VBI(Console.OpenStandardInput());
                     vbi.LineCount = lineCount;
                     await foreach (var line in vbi.ParseAsync(magazine, rows, cancellationToken))
