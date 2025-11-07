@@ -7,6 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2025-11-07
+
+### Added
+
+* **Handler-based architecture** - Major architectural refactoring introducing a handler pattern that separates parsing logic from I/O management across all formats. This redesign establishes a consistent, extensible foundation while maintaining 100% backward compatibility.
+* **Format handler interfaces** - New interface hierarchy defining contracts for format handlers:
+  * `IFormatHandlerBase` - Base interface with common properties (`InputFormat`, `ValidOutputs`)
+  * `ILineFormatHandler` - Interface for line-based formats (T42, VBI) with `LineLength` property
+  * `IPacketFormatHandler` - Interface for packet-based formats (TS, MXF, ANC) returning `Packet` objects
+* **Format handler registry** - Thread-safe `FormatRegistry` class using `ConcurrentDictionary` for centralized handler management with registration, retrieval, and validation methods
+* **Unified configuration** - `ParseOptions` class providing consistent configuration across all format handlers with properties for magazine filtering, row filtering, output format, line count, start timecode, and PID filtering
+* **Five format handler implementations**:
+  * `T42Handler` (250 lines) - Encapsulates T42 teletext parsing with timecode tracking and format conversion
+  * `VBIHandler` (280 lines) - Handles VBI and VBI_DOUBLE parsing with automatic format detection
+  * `ANCHandler` (183 lines) - Parses MXF ancillary data packets with minimal state management
+  * `TSHandler` (939 lines) - Most complex packet handler managing MPEG-TS parsing with PES assembly, continuity tracking, PAT/PMT parsing, and PTS normalization
+  * `MXFHandler` (1,374 lines) - Largest handler supporting KLV parsing, multi-stream management, and three operation modes (filter, extract, restripe)
+* **Comprehensive test coverage** - 33 new tests added across 3 test files:
+  * `ParseOptionsTests.cs` (13 tests) - Configuration object validation
+  * `FormatRegistryTests.cs` (14 tests) - Registry behavior and thread-safety
+  * `T42HandlerTests.cs` (15 tests) - T42 parsing logic with real sample files
+
+### Changed
+
+* **Format class refactoring** - All format classes now inherit from `FormatIOBase` and delegate parsing to dedicated handlers, reducing code duplication and improving maintainability:
+  * `T42.cs` - Reduced by 231 lines (900 → 669) by delegating to T42Handler
+  * `VBI.cs` - Reduced by 258 lines (450 → 192) with format auto-detection in handler
+  * `TS.cs` - Reduced by 835 lines / 83% (1,000 → 165) moving complex state management to TSHandler
+  * `MXF.cs` - Reduced by 1,029 lines / 67% (1,526 → 497) with KLV parsing moved to MXFHandler
+  * `ANC.cs` - Promoted from nested `MXF.MXFData` class to top-level format class (308 lines) delegating to ANCHandler
+* **State encapsulation** - Parsing state (PES buffers, continuity counters, PID tracking, timecode tracking) moved from format classes into handler instances, enabling cleaner separation of concerns
+* **PTS normalization in TS parser** - TSHandler now tracks first PTS encountered and normalizes all subsequent PTS values relative to it, ensuring timecodes start at 00:00:00:00 regardless of original stream offset
+
+### Technical Details
+
+* Created 5 new Core infrastructure files (251 lines total):
+  * `lib/Core/IFormatHandlerBase.cs` (20 lines) - Base handler interface
+  * `lib/Core/ILineFormatHandler.cs` (38 lines) - Line-based format contract
+  * `lib/Core/IPacketFormatHandler.cs` (32 lines) - Packet-based format contract
+  * `lib/Core/FormatRegistry.cs` (108 lines) - Thread-safe handler registry
+  * `lib/Core/ParseOptions.cs` (85 lines) - Unified configuration with `Clone()` method
+* Created 5 new Handler classes (3,064 lines total) in `lib/Handlers/` directory
+* Created 3 new test files (610 lines total) achieving comprehensive handler coverage
+* Net code impact: +3,925 lines created, -2,353 lines removed from format classes
+* All 66/66 tests passing (33 existing + 33 new) - zero regressions
+* Architecture supports Strategy, Registry, and Options patterns
+* Documentation added: `docs/PHASE2_SUMMARY.md` (152 lines) with complete architectural analysis
+
+### Migration Notes
+
+* **No breaking changes** - All existing public APIs remain unchanged and functional
+* Format classes maintain all existing constructors, properties, and methods
+* Parsing calls automatically delegate to new handler infrastructure
+* Existing code continues to work without modification
+* New handler-based APIs available for advanced usage scenarios
+
 ## [2.1.2] - 2025-11-04
 
 ### Changed
@@ -294,7 +350,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Publishing**: Single-file deployment with ReadyToRun optimization
 * **Dependencies**: Minimal external dependencies with System.CommandLine for CLI
 
-[unreleased]: https://github.com/nathanpbutler/libopx/compare/v2.1.2...HEAD
+[unreleased]: https://github.com/nathanpbutler/libopx/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/nathanpbutler/libopx/compare/v2.1.2...v2.2.0
 [2.1.2]: https://github.com/nathanpbutler/libopx/compare/v2.1.1...v2.1.2
 [2.1.1]: https://github.com/nathanpbutler/libopx/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/nathanpbutler/libopx/compare/v2.0.0...v2.1.0
