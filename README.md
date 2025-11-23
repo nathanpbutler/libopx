@@ -10,7 +10,7 @@ A .NET 9 C# library for parsing and extracting data from MXF (Material Exchange 
 
 ## Why "opx"?
 
-The name "libopx" is a play on both MXF's "Operational Pattern" designations, such as **OP-1a** and **OP-Atom**, and the Free TV Australia "Operational Practice" standards **OP-42** and **OP-47** for closed captions and Teletext subtitles (the primary focus of this library).
+The **opx** in libopx is a play on both MXF's "Operational Pattern" designations, such as **OP-1a** and **OP-Atom**, and the Free TV Australia "Operational Practice" standards **OP-42** and **OP-47** for closed captions and Teletext subtitles (the primary focus of this library).
 
 ## Features
 
