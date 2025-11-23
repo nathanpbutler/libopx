@@ -240,7 +240,7 @@ using nathanbutlerDEV.libopx;
 var timecode = new Timecode("10:00:00:00");
 
 // Create timecode from components
-var timecode2 = new Timecode(10, 0, 0, 0, 25); // 25fps
+var timecode = new Timecode(10, 0, 0, 0, 25); // 25fps
 
 // Timecode calculations
 var nextFrame = timecode.AddFrames(1);
@@ -259,7 +259,7 @@ using nathanbutlerDEV.libopx.Enums;
 
 // Predefined row sets
 var captionRows = Constants.CAPTION_ROWS;     // Rows 1-24
-var defaultRows = Constants.DEFAULT_ROWS;     // Rows 0-24
+var defaultRows = Constants.DEFAULT_ROWS;     // Rows 0-31
 
 // Predefined magazine set
 var defaultMagazines = Constants.DEFAULT_MAGAZINES;  // Magazines 1-8

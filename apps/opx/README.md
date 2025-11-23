@@ -5,7 +5,7 @@
 
 <!-- markdownlint-disable MD013 -->
 
-A unified command-line interface for processing MXF files, extracted data streams, VBI, T42, and MPEG-TS teletext files using the libopx library.
+A unified command-line interface for processing MXF files, ancillary data streams, VBI, T42, and MPEG-TS teletext files using the libopx library.
 
 ## Installation
 
@@ -209,7 +209,7 @@ opx restripe -t 01:30:15:10 -V -pp input.mxf
 ### Input Formats
 
 - **MXF**: Material Exchange Format files
-- **MXFData**: Extracted MXF data streams
+- **ANC**: MXF ancillary data streams
 - **VBI**: Vertical Blanking Interval data
 - **VBID**: VBI Double (2-line format)
 - **T42**: Teletext packet stream
@@ -226,9 +226,9 @@ opx restripe -t 01:30:15:10 -V -pp input.mxf
 The tool automatically detects input format based on file extensions:
 
 - `.mxf`  → MXF format
-- `.bin`  → Extracted MXF data stream
+- `.bin`/`.anc`  → ANC data stream
 - `.vbi`  → VBI format
-- `.vbid` → VBI Double format
+- `.vbid` → VBI double-width format
 - `.t42`  → T42 format
 - `.ts`   → MPEG Transport Stream format
 
@@ -257,12 +257,12 @@ Extract VBI data from video and process with opx:
 
 ```bash
 # Extract and filter teletext from video
-ffmpeg -i input.mxv \
+ffmpeg -i input.mxf \
   -vf crop=720:2:0:28 -f rawvideo -pix_fmt gray - | \
   opx filter -c -
 
 # Convert video teletext to T42 format
-ffmpeg -i input.mxv \
+ffmpeg -i input.mxf \
   -vf crop=720:2:0:28 \
   -f rawvideo -pix_fmt gray - | \
   opx convert -of t42 -f output.t42 -

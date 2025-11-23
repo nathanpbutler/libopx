@@ -6,20 +6,27 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 [![.NET](https://img.shields.io/badge/.NET-9-blue?style=flat-square)](https://dotnet.microsoft.com/download/dotnet/9.0)
 
-A .NET 9 C# library for parsing and extracting data from MXF (Material Exchange Format) files and extracted data streams, VBI (Vertical Blanking Interval), T42 (Teletext packet stream), and MPEG-TS (Transport Stream) files, with SMPTE timecode and Teletext caption support.
+A .NET 9 C# library for parsing and extracting data from MXF (Material Exchange Format) files and their ancillary data streams (ANC), raw Vertical Blanking Interval (VBI), Teletext packet stream (T42), and MPEG-TS (Transport Stream) files, with SMPTE timecode and Teletext caption support.
+
+## Why "opx"?
+
+The name "libopx" is a play on both MXF's "Operational Pattern" designations, such as **OP-1a** and **OP-Atom**, and the Free TV Australia "Operational Practice" standards **OP-42** and **OP-47** for closed captions and Teletext subtitles (the primary focus of this library).
 
 ## Features
 
-- **Multi-format support**: MXF, extracted data streams, VBI, T42, and MPEG-TS file parsing
-- **Format conversion**: Automatic VBI ↔ T42 conversion, plus RCWT and EBU STL output
+- **Multi-format support**: MXF, ANC, VBI, T42, and MPEG-TS file parsing
+- **Format and Subtitle conversion**: Automatic VBI ↔ T42 conversion, plus RCWT (Raw Captions With Time) and EBU STL output
 - **MPEG-TS teletext extraction**: Automatic PAT/PMT parsing with DVB teletext support
 - **Teletext filtering**: Magazine and row-based filtering with Unicode mapping
 - **SMPTE timecode**: Full timecode calculations with various frame rates
 - **MXF processing**: Stream extraction and demuxing capabilities
-- **CLI tool**: Unified `opx` command-line interface
-- **Subtitle formats**: RCWT (Raw Captions With Time) and EBU STL (EBU-Tech 3264) export
+- **CLI tool**: Unified `opx` command-line interface for easy access to all features
 
-**Format conversions**: Convert between HD and SD T42 and VBI formats or vice versa. You can even pipe that data to other applications like `ffmpeg` or `mpv`.
+Convert between HD and SD T42 and VBI formats or vice versa. You can even pipe that data to other applications like `ffmpeg` or `mpv`.
+
+## Examples
+
+**Piping Teletext Data**: Extract ancillary data from an MXF file, convert it to vertical blanking interval (VBI) format, and pipe it directly to `mpv` for display:
 
 ![Piping Example](https://raw.githubusercontent.com/nathanpbutler/libopx/main/assets/mpv-piping-example.jpg)
 
@@ -60,7 +67,7 @@ opx convert --pid 70 input.ts output.t42
 # Convert to EBU STL subtitle format
 opx convert -c input.mxf output.stl
 
-# Extract streams from MXF files
+# Extract specific streams from MXF files (data, video, audio, etc.)
 opx extract -k d,v input.mxf
 ```
 
@@ -99,16 +106,23 @@ foreach (var line in ts2.Parse())
 ## Project Structure
 
 ```plaintext
-libopx/
-├── apps/opx/         # CLI tool
-├── lib/              # Main library
-│   ├── Formats/      # Format parsers (MXF, MXF data stream, VBI, T42, TS)
-│   ├── SMPTE/        # SMPTE metadata system
-│   └── Enums/        # Enumeration definitions
-├── samples/          # (Deprecated in repo) Obtain sample media from Release
-│                       assets (e.g. v1.0.0) and place here if needed
-├── scripts/          # Development scripts
-└── tests/            # xUnit test suite
+libopx/            # Root directory
+├── .github/       # GitHub configuration
+│   └── workflows/ # CI workflows
+├── apps/opx/      # CLI tool
+├── assets/        # Images and media samples for documentation
+├── docs/          # Documentation files
+├── lib/           # Main library
+│   ├── Core/      # Core functionality
+│   ├── Enums/     # Enumerations
+│   ├── Formats/   # Format parsers (MXF, ANC VBI, T42, TS)
+│   ├── Handlers/  # Data handlers
+│   └── SMPTE/     # SMPTE metadata system
+├── scripts/       # Development scripts
+└── tests/         # xUnit test suite
+    ├── Core/      # Core tests
+    ├── Formats/   # Format parser tests
+    └── Handlers/  # Data handler tests
 ```
 
 ## Development
@@ -130,7 +144,7 @@ dotnet test
 
 ## Dependencies
 
-- System.CommandLine (v2.0.0-rc.2.25502.107)
+- System.CommandLine (v2.0.0) (command-line parsing)
 - xUnit (testing)
 - coverlet (code coverage)
 
