@@ -33,7 +33,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.nuget/packages
-        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}-${{ github.sha }}
+        key: ${{ runner.os }}-nuget-${{ runner.os == 'macOS' && github.sha || hashFiles('**/*.csproj') }}
         restore-keys: |
           ${{ runner.os }}-nuget-
 
@@ -69,7 +69,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ~/.nuget/packages
-        key: ${{ runner.os }}-nuget-${{ hashFiles('lib/libopx.csproj') }}-${{ hashFiles('apps/opx/opx.csproj') }}-${{ hashFiles('tests/libopx.Tests.csproj') }}
+        key: ${{ runner.os }}-nuget-${{ runner.os == 'macOS' && github.sha || hashFiles('**/*.csproj') }}
         restore-keys: |
           ${{ runner.os }}-nuget-
 
