@@ -15,7 +15,7 @@ jobs:
     if: ${{ !contains(github.ref, '-beta') }}
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v5
@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v5
@@ -106,7 +106,7 @@ jobs:
             extension: ''
     
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v5
@@ -146,7 +146,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
 
     - name: Get version without v prefix
       id: get_version
