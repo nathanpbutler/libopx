@@ -391,6 +391,11 @@ public class Commands
             Description = "Specify MPEG-TS PID(s) to extract (comma-separated, e.g., 70 or 70,71). Only applies to TS format."
         };
 
+        var rawStlOption = new Option<bool>("--raw-stl")
+        {
+            Description = "Output raw STL (no intelligent merging) when converting to STL format"
+        };
+
         convertCommand.Arguments.Add(inputOption);
         convertCommand.Arguments.Add(outputOption);
         convertCommand.Options.Add(inputFormatOption);
@@ -401,6 +406,7 @@ public class Commands
         convertCommand.Options.Add(capsOption);
         convertCommand.Options.Add(keepOption);
         convertCommand.Options.Add(pidOption);
+        convertCommand.Options.Add(rawStlOption);
         convertCommand.Options.Add(verboseOption);
 
         convertCommand.SetAction(async (parseResult, cancellationToken) =>
@@ -425,11 +431,12 @@ public class Commands
 
                 int[] rows = CommandHelpers.DetermineRows(rowsString, useCaps);
                 int[]? pids = CommandHelpers.ParsePidsString(pidString);
+                bool rawStl = parseResult.GetValue(rawStlOption);
 
                 Format inputFormat = CommandHelpers.DetermineFormat(inputFormatString, inputFile, Format.VBI);
                 Format outputFormat = CommandHelpers.DetermineFormat(outputFormatString, outputFile, Format.T42);
 
-                return await Functions.ConvertAsync(inputFile, inputFormat, outputFormat, outputFile, magazine, rows, lineCount, verbose, keepBlanks, pids, cancellationToken);
+                return await Functions.ConvertAsync(inputFile, inputFormat, outputFormat, outputFile, magazine, rows, lineCount, verbose, keepBlanks, pids, rawStl, cancellationToken);
             }
             catch (OperationCanceledException)
             {

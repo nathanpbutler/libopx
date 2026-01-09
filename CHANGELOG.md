@@ -5,7 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.3.0] - 2026-01-09
+
+### Added
+
+* **STL subtitle paragraph merging** - New `STLExporter` class that dramatically reduces subtitle paragraph count when converting from MXF, ANC, TS to STL format:
+  * **Content-based tracking** - Tracks subtitle text by content rather than row position, handling teletext's row-shifting behavior
+  * **Text growth detection** - Automatically merges captions that build word-by-word (e.g., "Hello" → "Hello world" → "Hello world!")
+  * **Delayed clear mechanism** - Handles frame gaps in live captioning data by buffering cleared content for up to 30 frames (~1.2 seconds at 25fps) before emitting
+  * **Proper end-time detection** - Uses content disappearance to determine subtitle end times instead of arbitrary next-frame timing
+  * **`--raw-stl` CLI option** - Preserves previous row-by-row behavior for users who want a more accurate representation of the original Teletext caption transmission
+
+### Technical Details
+
+* Created `lib/Exporters/STLExporter.cs` (~600 lines) with content-based subtitle tracking
+* Added 30 unit tests in `tests/Exporters/STLExporterTests.cs` covering all merging scenarios
+* Modified `lib/Functions.cs` to integrate STLExporter for STL output (unless `--raw-stl` specified)
+* Modified `apps/opx/Commands.cs` to add `--raw-stl` option to convert command
 
 ## [2.2.0] - 2025-11-07
 
@@ -350,7 +366,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Publishing**: Single-file deployment with ReadyToRun optimization
 * **Dependencies**: Minimal external dependencies with System.CommandLine for CLI
 
-[unreleased]: https://github.com/nathanpbutler/libopx/compare/v2.2.0...HEAD
+[unreleased]: https://github.com/nathanpbutler/libopx/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/nathanpbutler/libopx/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/nathanpbutler/libopx/compare/v2.1.2...v2.2.0
 [2.1.2]: https://github.com/nathanpbutler/libopx/compare/v2.1.1...v2.1.2
 [2.1.1]: https://github.com/nathanpbutler/libopx/compare/v2.1.0...v2.1.1

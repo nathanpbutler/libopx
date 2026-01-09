@@ -1163,7 +1163,7 @@ public class T42 : FormatIOBase
 
 **Goal:** Move all format conversion logic to FormatConverter + introduce new FormatIO public API + add MXF video VBI extraction.
 
-**Note:** v2.3.0 skipped - combining conversion centralization with new API introduction to avoid intermediate releases.
+**Note:** v2.3.0 released with STL export support. Phase 3 combines conversion centralization with new API introduction.
 
 **Tasks:**
 
@@ -1186,6 +1186,9 @@ public class T42 : FormatIOBase
 17. Add async variants for all operations
 18. Make old API available alongside new API (both work simultaneously)
 19. Add deprecation warnings to guide users toward new API
+20. Consolidate duplicate `EncodeTimecodeToSTL` (Line.cs:681-692 + STLExporter.cs:517-526) → shared location
+21. Consolidate duplicate `ExtractSTLTextData` (Line.cs:700-776 + STLExporter.cs:532-588) → single implementation
+22. Refactor `WriteSTLHeaderAsync` in Functions.cs to use `STLExporter.CreateGSIHeader()` instead of duplicating header logic
 
 **Deliverables:**
 
@@ -1259,6 +1262,9 @@ warning CS0618: 'VBI.ToT42(byte[], bool)' is obsolete:
 8. Finalize migration guide with examples
 9. Update README with v3.0 examples
 10. Write blog post / changelog announcement
+11. Reduce sync/async code duplication in Functions.cs (~800 lines) - extract common logic into helper methods
+12. Create `HandleException()` helper in Functions.cs to consolidate repeated try/catch patterns (~100 lines)
+13. Remove commented-out code blocks in Functions.cs (lines 1069-1078, 1095-1104, 1119-1128, 1169-1178)
 
 **Deliverables:**
 
@@ -1652,8 +1658,9 @@ foreach (var line in io.Parse(magazine: 8))
 
 | Version | Status | Available Commands | Library API |
 |---------|--------|-------------------|-------------|
-| v2.1 (current) | Stable | filter, extract, convert, restripe | VBI, T42, TS, MXF classes |
-| v2.2 | Internal refactoring + abstractions | filter, extract, convert, restripe | Same + IFormatHandler, FormatRegistry |
+| v2.1 | Stable | filter, extract, convert, restripe | VBI, T42, TS, MXF classes |
+| v2.2 | Complete ✅ | filter, extract, convert, restripe | Same + IFormatHandler, FormatRegistry |
+| v2.3 (current) | STL export | filter, extract, convert, restripe | Same + STLExporter |
 | v2.4 | New API + deprecation warnings | filter⚠️, extract⚠️, convert⚠️, restripe | Old API⚠️ + **FormatIO (new)** |
 | **v3.0** | **Breaking** | **convert (unified)**, restripe | **FormatIO only** |
 
@@ -1661,7 +1668,7 @@ foreach (var line in io.Parse(magazine: 8))
 
 - ⚠️ = Shows deprecation warnings
 - **Bold** = Recommended/new approach
-- v2.3.0 and v2.5.0 skipped to avoid rapid release churn
+- v2.5.0 skipped to avoid rapid release churn
 
 ---
 
@@ -2176,6 +2183,6 @@ This is a living document. If you have suggestions or questions about the v3.0 r
 2. Tag with `v3.0-design` label
 3. Reference this document
 
-**Last Updated:** 2025-11-04 (Release strategy consolidated to 3 milestones)
-**Document Version:** 1.3
-**Status:** Phase 1 Complete ✅ - Ready for v2.2.0 Release (includes Phase 2)
+**Last Updated:** 2026-01-09 (Added code simplification tasks from analysis to Phase 3/4)
+**Document Version:** 1.4
+**Status:** Phase 2 Complete ✅ - v2.3.0 in progress (STL export)

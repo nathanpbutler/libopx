@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Text;
 using nathanbutlerDEV.libopx.Enums;
+using nathanbutlerDEV.libopx.Exporters;
 using nathanbutlerDEV.libopx.Formats;
 
 namespace nathanbutlerDEV.libopx;
@@ -989,9 +990,10 @@ public class Functions
     /// <param name="verbose">Whether to enable verbose output.</param>
     /// <param name="keepBlanks">Whether to keep blank lines in the output.</param>
     /// <param name="pids">Optional array of PIDs to filter by (TS format only)</param>
+    /// <param name="rawStl">Whether to use raw STL output (one subtitle per line, no merging)</param>
     /// <param name="cancellationToken">Cancellation token for operation cancellation</param>
     /// <returns>Exit code: 0 for success, 1 for failure, 130 for cancellation</returns>
-    public static async Task<int> ConvertAsync(FileInfo? input, Format inputFormat, Format outputFormat, FileInfo? output, int? magazine, int[] rows, int lineCount, bool verbose, bool keepBlanks = false, int[]? pids = null, CancellationToken cancellationToken = default)
+    public static async Task<int> ConvertAsync(FileInfo? input, Format inputFormat, Format outputFormat, FileInfo? output, int? magazine, int[] rows, int lineCount, bool verbose, bool keepBlanks = false, int[]? pids = null, bool rawStl = false, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -1043,7 +1045,13 @@ public class Functions
                 {
                     await WriteHeaderAsync(outputStream, outputFormat, cancellationToken);
                 }
-                
+
+                // Use intelligent STLExporter for STL output (unless --raw-stl is specified)
+                if (outputFormat == Format.STL && !rawStl)
+                {
+                    return await ConvertToSTLAsync(input, inputFormat, outputStream, magazine, rows, lineCount, verbose, keepBlanks, pids, cancellationToken);
+                }
+
                 switch (inputFormat)
                 {
                     case Format.ANC:
@@ -1832,6 +1840,187 @@ public class Functions
     {
         // Return the first byte shifted left by 8 bits OR the second byte
         return bytes[0] << 8 | bytes[1];
+    }
+
+    #endregion
+
+    #region STL Export
+
+    /// <summary>
+    /// Converts teletext data to STL format using intelligent subtitle merging.
+    /// Tracks content across frames to produce properly-timed subtitles.
+    /// </summary>
+    private static async Task<int> ConvertToSTLAsync(
+        FileInfo? input,
+        Format inputFormat,
+        Stream outputStream,
+        int? magazine,
+        int[] rows,
+        int lineCount,
+        bool verbose,
+        bool keepBlanks,
+        int[]? pids,
+        CancellationToken cancellationToken)
+    {
+        using var exporter = new STLExporter
+        {
+            Magazine = magazine,  // null = no magazine filter (accept all)
+            Rows = rows,
+            Verbose = verbose
+        };
+
+        // Process based on input format
+        switch (inputFormat)
+        {
+            case Format.ANC:
+                var anc = input is { Exists: true } inputANC
+                    ? new ANC(inputANC.FullName)
+                    : new ANC(Console.OpenStandardInput());
+                anc.OutputFormat = Format.T42;  // STLExporter expects T42 data
+
+                await foreach (var packet in anc.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken: cancellationToken))
+                {
+                    foreach (var block in exporter.Export([packet]))
+                    {
+                        await outputStream.WriteAsync(block, cancellationToken);
+                    }
+                }
+                break;
+
+            case Format.VBI:
+            case Format.VBI_DOUBLE:
+                var vbi = input is { Exists: true } inputVBI
+                    ? new VBI(inputVBI.FullName, inputFormat)
+                    : new VBI(Console.OpenStandardInput(), inputFormat);
+                vbi.OutputFormat = Format.T42;
+                vbi.LineCount = lineCount;
+
+                // VBI yields lines, we need to group them into packets
+                var vbiPacket = new Packet([0, 0]);
+                Timecode? lastVbiTimecode = null;
+
+                await foreach (var line in vbi.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken))
+                {
+                    // If timecode changed, process the previous packet and start a new one
+                    if (lastVbiTimecode != null && line.LineTimecode != null &&
+                        !line.LineTimecode.Equals(lastVbiTimecode))
+                    {
+                        if (vbiPacket.Lines.Count > 0)
+                        {
+                            vbiPacket.Timecode = lastVbiTimecode;
+                            foreach (var block in exporter.Export([vbiPacket]))
+                            {
+                                await outputStream.WriteAsync(block, cancellationToken);
+                            }
+                            vbiPacket = new Packet([0, 0]);
+                        }
+                    }
+
+                    vbiPacket.Lines.Add(line);
+                    lastVbiTimecode = line.LineTimecode;
+                }
+
+                // Process final packet
+                if (vbiPacket.Lines.Count > 0)
+                {
+                    vbiPacket.Timecode = lastVbiTimecode ?? new Timecode(0);
+                    foreach (var block in exporter.Export([vbiPacket]))
+                    {
+                        await outputStream.WriteAsync(block, cancellationToken);
+                    }
+                }
+                break;
+
+            case Format.T42:
+                var t42 = input is { Exists: true } inputT42
+                    ? new T42(inputT42.FullName)
+                    : new T42(Console.OpenStandardInput());
+                t42.OutputFormat = Format.T42;
+                t42.LineCount = lineCount;
+
+                // T42 yields lines, group into packets by timecode
+                var t42Packet = new Packet([0, 0]);
+                Timecode? lastT42Timecode = null;
+
+                await foreach (var line in t42.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken))
+                {
+                    if (lastT42Timecode != null && line.LineTimecode != null &&
+                        !line.LineTimecode.Equals(lastT42Timecode))
+                    {
+                        if (t42Packet.Lines.Count > 0)
+                        {
+                            t42Packet.Timecode = lastT42Timecode;
+                            foreach (var block in exporter.Export([t42Packet]))
+                            {
+                                await outputStream.WriteAsync(block, cancellationToken);
+                            }
+                            t42Packet = new Packet([0, 0]);
+                        }
+                    }
+
+                    t42Packet.Lines.Add(line);
+                    lastT42Timecode = line.LineTimecode;
+                }
+
+                if (t42Packet.Lines.Count > 0)
+                {
+                    t42Packet.Timecode = lastT42Timecode ?? new Timecode(0);
+                    foreach (var block in exporter.Export([t42Packet]))
+                    {
+                        await outputStream.WriteAsync(block, cancellationToken);
+                    }
+                }
+                break;
+
+            case Format.TS:
+                var ts = input is { Exists: true } inputTS
+                    ? new TS(inputTS.FullName)
+                    : new TS(Console.OpenStandardInput());
+                ts.OutputFormat = Format.T42;
+                ts.Verbose = verbose;
+                if (pids != null)
+                    ts.PIDs = pids;
+
+                await foreach (var packet in ts.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken: cancellationToken))
+                {
+                    foreach (var block in exporter.Export([packet]))
+                    {
+                        await outputStream.WriteAsync(block, cancellationToken);
+                    }
+                }
+                break;
+
+            case Format.MXF:
+                if (input == null || !input.Exists)
+                {
+                    await Console.Error.WriteLineAsync("Error: MXF format requires an input file.");
+                    return 1;
+                }
+
+                var mxf = new MXF(input.FullName);
+                mxf.OutputFormat = Format.T42;
+
+                await foreach (var packet in mxf.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken: cancellationToken))
+                {
+                    foreach (var block in exporter.Export([packet]))
+                    {
+                        await outputStream.WriteAsync(block, cancellationToken);
+                    }
+                }
+                break;
+
+            default:
+                await Console.Error.WriteLineAsync($"Error: Unsupported input format '{inputFormat}' for STL export.");
+                return 1;
+        }
+
+        // Flush any remaining content
+        foreach (var block in exporter.Flush())
+        {
+            await outputStream.WriteAsync(block, cancellationToken);
+        }
+
+        return 0;
     }
 
     #endregion

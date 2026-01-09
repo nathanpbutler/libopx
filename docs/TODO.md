@@ -1,8 +1,8 @@
 # libopx v3.0 Implementation TODO
 
-**Status:** Phase 2 COMPLETE (5/5 formats - 100%) ✅ | v2.2.0 ready for release
-**Last Updated:** 2025-11-07
-**Release Strategy:** Consolidated to 3 releases (v2.2.0, v2.4.0, v3.0.0)
+**Status:** v2.3.0 in progress (STL export) | Phase 2 COMPLETE ✅
+**Last Updated:** 2026-01-09
+**Release Strategy:** Consolidated releases (v2.2.0 ✅, v2.3.0 in progress, v2.4.0, v3.0.0)
 
 ---
 
@@ -10,7 +10,8 @@
 
 To avoid flooding NuGet with rapid incremental releases:
 
-- **v2.2.0** - Phases 1 + 2: Internal foundation (FormatIOBase + IFormatHandler abstractions)
+- **v2.2.0** ✅ - Phases 1 + 2: Internal foundation (FormatIOBase + IFormatHandler abstractions)
+- **v2.3.0** 🚧 - STL export: Intelligent subtitle merging via STLExporter
 - **v2.4.0** - Phase 3: New FormatIO API available with deprecation warnings
 - **v3.0.0** - Phase 4: Breaking changes and unified CLI
 
@@ -137,7 +138,7 @@ To avoid flooding NuGet with rapid incremental releases:
 
 **Goal:** Move all format conversion logic to FormatConverter + introduce new FormatIO public API + add MXF video VBI extraction
 
-**Note:** v2.3.0 skipped - combining conversion centralization with new API introduction to avoid intermediate releases.
+**Note:** v2.3.0 released with STL export support. Phase 3 combines conversion centralization with new API introduction.
 
 ### Core Conversion Tasks
 
@@ -278,7 +279,7 @@ To avoid flooding NuGet with rapid incremental releases:
 
 ## Release Checklist (Consolidated)
 
-### v2.2.0 - Internal Foundation (Phases 1 + 2)
+### v2.2.0 - Internal Foundation (Phases 1 + 2) ✅
 
 - [x] Phase 1 complete: FormatIOBase ✅
 - [x] Phase 2 complete: IFormatHandler, IPacketFormatHandler, FormatRegistry, ParseOptions ✅
@@ -288,6 +289,19 @@ To avoid flooding NuGet with rapid incremental releases:
 - [x] Internal documentation updated ✅
 - [ ] Performance baseline established
 - [x] No breaking changes to public API ✅
+
+### v2.3.0 - STL Export 🚧
+
+- [x] STLExporter class with intelligent subtitle merging ✅
+- [x] Content-based tracking (handles row-shifting) ✅
+- [x] Text growth detection (word-by-word buildup) ✅
+- [x] Delayed clear mechanism (30 frames buffer) ✅
+- [x] `--raw-stl` CLI option for raw output ✅
+- [x] 30 unit tests in STLExporterTests.cs ✅
+- [x] Functions.cs integration ✅
+- [x] CLI documentation updated ✅
+- [x] CHANGELOG.md updated ✅
+- [ ] Tag and release
 
 ### v2.4.0 - New API + Deprecation (Phase 3)
 
@@ -314,7 +328,29 @@ To avoid flooding NuGet with rapid incremental releases:
 
 ---
 
-**Note:** v2.3.0 and v2.5.0 skipped to avoid flooding NuGet with intermediate releases.
+**Note:** v2.5.0 skipped to go directly from v2.4.0 to v3.0.0 after sufficient migration period.
+
+---
+
+## Future Improvements: STLExporter
+
+The new intelligent STL merging (`lib/Exporters/STLExporter.cs`) dramatically reduces subtitle count when converting from frame-based formats (MXF, ANC, TS) to STL. There is room for further enhancement:
+
+### Potential Improvements
+
+- [ ] **Configurable clear delay** - Expose `ClearDelayFrames` (currently 30 frames) as CLI option for tuning
+- [ ] **T42 control code interpretation** - Parse teletext control bytes (clear line, double height, etc.) for more accurate end-time detection
+- [ ] **Multi-row subtitle grouping** - Detect and merge related content across multiple rows (e.g., two-line captions)
+- [ ] **Punctuation-aware merging** - Use sentence boundaries (periods, question marks) to improve subtitle segmentation
+- [ ] **Speaker identification** - Detect speaker changes based on content patterns or row positioning
+- [ ] **Maximum duration limits** - Split very long subtitles that exceed typical reading time thresholds
+- [ ] **Overlap detection** - Handle cases where new content appears before old content is cleared
+
+### Configuration Options to Consider
+
+- `--stl-clear-delay <frames>` - Number of frames to wait before emitting cleared content
+- `--stl-max-duration <seconds>` - Maximum subtitle duration before forced split
+- `--stl-merge-rows` - Enable cross-row subtitle merging
 
 ---
 

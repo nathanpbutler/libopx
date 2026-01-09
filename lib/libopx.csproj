@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>nathanbutlerDEV.libopx</RootNamespace>
-    <Version>2.2.0</Version>
+    <Version>2.3.0</Version>
 
     <!-- Package Information -->
     <PackageId>libopx</PackageId>
@@ -19,7 +19,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageTags>mxf;teletext;vbi;t42;mpeg-ts;transport-stream;dvb;smpte;timecode;caption;subtitles;broadcast;video;parsing;extraction;conversion;op42;op47;cli;dotnet;async;performance</PackageTags>
     <Copyright>Copyright (c) 2025 Nathan Butler</Copyright>
-    <PackageReleaseNotes>v2.2.0: Internal architecture refactoring with handler delegation pattern. All format parsers now delegate to specialized handlers (T42Handler, VBIHandler, ANCHandler, TSHandler, MXFHandler) implementing ILineFormatHandler and IPacketFormatHandler interfaces. Improved code organization, state encapsulation, and maintainability while maintaining 100% backward compatibility. Zero breaking changes.</PackageReleaseNotes>
+    <PackageReleaseNotes>v2.3.0: Added STL (EBU Tech 3264) export support via new STLExporter class. Convert T42/VBI teletext data to EBU STL subtitle format with automatic GSI header generation, teletext-to-STL character mapping, and proper TTI block encoding. Includes support for double-height text, box mode detection, and configurable output options.</PackageReleaseNotes>
     
     <!-- Documentation -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
