@@ -93,7 +93,7 @@ public class T42Handler : ILineFormatHandler
                 try
                 {
                     // Convert T42 to VBI using the static method
-                    var vbiData = T42.ToVBI(t42Buffer, outputFormat);
+                    var vbiData = Core.FormatConverter.T42ToVBI(t42Buffer, outputFormat);
 
                     // Update line properties for VBI
                     line.Data = vbiData;
@@ -208,7 +208,7 @@ public class T42Handler : ILineFormatHandler
                 {
                     try
                     {
-                        var vbiData = T42.ToVBI(line.Data, outputFormat);
+                        var vbiData = Core.FormatConverter.T42ToVBI(line.Data, outputFormat);
                         line.Data = vbiData;
                         line.Length = vbiData.Length;
                         line.SampleCoding = outputFormat == Format.VBI_DOUBLE ? 0x32 : 0x31;

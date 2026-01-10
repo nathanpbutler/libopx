@@ -435,22 +435,22 @@ public class Line : IDisposable
         return (inputFormat, outputFormat) switch
         {
             // VBI to T42 conversion
-            (Format.VBI, Format.T42) or (Format.VBI_DOUBLE, Format.T42) => VBI.ToT42(data),
+            (Format.VBI, Format.T42) or (Format.VBI_DOUBLE, Format.T42) => Core.FormatConverter.VBIToT42(data),
 
             // VBI to VBI_DOUBLE conversion
-            (Format.VBI, Format.VBI_DOUBLE) => Functions.Double(data),
+            (Format.VBI, Format.VBI_DOUBLE) => Core.FormatConverter.VBIToVBIDouble(data),
 
             // T42 to VBI conversion
-            (Format.T42, Format.VBI) => T42.ToVBI(data, Format.VBI),
+            (Format.T42, Format.VBI) => Core.FormatConverter.T42ToVBI(data, Format.VBI),
 
             // T42 to VBI_DOUBLE conversion
-            (Format.T42, Format.VBI_DOUBLE) => T42.ToVBI(data, Format.VBI_DOUBLE),
+            (Format.T42, Format.VBI_DOUBLE) => Core.FormatConverter.T42ToVBI(data, Format.VBI_DOUBLE),
 
-            // VBI_DOUBLE to VBI conversion (take every other byte)
-            (Format.VBI_DOUBLE, Format.VBI) => [.. data.Where((b, i) => i % 2 == 0)],
+            // VBI_DOUBLE to VBI conversion
+            (Format.VBI_DOUBLE, Format.VBI) => Core.FormatConverter.VBIDoubleToVBI(data),
 
             // RCWT conversions - keep as T42 for now, actual RCWT packet generation happens in parsers
-            (Format.VBI, Format.RCWT) or (Format.VBI_DOUBLE, Format.RCWT) => VBI.ToT42(data),
+            (Format.VBI, Format.RCWT) or (Format.VBI_DOUBLE, Format.RCWT) => Core.FormatConverter.VBIToT42(data),
             (Format.T42, Format.RCWT) => [.. data.Take(Constants.T42_LINE_SIZE)],
 
             // Same format - no conversion needed
@@ -527,89 +527,21 @@ public class Line : IDisposable
     /// <param name="fieldNumber">Field number (0 or 1)</param>
     /// <param name="verbose">Whether to output verbose debug information</param>
     /// <returns>RCWT packet bytes containing packet type, FTS, field marker, framing code, and T42 data payload</returns>
+    [Obsolete("Use FormatConverter.T42ToRCWT() instead. This method will be removed in v3.0.0.")]
     public byte[] ToRCWT(int fts, int fieldNumber, bool verbose)
     {
-        if (verbose) Console.Error.WriteLine($"DEBUG: ToRCWT called - Type: {Type}, DataLength: {Data.Length}, Magazine: {Magazine}, Row: {Row}");
-        
-        // Ensure we have T42 data as the payload
-        byte[] t42Data;
-        if (Type == Format.T42 && Data.Length >= Constants.T42_LINE_SIZE)
-        {
-            // Use existing T42 data (first 42 bytes)
-            t42Data = [.. Data.Take(Constants.T42_LINE_SIZE)];
-            if (verbose) Console.Error.WriteLine($"DEBUG: Using existing T42 data ({t42Data.Length} bytes)");
-        }
-        else if (Type == Format.VBI || Type == Format.VBI_DOUBLE)
-        {
-            // Convert VBI to T42 first
-            try
-            {
-                var convertedData = ConvertFormat(Data, Type, Format.T42);
-                t42Data = [.. convertedData.Take(Constants.T42_LINE_SIZE)];
-                if (verbose) Console.Error.WriteLine($"DEBUG: Converted VBI to T42 ({t42Data.Length} bytes)");
-            }
-            catch (Exception ex)
-            {
-                // If conversion fails, create blank T42 data
-                t42Data = new byte[Constants.T42_LINE_SIZE];
-                if (verbose) Console.Error.WriteLine($"DEBUG: VBI to T42 conversion failed: {ex.Message}, using blank T42 data");
-            }
-        }
-        else
-        {
-            // For unknown or other formats, create blank T42 data
-            t42Data = new byte[Constants.T42_LINE_SIZE];
-            if (verbose) Console.Error.WriteLine($"DEBUG: Unknown format {Type}, using blank T42 data");
-        }
+        if (verbose) Console.Error.WriteLine($"DEBUG: Line.ToRCWT called - Type: {Type}, DataLength: {Data.Length}, Magazine: {Magazine}, Row: {Row}");
 
-        // Create RCWT packet: [packet_type][fts_bytes][field_marker][framing_code][t42_data]
-        var packet = new List<byte>
-        {
-            // Add packet type (1 byte)
-            Constants.RCWT_PACKET_TYPE_UNKNOWN
-        };
+        // Handle VBI→T42 conversion if needed
+        byte[] t42Data = Type == Format.T42 && Data.Length >= Constants.T42_LINE_SIZE
+            ? [.. Data.Take(Constants.T42_LINE_SIZE)]
+            : Type == Format.VBI || Type == Format.VBI_DOUBLE
+                ? Core.FormatConverter.VBIToT42(Data)
+                : new byte[Constants.T42_LINE_SIZE];
 
-        // Add FTS bytes (8 bytes, padded if necessary)
-        var ftsBytes = GetFTSBytes(fts);
-        packet.AddRange(ftsBytes);
-
-        // Add field marker (1 byte)
-        packet.Add(GetFieldMarkerByte(fieldNumber));
-
-        // Add framing code (1 byte)
-        packet.Add(Constants.RCWT_FRAMING_CODE);
-
-        // Add T42 data payload (42 bytes)
-        packet.AddRange(t42Data);
-
-        var result = packet.ToArray();
-        if (verbose) Console.Error.WriteLine($"DEBUG: Created RCWT packet - Size: {result.Length} bytes, FTS: {fts}, Field: {fieldNumber}");
-        
-        return result;
+        return Core.FormatConverter.T42ToRCWT(t42Data, fts, fieldNumber, verbose);
     }
 
-    /// <summary>
-    /// Converts FTS value to 8-byte array, padding with zeros if necessary.
-    /// </summary>
-    /// <param name="fts">Frame Time Stamp in milliseconds</param>
-    /// <returns>8-byte array representing the FTS value</returns>
-    private static byte[] GetFTSBytes(int fts)
-    {
-        var ftsBytes = BitConverter.GetBytes(fts);
-        return ftsBytes.Length == Constants.RCWT_FTS_BYTE_SIZE 
-            ? ftsBytes 
-            : [.. ftsBytes, .. new byte[Constants.RCWT_FTS_BYTE_SIZE - ftsBytes.Length]];
-    }
-
-    /// <summary>
-    /// Gets the field marker byte based on field number.
-    /// </summary>
-    /// <param name="fieldNumber">Field number (0 or 1)</param>
-    /// <returns>Field marker byte (0xAF for field 0, 0xAB for field 1)</returns>
-    private static byte GetFieldMarkerByte(int fieldNumber)
-    {
-        return fieldNumber == 0 ? Constants.RCWT_FIELD_0_MARKER : Constants.RCWT_FIELD_1_MARKER;
-    }
 
     /// <summary>
     /// Converts the line data to EBU STL (EBU-Tech 3264) TTI block format.
@@ -619,159 +551,19 @@ public class Line : IDisposable
     /// <param name="timeCodeOut">End timecode for the subtitle</param>
     /// <param name="verbose">Whether to output verbose debug information</param>
     /// <returns>TTI block bytes (128 bytes) containing timing and text data without odd-parity encoding</returns>
+    [Obsolete("Use FormatConverter.T42ToSTL() instead. This method will be removed in v3.0.0.")]
     public byte[] ToSTL(int subtitleNumber, Timecode timeCodeIn, Timecode? timeCodeOut = null, bool verbose = false)
     {
-        if (verbose) Console.Error.WriteLine($"DEBUG: ToSTL called - Type: {Type}, DataLength: {Data.Length}, Magazine: {Magazine}, Row: {Row}");
+        if (verbose) Console.Error.WriteLine($"DEBUG: Line.ToSTL called - Type: {Type}, DataLength: {Data.Length}, Magazine: {Magazine}, Row: {Row}");
 
-        // Create TTI block (128 bytes)
-        var tti = new byte[Constants.STL_TTI_BLOCK_SIZE];
+        // Handle VBI→T42 conversion if needed
+        byte[] t42Data = Type == Format.T42 && Data.Length >= Constants.T42_LINE_SIZE
+            ? [.. Data.Take(Constants.T42_LINE_SIZE)]
+            : Type == Format.VBI || Type == Format.VBI_DOUBLE
+                ? Core.FormatConverter.VBIToT42(Data)
+                : new byte[Constants.T42_LINE_SIZE];
 
-        // Subtitle Group Number (SGN) - byte 0
-        tti[0] = Constants.STL_SUBTITLE_GROUP;
-
-        // Subtitle Number (SN) - bytes 1-2 (big-endian)
-        tti[1] = (byte)((subtitleNumber >> 8) & 0xFF);
-        tti[2] = (byte)(subtitleNumber & 0xFF);
-
-        // Extension Block Number (EBN) - byte 3 (0xFF = not part of extension)
-        tti[3] = 0xFF;
-
-        // Cumulative Status (CS) - byte 4
-        tti[4] = Constants.STL_CUMULATIVE_STATUS;
-
-        // Time Code In (TCI) - bytes 5-8 (HH:MM:SS:FF in BCD format)
-        var tciBytes = EncodeTimecodeToSTL(timeCodeIn);
-        Array.Copy(tciBytes, 0, tti, 5, 4);
-
-        // Time Code Out (TCO) - bytes 9-12 (HH:MM:SS:FF in BCD format)
-        var tcoBytes = EncodeTimecodeToSTL(timeCodeOut ?? timeCodeIn);
-        Array.Copy(tcoBytes, 0, tti, 9, 4);
-
-        // Vertical Position (VP) - byte 13 (row number, 0-based)
-        // Map teletext row (0-31) to STL vertical position
-        tti[13] = Row >= 0 && Row <= 31 ? (byte)Row : (byte)0;
-
-        // Justification Code (JC) - byte 14 (0x02 = left-justified)
-        tti[14] = 0x02;
-
-        // Comment Flag (CF) - byte 15 (0x00 = contains subtitle data)
-        tti[15] = 0x00;
-
-        // Text Field (TF) - bytes 16-127 (112 bytes)
-        // Extract T42 data and convert to STL format (strip parity, remap control codes)
-        byte[] textData = ExtractSTLTextData(verbose);
-        Array.Copy(textData, 0, tti, 16, Math.Min(textData.Length, Constants.STL_TEXT_FIELD_SIZE));
-
-        // Fill remaining text field with spaces if needed
-        for (int i = 16 + textData.Length; i < 128; i++)
-        {
-            tti[i] = 0x8F; // STL space character
-        }
-
-        if (verbose) Console.Error.WriteLine($"DEBUG: Created STL TTI block - Size: {tti.Length} bytes, Subtitle: {subtitleNumber}, TCI: {timeCodeIn}, Row: {Row}");
-
-        return tti;
+        return Core.FormatConverter.T42ToSTL(t42Data, subtitleNumber, Row, timeCodeIn, timeCodeOut, verbose);
     }
 
-    /// <summary>
-    /// Encodes a timecode to STL format (4 bytes in BCD format: HH, MM, SS, FF).
-    /// </summary>
-    /// <param name="timecode">The timecode to encode</param>
-    /// <returns>4-byte array representing the timecode in BCD format</returns>
-    private static byte[] EncodeTimecodeToSTL(Timecode timecode)
-    {
-        var tc = new byte[4];
-
-        // Convert each component to BCD (Binary Coded Decimal)
-        tc[0] = (byte)((timecode.Hours / 10 << 4) | (timecode.Hours % 10));
-        tc[1] = (byte)((timecode.Minutes / 10 << 4) | (timecode.Minutes % 10));
-        tc[2] = (byte)((timecode.Seconds / 10 << 4) | (timecode.Seconds % 10));
-        tc[3] = (byte)((timecode.Frames / 10 << 4) | (timecode.Frames % 10));
-
-        return tc;
-    }
-
-    /// <summary>
-    /// Extracts and converts T42 text data to STL format.
-    /// Strips odd-parity bits and remaps control codes to STL equivalents.
-    /// </summary>
-    /// <param name="verbose">Whether to output verbose debug information</param>
-    /// <returns>Byte array containing STL-formatted text data (max 112 bytes)</returns>
-    private byte[] ExtractSTLTextData(bool verbose)
-    {
-        // Ensure we have T42 data as the payload
-        byte[] t42Data;
-        if (Type == Format.T42 && Data.Length >= Constants.T42_LINE_SIZE)
-        {
-            t42Data = [.. Data.Take(Constants.T42_LINE_SIZE)];
-        }
-        else if (Type == Format.VBI || Type == Format.VBI_DOUBLE)
-        {
-            try
-            {
-                var convertedData = ConvertFormat(Data, Type, Format.T42);
-                t42Data = [.. convertedData.Take(Constants.T42_LINE_SIZE)];
-            }
-            catch
-            {
-                t42Data = new byte[Constants.T42_LINE_SIZE];
-            }
-        }
-        else
-        {
-            t42Data = new byte[Constants.T42_LINE_SIZE];
-        }
-
-        // Convert T42 to STL text format
-        var stlText = new List<byte>();
-
-        // Determine starting position based on row type
-        // Row 0 (header): Skip first 10 bytes (2 mag/row + 8 header metadata), parse last 32 bytes
-        // Rows 1-24 (captions): Skip first 2 bytes (mag/row), parse remaining 40 bytes
-        int startIndex = Row == 0 ? 10 : 2;
-
-        for (int i = startIndex; i < t42Data.Length && stlText.Count < Constants.STL_TEXT_FIELD_SIZE; i++)
-        {
-            byte b = t42Data[i];
-
-            // Strip parity bit (bit 7) - STL doesn't use odd-parity encoding
-            byte stripped = (byte)(b & 0x7F);
-
-            // Remap T42 control codes to STL control codes
-            if (stripped == Constants.T42_BLOCK_START_BYTE)
-            {
-                // T42 Start Box -> STL Start Box
-                stlText.Add(Constants.STL_START_BOX);
-            }
-            else if (stripped == Constants.T42_NORMAL_HEIGHT)
-            {
-                // T42 End Box (Normal Height) -> STL End Box
-                stlText.Add(Constants.STL_END_BOX);
-            }
-            else if (stripped <= 7)
-            {
-                // T42 color codes (0-7) map directly to STL alpha color codes
-                stlText.Add(stripped);
-            }
-            else if (stripped >= 0x20 && stripped <= 0x7F)
-            {
-                // Displayable ASCII characters - keep as is
-                stlText.Add(stripped);
-            }
-            else if (stripped == 0x00)
-            {
-                // Null byte - treat as space in STL
-                stlText.Add(0x20);
-            }
-            else
-            {
-                // Other control codes - map to space for now
-                stlText.Add(0x20);
-            }
-        }
-
-        if (verbose) Console.Error.WriteLine($"DEBUG: Extracted STL text data - {stlText.Count} bytes from {t42Data.Length} T42 bytes (Row: {Row}, StartIndex: {startIndex})");
-
-        return [.. stlText];
-    }
 }

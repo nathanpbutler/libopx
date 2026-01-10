@@ -73,7 +73,7 @@ public class VBIHandler : ILineFormatHandler
             byte[] t42Data;
             try
             {
-                t42Data = VBI.ToT42(vbiBuffer);
+                t42Data = Core.FormatConverter.VBIToT42(vbiBuffer);
 
                 // Check if conversion resulted in valid data
                 if (t42Data.Length < Constants.T42_LINE_SIZE || !t42Data.Any(b => b != 0))
@@ -210,7 +210,7 @@ public class VBIHandler : ILineFormatHandler
                 byte[] t42Data;
                 try
                 {
-                    t42Data = VBI.ToT42(originalVbiData);
+                    t42Data = Core.FormatConverter.VBIToT42(originalVbiData);
 
                     // Check if conversion resulted in valid data
                     if (t42Data.Length < Constants.T42_LINE_SIZE || !t42Data.Any(b => b != 0))

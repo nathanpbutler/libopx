@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+* **FormatConverter static class** - Centralized format conversion logic consolidating all conversion methods previously scattered across VBI.cs, T42.cs, Line.cs, and STLExporter.cs:
+  * `FormatConverter.VBIToT42()` - Convert VBI/VBI_DOUBLE (720/1440 bytes) to T42 (42 bytes)
+  * `FormatConverter.T42ToVBI()` - Convert T42 to VBI or VBI_DOUBLE with format selection
+  * `FormatConverter.VBIToVBIDouble()` - Convert VBI to VBI_DOUBLE (720 → 1440 bytes)
+  * `FormatConverter.VBIDoubleToVBI()` - Convert VBI_DOUBLE to VBI (1440 → 720 bytes)
+  * `FormatConverter.T42ToRCWT()` - Convert T42 data to RCWT packet format (53-byte packets with header + payload)
+  * `FormatConverter.T42ToSTL()` - Convert T42 data to STL TTI block format (128-byte blocks)
+  * `FormatConverter.EncodeTimecodeToSTL()` - Unified BCD timecode encoding for STL format
+  * `FormatConverter.ExtractSTLTextData()` - Unified text extraction with T42-to-STL control code remapping
+* 28 comprehensive unit tests in `tests/Core/FormatConverterTests.cs` covering all conversion scenarios
+
+### Changed
+
+* **Deprecated conversion methods with migration path to v3.0.0**:
+  * `VBI.ToT42()` → Use `FormatConverter.VBIToT42()` instead (removed in v3.0.0)
+  * `T42.ToVBI()` → Use `FormatConverter.T42ToVBI()` instead (removed in v3.0.0)
+  * `Line.ToRCWT()` → Use `FormatConverter.T42ToRCWT()` instead (removed in v3.0.0)
+  * `Line.ToSTL()` → Use `FormatConverter.T42ToSTL()` instead (removed in v3.0.0)
+* All format handlers (T42Handler, VBIHandler) now use FormatConverter internally
+* `Line.ConvertFormat()` now delegates to FormatConverter for all conversions
+* `Functions.cs` updated to use FormatConverter for VBI-to-T42 conversion (line 1486)
+
+### Fixed
+
+* **Eliminated duplicate method implementations**:
+  * Consolidated two identical `EncodeTimecodeToSTL()` implementations (Line.cs and STLExporter.cs) into single FormatConverter method
+  * Consolidated two identical `ExtractSTLTextData()` implementations (Line.cs and STLExporter.cs) into single FormatConverter method
+  * Removed duplicate helper methods from Line.cs (GetFTSBytes, GetFieldMarkerByte) - now private in FormatConverter
+
+### Technical Details
+
+* Created `lib/Core/FormatConverter.cs` (408 lines) with 8 public and 2 private static methods
+* Created `tests/Core/FormatConverterTests.cs` (403 lines) with comprehensive test coverage
+* Modified 7 files to use FormatConverter: VBI.cs, T42.cs, Line.cs, VBIHandler.cs, T42Handler.cs, Functions.cs, STLExporter.cs
+* Deleted ~150 lines of duplicate code from Line.cs and STLExporter.cs
+* All 238 tests passing (210 existing + 28 new FormatConverter tests)
+* Maintains 100% backward compatibility - all deprecated methods still work with [Obsolete] warnings
+
 ## [2.3.0] - 2026-01-09
 
 ### Added
@@ -367,6 +409,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Dependencies**: Minimal external dependencies with System.CommandLine for CLI
 
 [unreleased]: https://github.com/nathanpbutler/libopx/compare/v2.3.0...HEAD
+[2.4.0]: https://github.com/nathanpbutler/libopx/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/nathanpbutler/libopx/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/nathanpbutler/libopx/compare/v2.1.2...v2.2.0
 [2.1.2]: https://github.com/nathanpbutler/libopx/compare/v2.1.1...v2.1.2

@@ -159,34 +159,9 @@ public class VBI : FormatIOBase
     /// <param name="debug">Whether to enable debug output during conversion</param>
     /// <returns>A 42-byte T42 teletext line, or empty array if conversion fails</returns>
     /// <exception cref="ArgumentException">Thrown when line data is not the correct size</exception>
+    [Obsolete("Use FormatConverter.VBIToT42() instead. This method will be removed in v3.0.0.")]
     public static byte[] ToT42(byte[] lineData, bool debug = false)
     {
-        if (lineData.Length != Constants.VBI_LINE_SIZE && lineData.Length != Constants.VBI_DOUBLE_LINE_SIZE)
-        {
-            throw new ArgumentException($"Line data must be {Constants.VBI_LINE_SIZE} or {Constants.VBI_DOUBLE_LINE_SIZE} bytes long.");
-        }
-        // Double the line data
-        var newLine = lineData.Length == Constants.VBI_DOUBLE_LINE_SIZE ? lineData : Functions.Double(lineData);
-
-        // Normalise the line data
-        var normalised = Functions.Normalise(newLine);
-
-        // Create a BitArray from the normalised line
-        var bits = Functions.GetBits(normalised);
-
-        // Get the offset of the line
-        var offset = Functions.GetOffset(bits);
-
-        // If the offset is not within valid range, return a blank byte array
-        if (offset is <= -1 or >= Constants.VBI_MAX_OFFSET_RANGE)
-        {
-            // Return a blank byte array
-            return new byte[Constants.T42_LINE_SIZE];
-        }
-
-        // Get the T42 bytes from the line
-        var t42 = T42.Get(bits, offset, debug);
-
-        return t42;
+        return Core.FormatConverter.VBIToT42(lineData, debug);
     }
 }

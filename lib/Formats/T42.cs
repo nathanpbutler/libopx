@@ -139,61 +139,10 @@ public class T42 : FormatIOBase
     /// <param name="t42bytes">The T42 bytes to convert to VBI.</param>
     /// <param name="outputFormat">The format of the output data.</param>
     /// <returns>The VBI data with proper clock run-in and framing code.</returns>
+    [Obsolete("Use FormatConverter.T42ToVBI() instead. This method will be removed in v3.0.0.")]
     public static byte[] ToVBI(byte[] t42bytes, Format outputFormat = Format.VBI)
     {
-        // TODO: Validate outputFormat?
-
-        // If T42 data is not the correct size, return blank VBI
-        if (t42bytes.Length != Constants.T42_LINE_SIZE)
-        {
-            return new byte[outputFormat == Format.VBI_DOUBLE ? Constants.VBI_DOUBLE_LINE_SIZE : Constants.VBI_LINE_SIZE];
-        }
-
-        // Prepend the clock run-in and framing code to the T42 data
-        byte[] lineData = [0x55, 0x55, 0x27, .. t42bytes];
-
-        // Create a new BitArray from the line data
-        BitArray bits = new(lineData);
-
-        // Create a new byte array with a length of 360 (45 * 8)
-        var bytes = new byte[Constants.VBI_BITS_SIZE];
-
-        // For each bit in the BitArray...
-        for (var b = 0; b < Constants.VBI_BITS_SIZE; b++)
-        {
-            // Set the byte at the current index to the Constants.VBI_HIGH_VALUE or Constants.VBI_LOW_VALUE value
-            bytes[b] = bits[b] ? Constants.VBI_HIGH_VALUE : Constants.VBI_LOW_VALUE;
-        }
-
-        // Create a new byte array with a length of Constants.VBI_RESIZE_BYTES
-        var resized = Constants.VBI_RESIZE_BYTES;
-
-        // For each byte in the Constants.VBI_RESIZE_BYTES...
-        for (var i = 0; i < Constants.VBI_RESIZE_SIZE; i++)
-        {
-            // Calculate the original position
-            var originalPosition = i * Constants.VBI_SCALE;
-            // Calculate the left pixel
-            var leftPixel = (int)originalPosition;
-            // Calculate the right pixel
-            var rightPixel = Math.Min(leftPixel + 1, Constants.VBI_BITS_SIZE - 1);
-            // Calculate the right weight
-            var rightWeight = originalPosition - leftPixel;
-            // Calculate the left weight
-            var leftWeight = 1f - rightWeight;
-
-            // Calculate the resized byte
-            resized[i] = (byte)(bytes[leftPixel] * leftWeight + bytes[rightPixel] * rightWeight);
-        }
-
-        resized = [.. Constants.VBI_PADDING_BYTES.Take(Constants.VBI_PAD_START).Concat(resized).Concat(Constants.VBI_PADDING_BYTES).Take(Constants.VBI_LINE_SIZE)];
-
-        if (outputFormat == Format.VBI_DOUBLE)
-        {
-            resized = Functions.Double(resized);
-        }
-
-        return resized;
+        return Core.FormatConverter.T42ToVBI(t42bytes, outputFormat);
     }
 
     /// <summary>

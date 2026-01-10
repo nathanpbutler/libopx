@@ -1483,7 +1483,7 @@ public class Functions
         {
             try
             {
-                t42Data = VBI.ToT42(line.Data);
+                t42Data = Core.FormatConverter.VBIToT42(line.Data);
             }
             catch (Exception)
             {

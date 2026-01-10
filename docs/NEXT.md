@@ -1,8 +1,8 @@
 # libopx v3.0 Architecture Redesign
 
-**Status:** Phase 2 (v2.2.0) COMPLETE ✅ (5/5 formats) - Ready for Release
+**Status:** Phase 3 (FormatConverter) COMPLETE ✅ - FormatIO API implementation next
 **Target Release:** v3.0.0
-**Last Updated:** 2025-11-07 (Phase 1 ✅, Phase 2 ✅: All handlers complete)
+**Last Updated:** 2026-01-11 (Phase 1 ✅, Phase 2 ✅, Phase 3 Core ✅: FormatConverter centralization complete)
 
 ## Executive Summary
 
@@ -1167,14 +1167,14 @@ public class T42 : FormatIOBase
 
 **Tasks:**
 
-1. Create `FormatConverter` static class
-2. Move `VBI.ToT42()` → `FormatConverter.VBIToT42()`
-3. Move `T42.ToVBI()` → `FormatConverter.T42ToVBI()`
-4. Move `Line.ToRCWT()` → `FormatConverter.T42ToRCWT()`
-5. Move `Line.ToSTL()` → `FormatConverter.T42ToSTL()`
-6. Update all format handlers to use FormatConverter
-7. Add `[Obsolete]` attributes to old methods
-8. Update documentation
+1. ✅ Create `FormatConverter` static class
+2. ✅ Move `VBI.ToT42()` → `FormatConverter.VBIToT42()`
+3. ✅ Move `T42.ToVBI()` → `FormatConverter.T42ToVBI()`
+4. ✅ Move `Line.ToRCWT()` → `FormatConverter.T42ToRCWT()`
+5. ✅ Move `Line.ToSTL()` → `FormatConverter.T42ToSTL()`
+6. ✅ Update all format handlers to use FormatConverter
+7. ✅ Add `[Obsolete]` attributes to old methods
+8. ✅ Update documentation
 9. Add FFmpeg.AutoGen NuGet package to opx project
 10. Create `VideoVBIExtractor` class in opx/Core/
 11. Implement PAL/NTSC line extraction
@@ -1186,18 +1186,18 @@ public class T42 : FormatIOBase
 17. Add async variants for all operations
 18. Make old API available alongside new API (both work simultaneously)
 19. Add deprecation warnings to guide users toward new API
-20. Consolidate duplicate `EncodeTimecodeToSTL` (Line.cs:681-692 + STLExporter.cs:517-526) → shared location
-21. Consolidate duplicate `ExtractSTLTextData` (Line.cs:700-776 + STLExporter.cs:532-588) → single implementation
-22. Refactor `WriteSTLHeaderAsync` in Functions.cs to use `STLExporter.CreateGSIHeader()` instead of duplicating header logic
+20. ✅ Consolidate duplicate `EncodeTimecodeToSTL` (Line.cs:681-692 + STLExporter.cs:517-526) → shared location
+21. ✅ Consolidate duplicate `ExtractSTLTextData` (Line.cs:700-776 + STLExporter.cs:532-588) → single implementation
+22. Refactor `WriteSTLHeaderAsync` in Functions.cs to use `STLExporter.CreateGSIHeader()` instead of duplicating header logic (deferred to later in v2.4.0)
 
 **Deliverables:**
 
-- [ ] `lib/Core/FormatConverter.cs`
+- [x] `lib/Core/FormatConverter.cs` ✅
 - [ ] `lib/FormatIO.cs` (new public API)
-- [ ] Deprecated methods in VBI, T42, Line classes
-- [ ] Updated handlers to use FormatConverter
-- [ ] Migration guide in docs
-- [ ] All tests updated
+- [x] Deprecated methods in VBI, T42, Line classes ✅
+- [x] Updated handlers to use FormatConverter ✅
+- [x] Migration guide in docs (CHANGELOG.md updated) ✅
+- [x] All tests updated (238/238 passing) ✅
 - [ ] `opx/Core/VideoVBIExtractor.cs`
 - [ ] Updated Commands.cs with `--extract-vbi` option
 - [ ] Integration tests with MXF video files
@@ -1233,12 +1233,12 @@ warning CS0618: 'VBI.ToT42(byte[], bool)' is obsolete:
 
 **Success Criteria:**
 
-- [ ] All conversion logic in one place (FormatConverter)
+- [x] All conversion logic in one place (FormatConverter) ✅
 - [ ] New FormatIO API fully functional alongside old API
-- [ ] Old methods still work but show warnings
-- [ ] All handlers use FormatConverter
-- [ ] Documentation updated with migration examples
-- [ ] All tests pass with deprecation warnings
+- [x] Old methods still work but show warnings ✅
+- [x] All handlers use FormatConverter ✅
+- [x] Documentation updated with migration examples ✅
+- [x] All tests pass with deprecation warnings (238/238) ✅
 - [ ] FFmpeg.AutoGen integration working for video VBI extraction
 - [ ] Users have clear migration path from old to new API
 
@@ -2183,6 +2183,6 @@ This is a living document. If you have suggestions or questions about the v3.0 r
 2. Tag with `v3.0-design` label
 3. Reference this document
 
-**Last Updated:** 2026-01-09 (Added code simplification tasks from analysis to Phase 3/4)
-**Document Version:** 1.4
-**Status:** Phase 2 Complete ✅ - v2.3.0 in progress (STL export)
+**Last Updated:** 2026-01-11 (FormatConverter implementation complete - Phase 3 core tasks done)
+**Document Version:** 1.5
+**Status:** Phase 2 Complete ✅ - v2.3.0 released - Phase 3 (FormatConverter) ✅ - FormatIO API next

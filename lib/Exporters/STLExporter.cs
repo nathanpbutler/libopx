@@ -476,11 +476,11 @@ public partial class STLExporter : IDisposable
         tti[4] = Constants.STL_CUMULATIVE_STATUS;
 
         // Bytes 5-8: Time Code In (TCI)
-        var tciBytes = EncodeTimecodeToSTL(content.FirstSeenAt);
+        var tciBytes = Core.FormatConverter.EncodeTimecodeToSTL(content.FirstSeenAt);
         Array.Copy(tciBytes, 0, tti, 5, 4);
 
         // Bytes 9-12: Time Code Out (TCO)
-        var tcoBytes = EncodeTimecodeToSTL(endTimecode);
+        var tcoBytes = Core.FormatConverter.EncodeTimecodeToSTL(endTimecode);
         Array.Copy(tcoBytes, 0, tti, 9, 4);
 
         // Byte 13: Vertical Position (VP) - row number
@@ -493,7 +493,7 @@ public partial class STLExporter : IDisposable
         tti[15] = 0x00;
 
         // Bytes 16-127: Text Field (TF) - 112 bytes
-        var textData = ExtractSTLTextData(content.T42Data, content.CurrentRow);
+        var textData = Core.FormatConverter.ExtractSTLTextData(content.T42Data, content.CurrentRow);
         Array.Copy(textData, 0, tti, 16, Math.Min(textData.Length, Constants.STL_TEXT_FIELD_SIZE));
 
         // Fill remaining text field with STL space character
@@ -511,81 +511,6 @@ public partial class STLExporter : IDisposable
         return tti;
     }
 
-    /// <summary>
-    /// Encodes a timecode to STL format (4 bytes in BCD format).
-    /// </summary>
-    private static byte[] EncodeTimecodeToSTL(Timecode timecode)
-    {
-        return
-        [
-            (byte)((timecode.Hours / 10 << 4) | (timecode.Hours % 10)),
-            (byte)((timecode.Minutes / 10 << 4) | (timecode.Minutes % 10)),
-            (byte)((timecode.Seconds / 10 << 4) | (timecode.Seconds % 10)),
-            (byte)((timecode.Frames / 10 << 4) | (timecode.Frames % 10))
-        ];
-    }
-
-    /// <summary>
-    /// Extracts and converts T42 text data to STL format.
-    /// Strips parity bits and remaps control codes to STL equivalents.
-    /// </summary>
-    private static byte[] ExtractSTLTextData(byte[] t42Data, int row)
-    {
-        if (t42Data.Length < Constants.T42_LINE_SIZE)
-        {
-            // Pad with zeros if needed
-            var padded = new byte[Constants.T42_LINE_SIZE];
-            Array.Copy(t42Data, padded, Math.Min(t42Data.Length, Constants.T42_LINE_SIZE));
-            t42Data = padded;
-        }
-
-        var stlText = new List<byte>();
-
-        // Row 0 (header): Skip first 10 bytes, parse last 32
-        // Rows 1-24 (captions): Skip first 2 bytes (mag/row), parse remaining 40
-        int startIndex = row == 0 ? 10 : 2;
-
-        for (int i = startIndex; i < t42Data.Length && stlText.Count < Constants.STL_TEXT_FIELD_SIZE; i++)
-        {
-            byte b = t42Data[i];
-
-            // Strip parity bit (bit 7)
-            byte stripped = (byte)(b & 0x7F);
-
-            if (stripped == Constants.T42_BLOCK_START_BYTE)
-            {
-                // T42 Start Box -> STL Start Box
-                stlText.Add(Constants.STL_START_BOX);
-            }
-            else if (stripped == Constants.T42_NORMAL_HEIGHT)
-            {
-                // T42 Normal Height -> STL End Box
-                stlText.Add(Constants.STL_END_BOX);
-            }
-            else if (stripped <= 7)
-            {
-                // T42 color codes (0-7) map directly to STL alpha color codes
-                stlText.Add(stripped);
-            }
-            else if (stripped is >= 0x20 and <= 0x7F)
-            {
-                // Displayable ASCII characters
-                stlText.Add(stripped);
-            }
-            else if (stripped == 0x00)
-            {
-                // Null byte -> space
-                stlText.Add(0x20);
-            }
-            else
-            {
-                // Other control codes -> space
-                stlText.Add(0x20);
-            }
-        }
-
-        return [.. stlText];
-    }
 
     [GeneratedRegex(@"\x1b\[[0-9;]*m")]
     private static partial Regex AnsiEscapeRegex();
