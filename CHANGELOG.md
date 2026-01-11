@@ -21,6 +21,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     * `WithLineCount(int lineCount)` - Set timecode increment (625 or 525)
     * `WithStartTimecode(Timecode tc)` - Set starting timecode for packets
     * `WithPIDs(params int[] pids)` - Set TS PID filters
+  * **MXF-specific fluent configuration**:
+    * `WithDemuxMode(bool demux = true)` - Enable demux mode for MXF extraction
+    * `WithKeyNames(bool useNames = true)` - Use key names instead of hex identifiers
+    * `WithKlvMode(bool klv = true)` - Include KLV headers in output
+    * `WithKeys(params KeyType[] keys)` - Specify keys to extract (Data, Video, Audio, etc.)
+    * `WithProgress(bool progress = true)` - Enable progress reporting
+    * `WithVerbose(bool verbose = true)` - Enable verbose output
+  * **MXF terminal operations** (consume the FormatIO instance):
+    * `ExtractTo(string? outputBasePath)` - Extract MXF essence streams to files
+    * `ExtractToAsync(string? outputBasePath, CancellationToken)` - Async extraction
+    * `Restripe(string newStartTimecode)` - Restripe MXF file with new start timecode
+    * `RestripeAsync(string newStartTimecode, CancellationToken)` - Async restripe
   * **Dual parsing modes**:
     * `ParseLines()` / `ParseLinesAsync()` - Returns `IEnumerable<Line>` for line-by-line processing
     * `ParsePackets()` / `ParsePacketsAsync()` - Returns `IEnumerable<Packet>` preserving packet grouping for VBI vertical offset (720x32 or 1440x32 output)
@@ -31,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   * **Automatic header writing** - RCWT (11 bytes) and STL GSI (1024 bytes) headers written automatically
   * **STL merging opt-in** - Explicit `useSTLMerging` parameter for intelligent subtitle merging (changed from automatic)
   * **Format auto-detection** - Detects format from file extensions (case-insensitive)
+  * **MXF start timecode reading** - When opening MXF files, FormatIO automatically reads the start timecode from the TimecodeComponent, ensuring correct timecodes after restripe operations
   * **Custom exception** - `FormatDetectionException` for unknown file extensions
 * 84 comprehensive unit tests in `tests/FormatIOTests.cs` covering all FormatIO workflows:
   * Factory method tests (12 tests) - File, stdin, stream patterns
@@ -81,8 +94,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   * `new TS(string)` → Use `FormatIO.Open(path)` instead (removed in v3.0.0)
   * `new TS()` → Use `FormatIO.OpenStdin(Format.TS)` instead (removed in v3.0.0)
   * `new TS(Stream)` → Use `FormatIO.Open(stream, Format.TS)` instead (removed in v3.0.0)
-  * `new MXF(string)` → Use `FormatIO.Open(path)` instead (removed in v3.0.0)
-  * `new MXF(FileInfo)` → Use `FormatIO.Open(path)` instead (removed in v3.0.0)
+  * `MXF.MXFData` → Use `ANC` class directly (removed in v3.0.0)
+* **Note:** MXF constructors (`new MXF(string)`, `new MXF(FileInfo)`) are NOT deprecated - they remain available for advanced use cases. However, **FormatIO is now the recommended API** for all operations including Extract and Restripe, which are available as first-class fluent methods
 * **Deprecated conversion methods with migration path to v3.0.0**:
   * `VBI.ToT42()` → Use `FormatConverter.VBIToT42()` instead (removed in v3.0.0)
   * `T42.ToVBI()` → Use `FormatConverter.T42ToVBI()` instead (removed in v3.0.0)
@@ -105,13 +118,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Technical Details
 
-* Created `lib/FormatIO.cs` (~870 lines) - Complete fluent API implementation with factory pattern, dual parsing modes, and format auto-detection
+* Created `lib/FormatIO.cs` (~1000 lines) - Complete fluent API implementation with factory pattern, dual parsing modes, format auto-detection, MXF start timecode reading, and MXF Extract/Restripe as first-class terminal operations
 * Created `tests/FormatIOTests.cs` (~800 lines) - 84 comprehensive unit tests covering all workflows
-* Added `[Obsolete]` attributes to 17 format class constructors across VBI.cs, T42.cs, ANC.cs, TS.cs, MXF.cs
+* Added `[Obsolete]` attributes to 12 format class constructors across VBI.cs, T42.cs, ANC.cs, TS.cs (MXF constructors remain non-deprecated for Extract/Restripe operations)
 * Created `lib/Core/FormatConverter.cs` (408 lines) with 8 public and 2 private static methods
 * Created `tests/Core/FormatConverterTests.cs` (403 lines) with comprehensive test coverage
 * Modified 7 files to use FormatConverter: VBI.cs, T42.cs, Line.cs, VBIHandler.cs, T42Handler.cs, Functions.cs, STLExporter.cs
 * Deleted ~150 lines of duplicate code from Line.cs and STLExporter.cs
+* Deleted FormatIOExtensions.cs - Extract/Restripe operations are now first-class instance methods on FormatIO with proper stream lifecycle management and consumed state tracking
+* `lib/Core/ExtractResult.cs` - Result class for extraction operations containing extracted file paths, success status, and error information
+* Removed dead code: ConvertToSTLAsync function (~180 lines) that was superseded by FormatIO's STL support
 * All tests passing (238 existing + 84 new FormatIO tests = 322 total)
 * Maintains 100% backward compatibility - all deprecated methods and constructors still work with [Obsolete] warnings
 * FormatIO provides cleaner API while existing format classes remain available for advanced use cases

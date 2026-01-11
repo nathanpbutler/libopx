@@ -4,6 +4,56 @@
 **Target Release:** v3.0.0
 **Last Updated:** 2026-01-11 (Phase 1 ✅, Phase 2 ✅, Phase 3 ✅: FormatConverter + FormatIO complete)
 
+## Unified FormatIO API
+
+**FormatIO** is the fluent API for **all teletext operations**:
+
+- Parsing files to extract teletext data
+- Filtering by magazine/rows
+- Converting between formats (T42 ↔ VBI ↔ STL ↔ RCWT)
+- **Extract**: Demuxing essence streams from MXF to separate files
+- **Restripe**: In-place modification of MXF timecodes
+
+Extract and Restripe are **terminal operations** that consume the FormatIO instance:
+
+1. After calling `ExtractTo()` or `Restripe()`, further operations throw `InvalidOperationException`
+2. FormatIO properly manages stream lifecycle (closes its stream before MXF opens the file)
+3. Uses existing ParseOptions for MXF-specific configuration
+
+**MXF Start Timecode**: When opening MXF files, FormatIO automatically reads the start timecode from the TimecodeComponent in the file. This ensures that after restripe operations, subsequent filter/convert operations use the correct start timecode.
+
+```csharp
+// Use FormatIO for data-flow operations
+using var io = FormatIO.Open("input.mxf");
+foreach (var line in io.ParseLines(magazine: 8))
+{
+    Console.WriteLine(line.Text);
+}
+
+// Use FormatIO for Extract operations (fluent API)
+using var io = FormatIO.Open("input.mxf")
+    .WithDemuxMode()
+    .WithKeyNames()
+    .WithVerbose();
+var result = io.ExtractTo("output_base");
+
+// Use FormatIO for Restripe operations
+using var io = FormatIO.Open("input.mxf")
+    .WithProgress();
+io.Restripe("10:00:00:00");
+
+// Extract specific keys
+using var io = FormatIO.Open("input.mxf")
+    .WithKeys(KeyType.Data, KeyType.Video);
+var result = io.ExtractTo();
+
+// Async variants
+var result = await io.ExtractToAsync("output", cancellationToken);
+await io.RestripeAsync("01:00:00:00", cancellationToken);
+```
+
+**Note:** MXF constructors (`new MXF(string)`, `new MXF(FileInfo)`) remain available for advanced use cases but FormatIO is now the recommended API.
+
 ## Executive Summary
 
 This document outlines a major architecture redesign for libopx v3.0 that will:
@@ -833,7 +883,7 @@ opx convert -m 8 input.vbi
 ### 3.5 Migration Table
 
 | Old Command | New Command |
-|-------------|-------------|
+| ----------- | ----------- |
 | `opx filter -m 8 input.vbi` | `opx convert -m 8 input.vbi` |
 | `opx filter -m 8 input.vbi > output.txt` | `opx convert -m 8 input.vbi -o output.txt` |
 | `opx convert input.vbi output.t42` | `opx convert input.vbi -o output.t42` |
@@ -1159,11 +1209,11 @@ public class T42 : FormatIOBase
 
 ---
 
-### Phase 3: Centralize Conversions & New API (v2.4.0)
+### Phase 3: Centralize Conversions & New API (v2.4.0) ✅ COMPLETE
 
-**Goal:** Move all format conversion logic to FormatConverter + introduce new FormatIO public API + add MXF video VBI extraction.
+**Goal:** Move all format conversion logic to FormatConverter + introduce new FormatIO public API.
 
-**Note:** v2.3.0 released with STL export support. Phase 3 combines conversion centralization with new API introduction.
+**Note:** v2.3.0 released with STL export support. Phase 3 combines conversion centralization with new API introduction. FFmpeg.AutoGen integration deferred to v3.0.0.
 
 **Tasks:**
 
@@ -1175,23 +1225,26 @@ public class T42 : FormatIOBase
 6. ✅ Update all format handlers to use FormatConverter
 7. ✅ Add `[Obsolete]` attributes to old methods
 8. ✅ Update documentation
-9. Add FFmpeg.AutoGen NuGet package to opx project
-10. Create `VideoVBIExtractor` class in opx/Core/
-11. Implement PAL/NTSC line extraction
-12. Integrate with existing ParseOptions
-13. Add `--extract-vbi` command-line option
-14. Add tests with sample MXF files
-15. Implement complete `FormatIO` public API class with fluent API
-16. Implement `Open()`, `OpenStdin()`, `Parse()`, `ConvertTo()`, `SaveTo()` methods
-17. Add async variants for all operations
-18. Make old API available alongside new API (both work simultaneously)
-19. Add deprecation warnings to guide users toward new API
-20. ✅ Consolidate duplicate `EncodeTimecodeToSTL` (Line.cs:681-692 + STLExporter.cs:517-526) → shared location
-21. ✅ Consolidate duplicate `ExtractSTLTextData` (Line.cs:700-776 + STLExporter.cs:532-588) → single implementation
-22. Refactor `WriteSTLHeaderAsync` in Functions.cs to use `STLExporter.CreateGSIHeader()` instead of duplicating header logic (deferred to later in v2.4.0)
-23. ✅ Add FormatRegistry static constructor for automatic handler registration
-24. ✅ Migrate `Functions.Filter()` to use FormatIO API
-25. ✅ Migrate `Functions.FilterAsync()` to use FormatIO API
+9. ✅ Implement complete `FormatIO` public API class with fluent API
+10. ✅ Implement `Open()`, `OpenStdin()`, `Parse()`, `ConvertTo()`, `SaveTo()` methods
+11. ✅ Add async variants for all operations
+12. ✅ Make old API available alongside new API (both work simultaneously)
+13. ✅ Add deprecation warnings to guide users toward new API
+14. ✅ Consolidate duplicate `EncodeTimecodeToSTL` (Line.cs:681-692 + STLExporter.cs:517-526) → shared location
+15. ✅ Consolidate duplicate `ExtractSTLTextData` (Line.cs:700-776 + STLExporter.cs:532-588) → single implementation
+16. Refactor `WriteSTLHeaderAsync` in Functions.cs to use `STLExporter.CreateGSIHeader()` (deferred)
+17. ✅ Add FormatRegistry static constructor for automatic handler registration
+18. ✅ Migrate `Functions.Filter()` to use FormatIO API
+19. ✅ Migrate `Functions.FilterAsync()` to use FormatIO API
+20. ✅ Migrate `Functions.Convert()` to use FormatIO API
+21. ✅ Migrate `Functions.ConvertAsync()` to use FormatIO API
+22. ✅ Migrate `Functions.Extract()` to use FormatIO API
+23. ✅ Migrate `Functions.Restripe()` to use FormatIO API
+24. ✅ Add Extract/Restripe as first-class FormatIO terminal operations
+25. ✅ Add MXF fluent configuration methods (WithDemuxMode, WithKeyNames, etc.)
+26. ✅ FormatIO reads MXF start timecode from file
+27. ✅ Delete FormatIOExtensions.cs (functionality moved to FormatIO)
+28. ✅ Remove dead ConvertToSTLAsync code (~180 lines)
 
 **Deliverables:**
 
@@ -1200,11 +1253,12 @@ public class T42 : FormatIOBase
 - [x] `lib/Core/FormatRegistry.cs` (auto-registration) ✅
 - [x] `tests/FormatIOTests.cs` (84 comprehensive tests) ✅
 - [x] Deprecated methods in VBI, T42, Line classes ✅
-- [x] Deprecated constructors in VBI, T42, ANC, TS, MXF classes ✅
+- [x] Deprecated constructors in VBI, T42, ANC, TS classes (NOT MXF - needed for Extract/Restripe) ✅
 - [x] Updated handlers to use FormatConverter ✅
-- [x] Migrated `Functions.Filter()` and `FilterAsync()` to FormatIO ✅
+- [x] Migrated `Functions.Filter()`, `FilterAsync()`, `Convert()`, `ConvertAsync()` to FormatIO ✅
 - [x] Migration guide in docs (CHANGELOG.md updated) ✅
 - [x] All tests updated (317/317 passing) ✅
+- [x] Deleted FormatIOExtensions.cs and ExtractResult.cs (Extract/Restripe use MXF directly) ✅
 - [ ] `opx/Core/VideoVBIExtractor.cs`
 - [ ] Updated Commands.cs with `--extract-vbi` option
 - [ ] Integration tests with MXF video files
@@ -1245,37 +1299,42 @@ warning CS0618: 'VBI.ToT42(byte[], bool)' is obsolete:
 - [x] Old methods and constructors still work but show warnings ✅
 - [x] All handlers use FormatConverter ✅
 - [x] Documentation updated with migration examples ✅
-- [x] All tests passing (322/322) ✅
-- [x] All tests pass with deprecation warnings (238/238) ✅
-- [ ] FFmpeg.AutoGen integration working for video VBI extraction
-- [ ] Users have clear migration path from old to new API
+- [x] All tests passing (317/317) ✅
+- [x] MXF constructors NOT deprecated (available for advanced use cases) ✅
+- [x] Extract/Restripe migrated to FormatIO as first-class terminal operations ✅
+- [x] FormatIO reads MXF start timecode from file ✅
+- [x] FormatIOExtensions.cs deleted (functionality in FormatIO) ✅
+- [x] Users have clear migration path from old to new API ✅
+- [ ] FFmpeg.AutoGen integration (deferred to v3.0.0)
 
 ---
 
 ### Phase 4: Breaking Changes & Unified CLI (v3.0.0) ⚠️ BREAKING
 
-**Goal:** Remove deprecated code, unify CLI commands.
+**Goal:** Remove deprecated code, unify CLI commands, add FFmpeg integration.
 
 **Note:** v2.5.0 skipped - going directly from v2.4.0 to v3.0.0 after sufficient migration period (2-3 months).
 
 **Tasks:**
 
-1. Remove old `filter` command from CLI
-2. Remove old `extract` command from CLI
-3. Remove old separate `convert` command (replace with unified version)
-4. Create new unified `convert` command in CLI
-5. Remove deprecated methods from format classes (VBI.ToT42(), T42.ToVBI(), etc.)
-6. Remove backward compatibility wrappers
-7. Update all documentation to reflect breaking changes
-8. Finalize migration guide with examples
-9. Update README with v3.0 examples
-10. Write blog post / changelog announcement
-11. Reduce sync/async code duplication in Functions.cs (~800 lines) - extract common logic into helper methods
-12. Create `HandleException()` helper in Functions.cs to consolidate repeated try/catch patterns (~100 lines)
-13. Remove commented-out code blocks in Functions.cs (lines 1069-1078, 1095-1104, 1119-1128, 1169-1178)
+1. FFmpeg.AutoGen integration for MXF video VBI extraction (CLI-only)
+2. Remove old `filter` command from CLI
+3. Remove old `extract` command from CLI
+4. Remove old separate `convert` command (replace with unified version)
+5. Create new unified `convert` command in CLI
+6. Remove deprecated methods from format classes (VBI.ToT42(), T42.ToVBI(), etc.)
+7. Remove backward compatibility wrappers
+8. Update all documentation to reflect breaking changes
+9. Finalize migration guide with examples
+10. Update README with v3.0 examples
+11. Write blog post / changelog announcement
+12. Reduce sync/async code duplication in Functions.cs (~800 lines) - extract common logic into helper methods
+13. Create `HandleException()` helper in Functions.cs to consolidate repeated try/catch patterns (~100 lines)
+14. Remove commented-out code blocks in Functions.cs (lines 1069-1078, 1095-1104, 1119-1128, 1169-1178)
 
 **Deliverables:**
 
+- [ ] FFmpeg.AutoGen integration for MXF video VBI extraction
 - [ ] New unified `convert` command in CLI (replaces filter/extract/convert)
 - [ ] Removed old commands (`filter`, `extract`, old `convert`)
 - [ ] Removed deprecated code (VBI.ToT42(), T42.ToVBI(), etc.)
@@ -1665,7 +1724,7 @@ foreach (var line in io.Parse(magazine: 8))
 ### 6.3 Deprecation Timeline (Consolidated)
 
 | Version | Status | Available Commands | Library API |
-|---------|--------|-------------------|-------------|
+| ------- | ------ | ----------------- | ----------- |
 | v2.1 | Stable | filter, extract, convert, restripe | VBI, T42, TS, MXF classes |
 | v2.2 | Complete ✅ | filter, extract, convert, restripe | Same + IFormatHandler, FormatRegistry |
 | v2.3 (current) | STL export | filter, extract, convert, restripe | Same + STLExporter |
@@ -1932,7 +1991,7 @@ public IEnumerable<Line> Parse()
 ### 9.2 Design Decisions Log
 
 | Date | Decision | Rationale |
-|------|----------|-----------|
+| ---- | -------- | --------- |
 | 2025-01-31 | Unify filter/extract/convert into single `convert` command | Simpler mental model, enables composition |
 | 2025-01-31 | Phased rollout (v2.2 to v3.0) | Minimize disruption, allow migration time |
 | 2025-01-31 | IFormatHandler interface | Consistent handling, extensibility |
@@ -1962,18 +2021,19 @@ public IEnumerable<Line> Parse()
 
 ---
 
-### 10.2 v2.4.0 - New API + Deprecation (Phase 3)
+### 10.2 v2.4.0 - New API + Deprecation (Phase 3) ✅
 
-**Focus:** New public FormatIO API available, deprecation warnings, FFmpeg integration
+**Focus:** New public FormatIO API available, deprecation warnings
 
 **Includes:**
 
-- [ ] FormatConverter with centralized conversion logic
-- [ ] Complete FormatIO public API (Open, Parse, ConvertTo, SaveTo)
-- [ ] FFmpeg.AutoGen integration for MXF video VBI extraction
-- [ ] Add `[Obsolete]` attributes to old methods
-- [ ] Old API works alongside new API (both functional)
-- [ ] Migration guide published
+- [x] FormatConverter with centralized conversion logic ✅
+- [x] Complete FormatIO public API (Open, Parse, ConvertTo, SaveTo) ✅
+- [x] Extract/Restripe as first-class FormatIO terminal operations ✅
+- [x] MXF start timecode reading from file ✅
+- [x] Add `[Obsolete]` attributes to old methods ✅
+- [x] Old API works alongside new API (both functional) ✅
+- [x] Migration guide published ✅
 - [ ] Side-by-side API comparison examples
 - [ ] Deprecation blog post
 
@@ -1987,10 +2047,11 @@ public IEnumerable<Line> Parse()
 
 ### 10.3 v3.0.0 - Breaking Changes (Phase 4)
 
-**Focus:** Clean API, unified CLI, remove deprecated code
+**Focus:** Clean API, unified CLI, remove deprecated code, FFmpeg integration
 
 **Includes:**
 
+- [ ] FFmpeg.AutoGen integration for MXF video VBI extraction
 - [ ] Remove old filter/extract/convert commands
 - [ ] New unified `convert` command only
 - [ ] Remove deprecated methods (VBI.ToT42(), etc.)
@@ -2017,14 +2078,16 @@ public IEnumerable<Line> Parse()
 
 **Overview:**
 
-Starting in v2.4, `opx` can extract VBI (Vertical Blanking Interval) data embedded in the video stream of MXF files, eliminating the need for FFmpeg preprocessing.
+Starting in v3.0, `opx` will be able to extract VBI (Vertical Blanking Interval) data embedded in the video stream of MXF files, eliminating the need for FFmpeg preprocessing.
+
+**Status:** Planned for v3.0.0
 
 **Background:**
 
 VBI data in broadcast video files can exist in two locations:
 
 1. **Ancillary Data (ANC) packets** - Already supported by libopx
-2. **Embedded in video frames** - New feature using FFmpeg.AutoGen
+2. **Embedded in video frames** - Planned feature using FFmpeg.AutoGen (v3.0.0)
 
 Traditional approach requires manual FFmpeg preprocessing:
 
@@ -2191,6 +2254,6 @@ This is a living document. If you have suggestions or questions about the v3.0 r
 2. Tag with `v3.0-design` label
 3. Reference this document
 
-**Last Updated:** 2026-01-11 (FormatConverter + FormatIO implementation complete - Phase 3 done)
-**Document Version:** 1.6
-**Status:** Phase 3 Complete ✅ - v2.4.0 ready (FormatConverter ✅ + FormatIO ✅) - Phase 4 (v3.0.0 breaking changes) next
+**Last Updated:** 2026-01-11 (FormatIO unified API complete with Extract/Restripe as first-class operations)
+**Document Version:** 1.7
+**Status:** Phase 3 Complete ✅ - v2.4.0 ready (FormatConverter ✅ + FormatIO ✅ + Extract/Restripe in FormatIO ✅) - Phase 4 (v3.0.0 breaking changes) next

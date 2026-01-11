@@ -268,33 +268,20 @@ public class Functions
 
         try
         {
-            using var mxf = new MXF(inputFile.FullName);
-
-            // Configure extraction settings
-            mxf.OutputBasePath = outputBasePath;
-            mxf.DemuxMode = demuxMode;
-            mxf.UseKeyNames = useNames && demuxMode; // Only use names in demux mode
-            mxf.KlvMode = klvMode;
-
-            // Parse keys if specified
-            if (!demuxMode && !string.IsNullOrEmpty(keyString))
+            // Parse keys if specified (only when not in demux mode)
+            var targetKeys = new List<KeyType>();
+            if (!demuxMode)
             {
-                var targetKeys = ParseKeys(keyString, verbose);
-                if (targetKeys.Count > 0)
+                if (!string.IsNullOrEmpty(keyString))
                 {
-                    mxf.ClearRequiredKeys();
-                    foreach (var key in targetKeys)
-                    {
-                        mxf.AddRequiredKey(key);
-                    }
+                    targetKeys = ParseKeys(keyString, verbose);
                 }
-            }
-            else if (!demuxMode)
-            {
-                // Default to Data if no keys specified
-                Console.WriteLine("No keys specified, defaulting to Data.");
-                mxf.ClearRequiredKeys();
-                mxf.AddRequiredKey(KeyType.Data);
+
+                if (targetKeys.Count == 0)
+                {
+                    Console.WriteLine("No keys specified, defaulting to Data.");
+                    targetKeys.Add(KeyType.Data);
+                }
             }
 
             // Print active modes
@@ -306,7 +293,7 @@ public class Functions
             if (demuxMode)
             {
                 Console.WriteLine("Demux mode enabled - all keys will be extracted.");
-                if (mxf.UseKeyNames)
+                if (useNames)
                 {
                     Console.WriteLine("Name mode enabled - using Key/Essence names instead of hex keys.");
                 }
@@ -318,8 +305,25 @@ public class Functions
 
             Console.WriteLine($"Processing MXF file: {inputFile.FullName}");
 
-            // Extract the essence
-            mxf.ExtractEssence();
+            // Use FormatIO for extraction
+            using var io = FormatIO.Open(inputFile.FullName)
+                .WithDemuxMode(demuxMode)
+                .WithKeyNames(useNames && demuxMode)
+                .WithKlvMode(klvMode)
+                .WithVerbose(verbose);
+
+            if (targetKeys.Count > 0)
+            {
+                io.WithKeys(targetKeys.ToArray());
+            }
+
+            var result = io.ExtractTo(outputBasePath);
+
+            if (!result.Success)
+            {
+                Console.Error.WriteLine($"Extraction failed: {result.ErrorMessage}");
+                return 1;
+            }
 
             Console.WriteLine($"Finished processing MXF file: {inputFile.FullName}");
             return 0;
@@ -353,7 +357,6 @@ public class Functions
 
     /// <summary>
     /// Asynchronously extracts/demuxes streams from MXF files with progress reporting and cancellation support.
-    /// This method provides the same functionality as Extract but with async processing capabilities.
     /// </summary>
     /// <param name="inputFile">The input MXF file to process</param>
     /// <param name="outputBasePath">Output base path - files will be created as &lt;base&gt;_d.raw, &lt;base&gt;_v.raw, etc</param>
@@ -375,34 +378,19 @@ public class Functions
 
         try
         {
-            using var mxf = new MXF(inputFile.FullName);
-
-            // Configure extraction settings
-            mxf.OutputBasePath = outputBasePath;
-            mxf.DemuxMode = demuxMode;
-            mxf.UseKeyNames = useNames && demuxMode; // Only use names in demux mode
-            mxf.KlvMode = klvMode;
-
             // Parse keys if specified (only when not in demux mode)
+            var targetKeys = new List<KeyType>();
             if (!demuxMode)
             {
                 if (!string.IsNullOrEmpty(keyString))
                 {
-                    var targetKeys = ParseKeys(keyString, verbose);
-                    if (targetKeys.Count > 0)
-                    {
-                        mxf.ClearRequiredKeys();
-                        foreach (var key in targetKeys)
-                        {
-                            mxf.AddRequiredKey(key);
-                        }
-                    }
+                    targetKeys = ParseKeys(keyString, verbose);
                 }
-                else
+
+                if (targetKeys.Count == 0)
                 {
                     Console.WriteLine("No keys specified, defaulting to Data.");
-                    mxf.ClearRequiredKeys();
-                    mxf.AddRequiredKey(KeyType.Data);
+                    targetKeys.Add(KeyType.Data);
                 }
             }
 
@@ -415,7 +403,7 @@ public class Functions
             if (demuxMode)
             {
                 Console.WriteLine("Demux mode enabled - all keys will be extracted.");
-                if (mxf.UseKeyNames)
+                if (useNames)
                 {
                     Console.WriteLine("Name mode enabled - using Key/Essence names instead of hex keys.");
                 }
@@ -427,9 +415,25 @@ public class Functions
 
             Console.WriteLine($"Processing MXF file: {inputFile.FullName}");
 
-            // Extract the essence with cancellation support
-            // Since ExtractEssence is sync, we'll run it on a task with cancellation
-            await Task.Run(() => mxf.ExtractEssence(), cancellationToken);
+            // Use FormatIO for extraction
+            using var io = FormatIO.Open(inputFile.FullName)
+                .WithDemuxMode(demuxMode)
+                .WithKeyNames(useNames && demuxMode)
+                .WithKlvMode(klvMode)
+                .WithVerbose(verbose);
+
+            if (targetKeys.Count > 0)
+            {
+                io.WithKeys(targetKeys.ToArray());
+            }
+
+            var result = await io.ExtractToAsync(outputBasePath, cancellationToken);
+
+            if (!result.Success)
+            {
+                await Console.Error.WriteLineAsync($"Extraction failed: {result.ErrorMessage}");
+                return 1;
+            }
 
             Console.WriteLine($"Finished processing MXF file: {inputFile.FullName}");
             return 0;
@@ -514,37 +518,25 @@ public class Functions
     {
         try
         {
-
             if (verbose)
             {
                 Console.WriteLine($"        Input file: {inputFileInfo.FullName}");
                 Console.WriteLine($"New start timecode: {timecodeString}");
             }
 
-            // Create a FileStream that can read and write to the input file
-            if (!inputFileInfo.Exists)
-            {
-                Console.Error.WriteLine($"Error: Input file '{inputFileInfo.FullName}' does not exist.");
-                return 1;
-            }
+            // Use FormatIO for restripe
+            using var io = FormatIO.Open(inputFileInfo.FullName)
+                .WithVerbose(verbose)
+                .WithProgress(printProgress);
 
-            // Create MXF instance and configure for restriping
-            using var mxf = new MXF(inputFileInfo)
-            {
-                Function = Function.Restripe,
-                Verbose = verbose,
-                PrintProgress = printProgress // Set progress printing option
-            };
-
-            // Run the parse method which will handle restriping
-            var packets = mxf.Parse(startTimecode: timecodeString);
-            foreach (var _ in packets)
-            {
-                // The Parse method handles all the restriping internally
-                // We just need to iterate through to execute it
-            }
+            io.Restripe(timecodeString);
 
             return 0;
+        }
+        catch (InvalidOperationException ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
         }
         catch (FileNotFoundException ex)
         {
@@ -575,7 +567,6 @@ public class Functions
 
     /// <summary>
     /// Asynchronously restripes an MXF file with a new start timecode, providing cancellation support and progress reporting.
-    /// This method provides the same functionality as Restripe but with async processing capabilities.
     /// </summary>
     /// <param name="inputFileInfo">The input MXF file to restripe</param>
     /// <param name="timecodeString">New start timecode in HH:MM:SS:FF format</param>
@@ -593,29 +584,12 @@ public class Functions
                 Console.WriteLine($"New start timecode: {timecodeString}");
             }
 
-            // Create a FileStream that can read and write to the input file
-            if (!inputFileInfo.Exists)
-            {
-                await Console.Error.WriteLineAsync($"Error: Input file '{inputFileInfo.FullName}' does not exist.");
-                return 1;
-            }
+            // Use FormatIO for restripe
+            using var io = FormatIO.Open(inputFileInfo.FullName)
+                .WithVerbose(verbose)
+                .WithProgress(printProgress);
 
-            // Create MXF instance and configure for restriping
-            using var mxf = new MXF(inputFileInfo)
-            {
-                Function = Function.Restripe,
-                Verbose = verbose,
-                PrintProgress = printProgress // Set progress printing option
-            };
-
-            var packets = mxf.ParseAsync(startTimecode: timecodeString, cancellationToken: cancellationToken);
-
-            // Run the async parse method which will handle restriping
-            await foreach (var _ in packets)
-            {
-                // The ParseAsync method handles all the restriping internally
-                // We just need to iterate through to execute it
-            }
+            await io.RestripeAsync(timecodeString, cancellationToken);
 
             return 0;
         }
@@ -623,6 +597,11 @@ public class Functions
         {
             await Console.Error.WriteLineAsync("Operation was cancelled.");
             return 130;
+        }
+        catch (InvalidOperationException ex)
+        {
+            await Console.Error.WriteLineAsync($"Error: {ex.Message}");
+            return 1;
         }
         catch (FileNotFoundException ex)
         {
@@ -903,7 +882,13 @@ public class Functions
             case Format.RCWT:
                 // For RCWT, convert to RCWT packet format using timecode from the line
                 var (fts, fieldNumber) = GetRCWTState(input.LineTimecode, verbose);
-                dataToWrite = input.ToRCWT(fts, fieldNumber, verbose);
+                // Convert to T42 if needed before calling FormatConverter
+                byte[] rcwtT42Data = input.Type == Format.T42 && input.Data.Length >= Constants.T42_LINE_SIZE
+                    ? input.Data.Take(Constants.T42_LINE_SIZE).ToArray()
+                    : input.Type == Format.VBI || input.Type == Format.VBI_DOUBLE
+                        ? Core.FormatConverter.VBIToT42(input.Data)
+                        : new byte[Constants.T42_LINE_SIZE];
+                dataToWrite = Core.FormatConverter.T42ToRCWT(rcwtT42Data, fts, fieldNumber, verbose);
                 break;
 
             case Format.STL:
@@ -919,7 +904,13 @@ public class Functions
                 var timeCodeIn = input.LineTimecode ?? new Timecode(0);
                 // For timeCodeOut, use the next frame (or same if at end)
                 var timeCodeOut = timeCodeIn.GetNext();
-                dataToWrite = input.ToSTL(subtitleNumber, timeCodeIn, timeCodeOut, verbose);
+                // Convert to T42 if needed before calling FormatConverter
+                byte[] stlT42Data = input.Type == Format.T42 && input.Data.Length >= Constants.T42_LINE_SIZE
+                    ? input.Data.Take(Constants.T42_LINE_SIZE).ToArray()
+                    : input.Type == Format.VBI || input.Type == Format.VBI_DOUBLE
+                        ? Core.FormatConverter.VBIToT42(input.Data)
+                        : new byte[Constants.T42_LINE_SIZE];
+                dataToWrite = Core.FormatConverter.T42ToSTL(stlT42Data, subtitleNumber, input.Row, timeCodeIn, timeCodeOut, verbose);
                 break;
 
             default:
@@ -1481,187 +1472,6 @@ public class Functions
     {
         // Return the first byte shifted left by 8 bits OR the second byte
         return bytes[0] << 8 | bytes[1];
-    }
-
-    #endregion
-
-    #region STL Export
-
-    /// <summary>
-    /// Converts teletext data to STL format using intelligent subtitle merging.
-    /// Tracks content across frames to produce properly-timed subtitles.
-    /// </summary>
-    private static async Task<int> ConvertToSTLAsync(
-        FileInfo? input,
-        Format inputFormat,
-        Stream outputStream,
-        int? magazine,
-        int[] rows,
-        int lineCount,
-        bool verbose,
-        bool keepBlanks,
-        int[]? pids,
-        CancellationToken cancellationToken)
-    {
-        using var exporter = new STLExporter
-        {
-            Magazine = magazine,  // null = no magazine filter (accept all)
-            Rows = rows,
-            Verbose = verbose
-        };
-
-        // Process based on input format
-        switch (inputFormat)
-        {
-            case Format.ANC:
-                var anc = input is { Exists: true } inputANC
-                    ? new ANC(inputANC.FullName)
-                    : new ANC(Console.OpenStandardInput());
-                anc.OutputFormat = Format.T42;  // STLExporter expects T42 data
-
-                await foreach (var packet in anc.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken: cancellationToken))
-                {
-                    foreach (var block in exporter.Export([packet]))
-                    {
-                        await outputStream.WriteAsync(block, cancellationToken);
-                    }
-                }
-                break;
-
-            case Format.VBI:
-            case Format.VBI_DOUBLE:
-                var vbi = input is { Exists: true } inputVBI
-                    ? new VBI(inputVBI.FullName, inputFormat)
-                    : new VBI(Console.OpenStandardInput(), inputFormat);
-                vbi.OutputFormat = Format.T42;
-                vbi.LineCount = lineCount;
-
-                // VBI yields lines, we need to group them into packets
-                var vbiPacket = new Packet([0, 0]);
-                Timecode? lastVbiTimecode = null;
-
-                await foreach (var line in vbi.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken))
-                {
-                    // If timecode changed, process the previous packet and start a new one
-                    if (lastVbiTimecode != null && line.LineTimecode != null &&
-                        !line.LineTimecode.Equals(lastVbiTimecode))
-                    {
-                        if (vbiPacket.Lines.Count > 0)
-                        {
-                            vbiPacket.Timecode = lastVbiTimecode;
-                            foreach (var block in exporter.Export([vbiPacket]))
-                            {
-                                await outputStream.WriteAsync(block, cancellationToken);
-                            }
-                            vbiPacket = new Packet([0, 0]);
-                        }
-                    }
-
-                    vbiPacket.Lines.Add(line);
-                    lastVbiTimecode = line.LineTimecode;
-                }
-
-                // Process final packet
-                if (vbiPacket.Lines.Count > 0)
-                {
-                    vbiPacket.Timecode = lastVbiTimecode ?? new Timecode(0);
-                    foreach (var block in exporter.Export([vbiPacket]))
-                    {
-                        await outputStream.WriteAsync(block, cancellationToken);
-                    }
-                }
-                break;
-
-            case Format.T42:
-                var t42 = input is { Exists: true } inputT42
-                    ? new T42(inputT42.FullName)
-                    : new T42(Console.OpenStandardInput());
-                t42.OutputFormat = Format.T42;
-                t42.LineCount = lineCount;
-
-                // T42 yields lines, group into packets by timecode
-                var t42Packet = new Packet([0, 0]);
-                Timecode? lastT42Timecode = null;
-
-                await foreach (var line in t42.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken))
-                {
-                    if (lastT42Timecode != null && line.LineTimecode != null &&
-                        !line.LineTimecode.Equals(lastT42Timecode))
-                    {
-                        if (t42Packet.Lines.Count > 0)
-                        {
-                            t42Packet.Timecode = lastT42Timecode;
-                            foreach (var block in exporter.Export([t42Packet]))
-                            {
-                                await outputStream.WriteAsync(block, cancellationToken);
-                            }
-                            t42Packet = new Packet([0, 0]);
-                        }
-                    }
-
-                    t42Packet.Lines.Add(line);
-                    lastT42Timecode = line.LineTimecode;
-                }
-
-                if (t42Packet.Lines.Count > 0)
-                {
-                    t42Packet.Timecode = lastT42Timecode ?? new Timecode(0);
-                    foreach (var block in exporter.Export([t42Packet]))
-                    {
-                        await outputStream.WriteAsync(block, cancellationToken);
-                    }
-                }
-                break;
-
-            case Format.TS:
-                var ts = input is { Exists: true } inputTS
-                    ? new TS(inputTS.FullName)
-                    : new TS(Console.OpenStandardInput());
-                ts.OutputFormat = Format.T42;
-                ts.Verbose = verbose;
-                if (pids != null)
-                    ts.PIDs = pids;
-
-                await foreach (var packet in ts.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken: cancellationToken))
-                {
-                    foreach (var block in exporter.Export([packet]))
-                    {
-                        await outputStream.WriteAsync(block, cancellationToken);
-                    }
-                }
-                break;
-
-            case Format.MXF:
-                if (input == null || !input.Exists)
-                {
-                    await Console.Error.WriteLineAsync("Error: MXF format requires an input file.");
-                    return 1;
-                }
-
-                var mxf = new MXF(input.FullName);
-                mxf.OutputFormat = Format.T42;
-
-                await foreach (var packet in mxf.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken: cancellationToken))
-                {
-                    foreach (var block in exporter.Export([packet]))
-                    {
-                        await outputStream.WriteAsync(block, cancellationToken);
-                    }
-                }
-                break;
-
-            default:
-                await Console.Error.WriteLineAsync($"Error: Unsupported input format '{inputFormat}' for STL export.");
-                return 1;
-        }
-
-        // Flush any remaining content
-        foreach (var block in exporter.Flush())
-        {
-            await outputStream.WriteAsync(block, cancellationToken);
-        }
-
-        return 0;
     }
 
     #endregion

@@ -1,8 +1,8 @@
 # libopx v3.0 Implementation TODO
 
-**Status:** v2.3.0 in progress (STL export) | Phase 2 COMPLETE ✅
-**Last Updated:** 2026-01-09
-**Release Strategy:** Consolidated releases (v2.2.0 ✅, v2.3.0 in progress, v2.4.0, v3.0.0)
+**Status:** Phase 3 COMPLETE ✅ - FormatConverter + FormatIO + Extract/Restripe architecture finalized
+**Last Updated:** 2026-01-11
+**Release Strategy:** Consolidated releases (v2.2.0 ✅, v2.3.0 ✅, v2.4.0 ready, v3.0.0)
 
 ---
 
@@ -11,8 +11,8 @@
 To avoid flooding NuGet with rapid incremental releases:
 
 - **v2.2.0** ✅ - Phases 1 + 2: Internal foundation (FormatIOBase + IFormatHandler abstractions)
-- **v2.3.0** 🚧 - STL export: Intelligent subtitle merging via STLExporter
-- **v2.4.0** - Phase 3: New FormatIO API available with deprecation warnings
+- **v2.3.0** ✅ - STL export: Intelligent subtitle merging via STLExporter
+- **v2.4.0** ✅ - Phase 3: FormatIO API + FormatConverter + Extract/Restripe architecture finalized
 - **v3.0.0** - Phase 4: Breaking changes and unified CLI
 
 ---
@@ -155,6 +155,72 @@ To avoid flooding NuGet with rapid incremental releases:
 - [x] Create comprehensive test suite (28 tests in FormatConverterTests.cs) ✅
 - [x] Update documentation (CHANGELOG.md) ✅
 
+### FormatIO Public API ✅ COMPLETE
+
+- [x] Implement complete `FormatIO` class with fluent API ✅
+- [x] Implement `Open()`, `OpenStdin()`, `Open(Stream)` methods ✅
+- [x] Implement `ParseLines()`, `ParsePackets()`, and async variants ✅
+- [x] Implement `ConvertTo()` fluent method ✅
+- [x] Implement `Filter()` fluent method ✅
+- [x] Implement `SaveTo()` and `SaveToAsync()` methods ✅
+- [x] Implement `WithOptions()`, `WithLineCount()`, `WithStartTimecode()`, `WithPIDs()` for configuration ✅
+- [x] Add format auto-detection ✅
+- [x] Make old API available alongside new API (both work simultaneously) ✅
+- [x] Add deprecation warnings to old API constructors (VBI, T42, ANC, TS - NOT MXF) ✅
+- [x] Create `lib/FormatIO.cs` (~870 lines) ✅
+- [x] Add unit tests for FormatIO class (84 tests in FormatIOTests.cs) ✅
+- [x] Add integration tests for all workflows ✅
+- [x] Dual parsing modes (ParseLines/ParsePackets) for VBI vertical offset support ✅
+- [x] Add FormatRegistry static constructor for automatic handler registration ✅
+- [x] Migrate `Functions.Filter()` to use FormatIO API (120 → 60 lines, 50% reduction) ✅
+- [x] Migrate `Functions.FilterAsync()` to use FormatIO API (140 → 75 lines, 46% reduction) ✅
+- [x] Remove format-specific switch statements in Filter functions ✅
+- [x] Migrate `Functions.Convert()` to use FormatIO API ✅
+- [x] Migrate `Functions.ConvertAsync()` to use FormatIO API ✅
+- [x] Migrate `Functions.Extract()` to use FormatIO API ✅
+- [x] Migrate `Functions.ExtractAsync()` to use FormatIO API ✅
+- [x] Migrate `Functions.Restripe()` to use FormatIO API ✅
+- [x] Migrate `Functions.RestripeAsync()` to use FormatIO API ✅
+- [x] Add ExtractTo/ExtractToAsync as first-class FormatIO methods ✅
+- [x] Add Restripe/RestripeAsync as first-class FormatIO methods ✅
+- [x] Add MXF fluent configuration methods (WithDemuxMode, WithKeyNames, WithKlvMode, WithKeys, WithProgress, WithVerbose) ✅
+- [x] Delete FormatIOExtensions.cs (functionality moved into FormatIO) ✅
+- [x] Remove dead ConvertToSTLAsync code (~180 lines) ✅
+
+**Success Criteria:**
+
+- [x] All conversion logic in one place (FormatConverter) ✅
+- [x] New FormatIO API fully functional alongside old API ✅
+- [x] Old methods and constructors still work but show warnings ✅
+- [x] All handlers use FormatConverter ✅
+- [x] FormatRegistry auto-registers all handlers on first access ✅
+- [x] Filter functions migrated to FormatIO with zero deprecation warnings ✅
+- [x] Convert functions migrated to FormatIO ✅
+- [x] Extract/Restripe migrated to FormatIO as first-class terminal operations ✅
+- [x] MXF constructors NOT deprecated (still available for advanced use cases) ✅
+- [x] FormatIOExtensions.cs deleted (functionality in FormatIO) ✅
+- [x] FormatIO reads MXF start timecode from file (correct timecodes after restripe) ✅
+- [x] Documentation updated with migration examples ✅
+- [x] All tests pass (317/317 tests passing) ✅
+- [x] Users have clear migration path from old to new API ✅
+
+---
+
+## Phase 4: Breaking Changes & Unified CLI (v3.0.0) ⚠️ BREAKING
+
+**Goal:** Remove deprecated code, unify CLI commands
+
+**Note:** v2.5.0 skipped - going directly from v2.4.0 to v3.0.0 after sufficient migration period (2-3 months).
+
+### CLI Changes
+
+- [ ] FFmpeg.AutoGen integration working for video VBI extraction
+- [ ] Remove old `filter` command from CLI
+- [ ] Remove old `extract` command from CLI
+- [ ] Remove old separate `convert` command (replace with unified version)
+- [ ] Create new unified `convert` command in CLI
+- [ ] Test all command variations
+
 ### FFmpeg.AutoGen Integration (CLI-only)
 
 - [ ] Add FFmpeg.AutoGen NuGet package to opx project
@@ -168,56 +234,6 @@ To avoid flooding NuGet with rapid incremental releases:
 - [ ] Create integration tests with MXF video files
 - [ ] Update documentation in docs/NEXT.md
 - [ ] Add example usage in README.md
-
-### FormatIO Public API ✅ COMPLETE
-
-- [x] Implement complete `FormatIO` class with fluent API ✅
-- [x] Implement `Open()`, `OpenStdin()`, `Open(Stream)` methods ✅
-- [x] Implement `ParseLines()`, `ParsePackets()`, and async variants ✅
-- [x] Implement `ConvertTo()` fluent method ✅
-- [x] Implement `Filter()` fluent method ✅
-- [x] Implement `SaveTo()` and `SaveToAsync()` methods ✅
-- [x] Implement `WithOptions()`, `WithLineCount()`, `WithStartTimecode()`, `WithPIDs()` for configuration ✅
-- [x] Add format auto-detection ✅
-- [x] Make old API available alongside new API (both work simultaneously) ✅
-- [x] Add deprecation warnings to old API constructors ✅
-- [x] Create `lib/FormatIO.cs` (~870 lines) ✅
-- [x] Add unit tests for FormatIO class (84 tests in FormatIOTests.cs) ✅
-- [x] Add integration tests for all workflows ✅
-- [x] Dual parsing modes (ParseLines/ParsePackets) for VBI vertical offset support ✅
-- [x] Add FormatRegistry static constructor for automatic handler registration ✅
-- [x] Migrate `Functions.Filter()` to use FormatIO API (120 → 60 lines, 50% reduction) ✅
-- [x] Migrate `Functions.FilterAsync()` to use FormatIO API (140 → 75 lines, 46% reduction) ✅
-- [x] Remove format-specific switch statements in Filter functions ✅
-
-**Success Criteria:**
-
-- [x] All conversion logic in one place (FormatConverter) ✅
-- [x] New FormatIO API fully functional alongside old API ✅
-- [x] Old methods and constructors still work but show warnings ✅
-- [x] All handlers use FormatConverter ✅
-- [x] FormatRegistry auto-registers all handlers on first access ✅
-- [x] Filter functions migrated to FormatIO with zero deprecation warnings ✅
-- [x] Documentation updated with migration examples ✅
-- [x] All tests pass (317/317 tests passing) ✅
-- [ ] FFmpeg.AutoGen integration working for video VBI extraction (deferred)
-- [x] Users have clear migration path from old to new API ✅
-
----
-
-## Phase 4: Breaking Changes & Unified CLI (v3.0.0) ⚠️ BREAKING
-
-**Goal:** Remove deprecated code, unify CLI commands
-
-**Note:** v2.5.0 skipped - going directly from v2.4.0 to v3.0.0 after sufficient migration period (2-3 months).
-
-### CLI Changes
-
-- [ ] Remove old `filter` command from CLI
-- [ ] Remove old `extract` command from CLI
-- [ ] Remove old separate `convert` command (replace with unified version)
-- [ ] Create new unified `convert` command in CLI
-- [ ] Test all command variations
 
 ### Library Cleanup
 
@@ -311,15 +327,19 @@ To avoid flooding NuGet with rapid incremental releases:
 - [x] Functions.cs integration ✅
 - [x] CLI documentation updated ✅
 - [x] CHANGELOG.md updated ✅
-- [ ] Tag and release
+- [x] Tag and release ✅
 
-### v2.4.0 - New API + Deprecation (Phase 3)
+### v2.4.0 - New API + Deprecation (Phase 3) ✅
 
 - [x] Phase 3 complete: FormatConverter ✅
 - [x] FormatIO public API implemented and tested (84 tests) ✅
 - [x] FormatRegistry auto-registration implemented ✅
 - [x] Filter functions migrated to FormatIO ✅
-- [ ] FFmpeg.AutoGen integration complete (deferred)
+- [x] Convert functions migrated to FormatIO ✅
+- [x] Extract/Restripe migrated to FormatIO as first-class terminal operations ✅
+- [x] MXF constructors NOT deprecated (still available for advanced use cases) ✅
+- [x] FormatIOExtensions.cs deleted (functionality in FormatIO) ✅
+- [x] FormatIO reads MXF start timecode from file ✅
 - [x] Deprecation warnings in place ✅
 - [x] Old API works alongside new API ✅
 - [x] Migration guide published (CHANGELOG.md) ✅
@@ -329,7 +349,9 @@ To avoid flooding NuGet with rapid incremental releases:
 
 ### v3.0.0 - Breaking Changes (Phase 4)
 
-- [ ] Phase 4 complete: Unified CLI
+- [ ] Phase 4 complete: Unified CLI + Cleanup
+- [ ] New unified `convert` command implemented
+- [ ] FFmpeg.AutoGen integration for video VBI extraction
 - [ ] Breaking changes documented
 - [ ] Migration guide complete
 - [ ] Old commands removed
