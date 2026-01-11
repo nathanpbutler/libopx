@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using nathanbutlerDEV.libopx.Enums;
+using nathanbutlerDEV.libopx.Handlers;
 
 namespace nathanbutlerDEV.libopx.Core;
 
@@ -11,6 +12,19 @@ namespace nathanbutlerDEV.libopx.Core;
 public static class FormatRegistry
 {
     private static readonly ConcurrentDictionary<Format, IFormatHandlerBase> _handlers = new();
+
+    /// <summary>
+    /// Static constructor that automatically registers all built-in format handlers.
+    /// This ensures handlers are available when FormatIO or any other code needs them.
+    /// </summary>
+    static FormatRegistry()
+    {
+        Register(new VBIHandler());
+        Register(new T42Handler());
+        Register(new ANCHandler());
+        Register(new TSHandler());
+        Register(new MXFHandler());
+    }
 
     /// <summary>
     /// Registers a format handler for a specific format.

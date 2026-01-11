@@ -296,28 +296,9 @@ public class Commands
 
     /// <summary>
     /// Creates the convert command for converting between different teletext data formats.
-    /// This command allows specifying input and output file paths, input and output formats,
-    /// magazine numbers, rows to filter, line count for timecode incrementation, and options
-    /// for using caption rows and keeping blank bytes.
-    /// It also supports verbose output and reading from stdin if no input file is specified.
-    /// The command will validate the input file, parse the specified options, and execute the
-    /// conversion operation using the provided parameters.
+    /// Supports VBI, T42, MXF, and TS input formats with filtering by magazine and rows.
     /// </summary>
     /// <returns>A Command object representing the convert command.</returns>
-    /// <exception cref="ArgumentException">Thrown if the input file does not exist or is invalid.</exception>
-    /// <exception cref="FormatException">Thrown if the input or output format is invalid.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown if the magazine number or rows are out of range.</exception>
-    /// <exception cref="Exception">Thrown if an error occurs during the conversion process.</exception>
-    /// <remarks>
-    /// This command is designed to handle various teletext data formats, including VBI, T42, and MXF.
-    /// It provides flexibility in specifying input and output formats, allowing for conversion between
-    /// different representations of teletext data. The command also supports filtering by magazine and
-    /// rows, enabling users to focus on specific parts of the teletext data.
-    /// The command is intended for use in scenarios where teletext data needs to be converted or
-    /// processed for further analysis or display. It is particularly useful for developers and users
-    /// working with teletext data in various formats, providing a command-line interface for easy
-    /// conversion and manipulation of teletext streams.
-    /// </remarks>
     public static Command CreateConvertCommand()
     {
         var convertCommand = new Command("convert", "Convert between different teletext data formats");

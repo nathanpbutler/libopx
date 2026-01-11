@@ -12,18 +12,15 @@ public static class CommandHelpers
     /// </summary>
     public static Func<CompletionContext, IEnumerable<CompletionItem>> CreateInputFormatCompletionSource()
     {
-        return ctx =>
-        {
-            return
-            [
-                new CompletionItem("bin", "MXF data stream"),
-                new CompletionItem("vbi", "VBI format"),
-                new CompletionItem("vbid", "VBI format (double width)"),
-                new CompletionItem("t42", "T42 format"),
-                new CompletionItem("mxf", "MXF container format"),
-                new CompletionItem("ts", "MPEG Transport Stream")
-            ];
-        };
+        return _ =>
+        [
+            new CompletionItem("bin", "MXF data stream"),
+            new CompletionItem("vbi", "VBI format"),
+            new CompletionItem("vbid", "VBI format (double width)"),
+            new CompletionItem("t42", "T42 format"),
+            new CompletionItem("mxf", "MXF container format"),
+            new CompletionItem("ts", "MPEG Transport Stream")
+        ];
     }
 
     /// <summary>
@@ -31,17 +28,14 @@ public static class CommandHelpers
     /// </summary>
     public static Func<CompletionContext, IEnumerable<CompletionItem>> CreateOutputFormatCompletionSource()
     {
-        return ctx =>
-        {
-            return
-            [
-                new CompletionItem("vbi", "VBI format"),
-                new CompletionItem("vbid", "VBI format (double width)"),
-                new CompletionItem("t42", "T42 format"),
-                new CompletionItem("rcwt", "RCWT format (Raw Captions With Time)"),
-                new CompletionItem("stl", "EBU STL format (EBU-Tech 3264)")
-            ];
-        };
+        return _ =>
+        [
+            new CompletionItem("vbi", "VBI format"),
+            new CompletionItem("vbid", "VBI format (double width)"),
+            new CompletionItem("t42", "T42 format"),
+            new CompletionItem("rcwt", "RCWT format (Raw Captions With Time)"),
+            new CompletionItem("stl", "EBU STL format (EBU-Tech 3264)")
+        ];
     }
 
     /// <summary>
@@ -49,17 +43,14 @@ public static class CommandHelpers
     /// </summary>
     public static Func<CompletionContext, IEnumerable<CompletionItem>> CreateKeyCompletionSource()
     {
-        return ctx =>
-        {
-            return
-            [
-                new CompletionItem("v", "Video stream"),
-                new CompletionItem("a", "Audio stream"),
-                new CompletionItem("d", "Data stream"),
-                new CompletionItem("s", "System stream"),
-                new CompletionItem("t", "TimecodeComponent stream")
-            ];
-        };
+        return _ =>
+        [
+            new CompletionItem("v", "Video stream"),
+            new CompletionItem("a", "Audio stream"),
+            new CompletionItem("d", "Data stream"),
+            new CompletionItem("s", "System stream"),
+            new CompletionItem("t", "TimecodeComponent stream")
+        ];
     }
 
     /// <summary>

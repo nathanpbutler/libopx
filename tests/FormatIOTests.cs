@@ -16,15 +16,7 @@ public class FormatIOTests : IDisposable
 {
     private readonly List<string> _tempFiles = new();
 
-    public FormatIOTests()
-    {
-        // Register all format handlers for testing
-        FormatRegistry.Register(new T42Handler());
-        FormatRegistry.Register(new VBIHandler());
-        FormatRegistry.Register(new ANCHandler());
-        FormatRegistry.Register(new TSHandler());
-        FormatRegistry.Register(new MXFHandler());
-    }
+    // FormatRegistry auto-registers handlers in its static constructor - no manual registration needed
 
     public void Dispose()
     {
@@ -40,9 +32,6 @@ public class FormatIOTests : IDisposable
                 // Ignore cleanup errors
             }
         }
-
-        // Clear registry to avoid interfering with other tests
-        FormatRegistry.Clear();
 
         GC.SuppressFinalize(this);
     }

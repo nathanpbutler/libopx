@@ -10,20 +10,10 @@ namespace nathanbutlerDEV.libopx.Tests.Core;
 /// Tests registration and retrieval of format handlers.
 /// </summary>
 [Collection("FormatRegistry")]
-public class FormatRegistryTests : IDisposable
+public class FormatRegistryTests
 {
-    public FormatRegistryTests()
-    {
-        // Clear registry before each test
-        FormatRegistry.Clear();
-    }
-
-    public void Dispose()
-    {
-        // Clean up after each test
-        FormatRegistry.Clear();
-        GC.SuppressFinalize(this);
-    }
+    // Note: Tests that need a clean registry state call Clear() explicitly
+    // FormatRegistry auto-registers handlers in its static constructor
 
     [Fact]
     public void Register_WithFormatAndHandler_RegistersSuccessfully()

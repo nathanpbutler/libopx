@@ -47,78 +47,42 @@ public class Functions
                 Console.WriteLine($"  Line count: {lineCount}");
             }
 
-            switch (inputFormat)
+            // Use FormatIO for all formats
+            using var io = input is FileInfo inputFile && inputFile.Exists
+                ? FormatIO.Open(inputFile.FullName)
+                : FormatIO.OpenStdin(inputFormat);
+
+            io.Filter(magazine, rows).WithLineCount(lineCount);
+
+            // Packet-based formats (ANC, TS, MXF): Print packets
+            // Line-based formats (VBI, VBI_DOUBLE, T42): Print lines
+            if (inputFormat is Format.ANC or Format.TS or Format.MXF)
             {
-                case Format.ANC:
-                    var anc = input is FileInfo inputANC && inputANC.Exists
-                        ? new ANC(inputANC.FullName)
-                        : new ANC(Console.OpenStandardInput());
-                    foreach (var packet in anc.Parse(magazine, rows))
-                    {
-                        Console.WriteLine(packet);
-                    }
-                    return 0;
-                case Format.VBI:
-                case Format.VBI_DOUBLE:
-                    var vbi = input is FileInfo inputVBI && inputVBI.Exists
-                        ? new VBI(inputVBI.FullName, inputFormat)
-                        : new VBI(Console.OpenStandardInput());
-                    vbi.LineCount = lineCount;
-                    foreach (var line in vbi.Parse(magazine, rows))
-                    {
-                        Console.WriteLine(line);
-                    }
-                    return 0;
-                case Format.T42:
-                    var t42 = input is FileInfo inputT42 && inputT42.Exists
-                        ? new T42(inputT42.FullName)
-                        : new T42(Console.OpenStandardInput());
-                    t42.LineCount = lineCount;
-                    foreach (var line in t42.Parse(magazine, rows))
-                    {
-                        Console.WriteLine(line);
-                    }
-                    return 0;
-                case Format.TS:
-                    var ts = input is FileInfo inputTS && inputTS.Exists
-                        ? new TS(inputTS.FullName)
-                        : new TS(Console.OpenStandardInput());
-                    ts.Verbose = verbose;
-                    foreach (var packet in ts.Parse(magazine, rows))
+                foreach (var packet in io.ParsePackets())
+                {
+                    // TS prints individual lines, not the whole packet
+                    if (inputFormat == Format.TS)
                     {
                         foreach (var line in packet.Lines)
                         {
                             Console.WriteLine(line);
                         }
                     }
-                    return 0;
-                case Format.MXF:
-                    // Only Filter if file exists, otherwise return 1
-                    if (input is FileInfo inputMXF && inputMXF.Exists)
-                    {
-                        // Implement MXF processing logic
-                        var mxf = new MXF(inputMXF.FullName)
-                        {
-                            Function = Function.Filter, // Set function to Filter
-                            Verbose = verbose
-                        };
-                        mxf.AddRequiredKey(KeyType.Data); // Add Data key to process data packets
-                        foreach (var packet in mxf.Parse(magazine, rows))
-                        {
-                            if (verbose) Console.WriteLine($"Debug: Found packet with {packet.Lines.Count} lines");
-                            Console.WriteLine(packet);
-                        }
-                    }
                     else
                     {
-                        Console.Error.WriteLine("Error: Input file does not exist or is not specified for MXF format.");
-                        return 1;
+                        Console.WriteLine(packet);
                     }
-                    return 0;
-                default:
-                    Console.WriteLine($"Unsupported input format: {inputFormat}");
-                    return 1;
+                }
             }
+            else
+            {
+                foreach (var line in io.ParseLines())
+                {
+                    Console.WriteLine(line);
+                }
+            }
+
+            return 0;
         }
         catch (FileNotFoundException ex)
         {
@@ -181,87 +145,53 @@ public class Functions
                 Console.WriteLine($"  Line count: {lineCount}");
             }
 
-            switch (inputFormat)
+            // Handle unsupported formats
+            if (inputFormat is Format.RCWT or Format.Unknown)
             {
-                case Format.ANC:
-                    var anc = input is { Exists: true } inputANC
-                        ? new ANC(inputANC.FullName)
-                        : new ANC(Console.OpenStandardInput());
-                    await foreach (var packet in anc.ParseAsync(magazine, rows, cancellationToken: cancellationToken))
-                    {
-                        Console.WriteLine(packet);
-                    }
-                    return 0;
-                case Format.VBI:
-                case Format.VBI_DOUBLE:
-                    var vbi = input is { Exists: true } inputVBI
-                        ? new VBI(inputVBI.FullName, inputFormat)
-                        : new VBI(Console.OpenStandardInput());
-                    vbi.LineCount = lineCount;
-                    await foreach (var line in vbi.ParseAsync(magazine, rows, cancellationToken))
-                    {
-                        Console.WriteLine(line);
-                    }
-                    return 0;
-                case Format.T42:
-                    var t42 = input is { Exists: true } inputT42
-                        ? new T42(inputT42.FullName)
-                        : new T42(Console.OpenStandardInput());
-                    t42.LineCount = lineCount;
-                    await foreach (var line in t42.ParseAsync(magazine, rows, cancellationToken))
-                    {
-                        Console.WriteLine(line);
-                    }
-                    return 0;
-                case Format.TS:
-                    var ts = input is { Exists: true } inputTS
-                        ? new TS(inputTS.FullName)
-                        : new TS(Console.OpenStandardInput());
-                    ts.Verbose = verbose;
-                    if (pids != null)
-                        ts.PIDs = pids;
-                    await foreach (var packet in ts.ParseAsync(magazine, rows, cancellationToken: cancellationToken))
+                await Console.Error.WriteLineAsync(inputFormat == Format.RCWT
+                    ? "Error: RCWT input format is not supported for filtering."
+                    : "Error: Unknown input format specified.");
+                return 1;
+            }
+
+            // Use FormatIO for all formats
+            using var io = input is { Exists: true } inputFile
+                ? FormatIO.Open(inputFile.FullName)
+                : FormatIO.OpenStdin(inputFormat);
+
+            io.Filter(magazine, rows)
+              .WithLineCount(lineCount)
+              .WithPIDs(pids ?? []);
+
+            // Packet-based formats (ANC, TS, MXF): Print packets
+            // Line-based formats (VBI, VBI_DOUBLE, T42): Print lines
+            if (inputFormat is Format.ANC or Format.TS or Format.MXF)
+            {
+                await foreach (var packet in io.ParsePacketsAsync(cancellationToken))
+                {
+                    // TS prints individual lines, not the whole packet
+                    if (inputFormat == Format.TS)
                     {
                         foreach (var line in packet.Lines)
                         {
                             Console.WriteLine(line);
                         }
                     }
-                    return 0;
-                case Format.MXF:
-                    // Only Filter if file exists, otherwise return 1
-                    if (input is { Exists: true } inputMXF)
-                    {
-                        // Implement MXF processing logic
-                        var mxf = new MXF(inputMXF.FullName)
-                        {
-                            Function = Function.Filter, // Set function to Filter
-                            Verbose = verbose
-                        };
-                        mxf.AddRequiredKey(KeyType.Data); // Add Data key to process data packets
-                        await foreach (var packet in mxf.ParseAsync(magazine, rows, startTimecode: null, cancellationToken: cancellationToken))
-                        {
-                            if (verbose) Console.WriteLine($"Debug: Found packet with {packet.Lines.Count} lines");
-                            Console.WriteLine(packet);
-                        }
-                    }
                     else
                     {
-                        await Console.Error.WriteLineAsync("Error: Input file does not exist or is not specified for MXF format.");
-                        return 1;
+                        Console.WriteLine(packet);
                     }
-                    return 0;
-                case Format.RCWT:
-                    // RCWT input format not currently supported for filtering
-                    await Console.Error.WriteLineAsync("Error: RCWT input format is not supported for filtering.");
-                    return 1;
-                case Format.Unknown:
-                    await Console.Error.WriteLineAsync("Error: Unknown input format specified.");
-                    return 1;
-                default:
-                    Console.WriteLine($"Unsupported input format: {inputFormat}");
-                    return 1;
+                }
             }
+            else
+            {
+                await foreach (var line in io.ParseLinesAsync(cancellationToken))
+                {
+                    Console.WriteLine(line);
+                }
+            }
+
+            return 0;
         }
         catch (OperationCanceledException)
         {
@@ -453,10 +383,10 @@ public class Functions
             mxf.UseKeyNames = useNames && demuxMode; // Only use names in demux mode
             mxf.KlvMode = klvMode;
 
-            switch (demuxMode)
+            // Parse keys if specified (only when not in demux mode)
+            if (!demuxMode)
             {
-                // Parse keys if specified
-                case false when !string.IsNullOrEmpty(keyString):
+                if (!string.IsNullOrEmpty(keyString))
                 {
                     var targetKeys = ParseKeys(keyString, verbose);
                     if (targetKeys.Count > 0)
@@ -467,15 +397,13 @@ public class Functions
                             mxf.AddRequiredKey(key);
                         }
                     }
-
-                    break;
                 }
-                case false:
-                    // Default to Data if no keys specified
+                else
+                {
                     Console.WriteLine("No keys specified, defaulting to Data.");
                     mxf.ClearRequiredKeys();
                     mxf.AddRequiredKey(KeyType.Data);
-                    break;
+                }
             }
 
             // Print active modes
@@ -487,9 +415,14 @@ public class Functions
             if (demuxMode)
             {
                 Console.WriteLine("Demux mode enabled - all keys will be extracted.");
-                Console.WriteLine(mxf.UseKeyNames
-                    ? "Name mode enabled - using Key/Essence names instead of hex keys."
-                    : "Using hex key names for output files.");
+                if (mxf.UseKeyNames)
+                {
+                    Console.WriteLine("Name mode enabled - using Key/Essence names instead of hex keys.");
+                }
+                else
+                {
+                    Console.WriteLine("Using hex key names for output files.");
+                }
             }
 
             Console.WriteLine($"Processing MXF file: {inputFile.FullName}");
@@ -910,7 +843,6 @@ public class Functions
                             OutputFormat = outputFormat,
                             Verbose = verbose
                         };
-                        mxf.OutputFormat = outputFormat;
                         mxf.SetOutput(outputStream);
                         foreach (var packet in mxf.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
                         {
@@ -1006,22 +938,30 @@ public class Functions
 
             if (verbose)
             {
-                Console.WriteLine(input is { Exists: true }
-                    ? $"   Input file: {input.FullName}"
-                    : "Reading from stdin");
+                if (input is { Exists: true })
+                {
+                    Console.WriteLine($"   Input file: {input.FullName}");
+                }
+                else
+                {
+                    Console.WriteLine("Reading from stdin");
+                }
                 Console.WriteLine($" Input format: {inputFormat}");
                 Console.WriteLine($"Output format: {outputFormat}");
-                Console.WriteLine(output != null
-                    ? $"  Output file: {output.FullName}"
-                    : "Writing to stdout");
+                if (output != null)
+                {
+                    Console.WriteLine($"  Output file: {output.FullName}");
+                }
+                else
+                {
+                    Console.WriteLine("Writing to stdout");
+                }
                 Console.WriteLine($"     Magazine: {magazine?.ToString() ?? "all"}");
                 Console.WriteLine($"         Rows: [{string.Join(", ", rows)}]");
                 Console.WriteLine($"   Line count: {lineCount}");
             }
 
-
             // Set up output stream
-            // Note: Console.OpenStandardOutput() should NOT be disposed
             Stream outputStream = output != null
                 ? new FileStream(output.FullName, FileMode.Create, FileAccess.Write, FileShare.None)
                 : Console.OpenStandardOutput();
@@ -1065,17 +1005,6 @@ public class Functions
                             foreach (var line in packet.Lines)
                             {
                                 await WriteOutputAsync(line, anc.Output, outputFormat, magazine, rows, keepBlanks, verbose, cancellationToken);
-
-                                /*if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
-                                {
-                                    // Write blank line with same format/length
-                                    var blankData = new byte[line.Data.Length];
-                                    bin.Output.Write(blankData);
-                                }
-                                else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
-                                {
-                                    bin.Output.Write(line.Data);
-                                }*/
                             }
                         }
                         return 0;
@@ -1091,17 +1020,6 @@ public class Functions
                         await foreach (var line in vbi.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken))
                         {
                             await WriteOutputAsync(line, vbi.Output, outputFormat, magazine, rows, keepBlanks, verbose, cancellationToken);
-
-                            /*if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
-                            {
-                                // Write blank line with same format/length
-                                var blankData = new byte[line.Data.Length];
-                                vbi.Output.Write(blankData);
-                            }
-                            else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
-                            {
-                                vbi.Output.Write(line.Data);
-                            }*/
                         }
                         return 0;
 
@@ -1115,17 +1033,6 @@ public class Functions
                         await foreach (var line in t42.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken))
                         {
                             await WriteOutputAsync(line, t42.Output, outputFormat, magazine, rows, keepBlanks, verbose, cancellationToken);
-
-                            /*if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
-                            {
-                                // Write blank line with same format/length
-                                var blankData = new byte[line.Data.Length];
-                                t42.Output.Write(blankData);
-                            }
-                            else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
-                            {
-                                t42.Output.Write(line.Data);
-                            }*/
                         }
                         return 0;
 
@@ -1158,24 +1065,12 @@ public class Functions
                             OutputFormat = outputFormat,
                             Verbose = verbose
                         };
-                        mxf.OutputFormat = outputFormat;
                         mxf.SetOutput(outputStream);
                         await foreach (var packet in mxf.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken: cancellationToken))
                         {
                             foreach (var line in packet.Lines)
                             {
                                 await WriteOutputAsync(line, mxf.Output, outputFormat, magazine, rows, keepBlanks, verbose, cancellationToken);
-
-                                /*if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
-                                {
-                                    // Write blank line with same format/length
-                                    var blankData = new byte[line.Data.Length];
-                                    mxf.Output.Write(blankData);
-                                }
-                                else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
-                                {
-                                    mxf.Output.Write(line.Data);
-                                }*/
                             }
                         }
                         return 0;
