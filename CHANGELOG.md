@@ -52,8 +52,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   * `FormatConverter.EncodeTimecodeToSTL()` - Unified BCD timecode encoding for STL format
   * `FormatConverter.ExtractSTLTextData()` - Unified text extraction with T42-to-STL control code remapping
 * 28 comprehensive unit tests in `tests/Core/FormatConverterTests.cs` covering all conversion scenarios
+* **FormatRegistry automatic handler registration** - Static constructor automatically registers all built-in format handlers (VBI, T42, ANC, TS, MXF) on first access, eliminating need for manual registration in application code
 
 ### Changed
+
+* **Functions.Filter() and Functions.FilterAsync() migrated to FormatIO**:
+  * Filter() reduced from 120 lines to 60 lines (50% reduction)
+  * FilterAsync() reduced from 140 lines to 75 lines (46% reduction)
+  * Removed format-specific switch statements in favor of FormatIO's unified API
+  * All formats including MXF now use consistent FormatIO pattern
+  * Zero deprecation warnings in Filter functions
 
 * **Deprecated format class constructors with migration path to v3.0.0**:
   * `new VBI(string)` → Use `FormatIO.Open(path)` instead (removed in v3.0.0)

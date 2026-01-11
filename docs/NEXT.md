@@ -1189,17 +1189,22 @@ public class T42 : FormatIOBase
 20. ✅ Consolidate duplicate `EncodeTimecodeToSTL` (Line.cs:681-692 + STLExporter.cs:517-526) → shared location
 21. ✅ Consolidate duplicate `ExtractSTLTextData` (Line.cs:700-776 + STLExporter.cs:532-588) → single implementation
 22. Refactor `WriteSTLHeaderAsync` in Functions.cs to use `STLExporter.CreateGSIHeader()` instead of duplicating header logic (deferred to later in v2.4.0)
+23. ✅ Add FormatRegistry static constructor for automatic handler registration
+24. ✅ Migrate `Functions.Filter()` to use FormatIO API
+25. ✅ Migrate `Functions.FilterAsync()` to use FormatIO API
 
 **Deliverables:**
 
 - [x] `lib/Core/FormatConverter.cs` ✅
 - [x] `lib/FormatIO.cs` (new public API) ✅
+- [x] `lib/Core/FormatRegistry.cs` (auto-registration) ✅
 - [x] `tests/FormatIOTests.cs` (84 comprehensive tests) ✅
 - [x] Deprecated methods in VBI, T42, Line classes ✅
 - [x] Deprecated constructors in VBI, T42, ANC, TS, MXF classes ✅
 - [x] Updated handlers to use FormatConverter ✅
+- [x] Migrated `Functions.Filter()` and `FilterAsync()` to FormatIO ✅
 - [x] Migration guide in docs (CHANGELOG.md updated) ✅
-- [x] All tests updated (238/238 passing) ✅
+- [x] All tests updated (317/317 passing) ✅
 - [ ] `opx/Core/VideoVBIExtractor.cs`
 - [ ] Updated Commands.cs with `--extract-vbi` option
 - [ ] Integration tests with MXF video files

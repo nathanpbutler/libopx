@@ -185,6 +185,10 @@ To avoid flooding NuGet with rapid incremental releases:
 - [x] Add unit tests for FormatIO class (84 tests in FormatIOTests.cs) ✅
 - [x] Add integration tests for all workflows ✅
 - [x] Dual parsing modes (ParseLines/ParsePackets) for VBI vertical offset support ✅
+- [x] Add FormatRegistry static constructor for automatic handler registration ✅
+- [x] Migrate `Functions.Filter()` to use FormatIO API (120 → 60 lines, 50% reduction) ✅
+- [x] Migrate `Functions.FilterAsync()` to use FormatIO API (140 → 75 lines, 46% reduction) ✅
+- [x] Remove format-specific switch statements in Filter functions ✅
 
 **Success Criteria:**
 
@@ -192,8 +196,10 @@ To avoid flooding NuGet with rapid incremental releases:
 - [x] New FormatIO API fully functional alongside old API ✅
 - [x] Old methods and constructors still work but show warnings ✅
 - [x] All handlers use FormatConverter ✅
+- [x] FormatRegistry auto-registers all handlers on first access ✅
+- [x] Filter functions migrated to FormatIO with zero deprecation warnings ✅
 - [x] Documentation updated with migration examples ✅
-- [x] All tests pass with deprecation warnings (322/322 tests passing) ✅
+- [x] All tests pass (317/317 tests passing) ✅
 - [ ] FFmpeg.AutoGen integration working for video VBI extraction (deferred)
 - [x] Users have clear migration path from old to new API ✅
 
@@ -309,14 +315,16 @@ To avoid flooding NuGet with rapid incremental releases:
 
 ### v2.4.0 - New API + Deprecation (Phase 3)
 
-- [ ] Phase 3 complete: FormatConverter
-- [ ] FormatIO public API implemented and tested
-- [ ] FFmpeg.AutoGen integration complete
-- [ ] Deprecation warnings in place
-- [ ] Old API works alongside new API
-- [ ] Migration guide published
+- [x] Phase 3 complete: FormatConverter ✅
+- [x] FormatIO public API implemented and tested (84 tests) ✅
+- [x] FormatRegistry auto-registration implemented ✅
+- [x] Filter functions migrated to FormatIO ✅
+- [ ] FFmpeg.AutoGen integration complete (deferred)
+- [x] Deprecation warnings in place ✅
+- [x] Old API works alongside new API ✅
+- [x] Migration guide published (CHANGELOG.md) ✅
 - [ ] Side-by-side examples documented
-- [ ] Tests passing
+- [x] Tests passing (317/317) ✅
 - [ ] Deprecation blog post published
 
 ### v3.0.0 - Breaking Changes (Phase 4)
