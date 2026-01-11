@@ -191,7 +191,7 @@ public class FormatConverterTests
         // Assert
         Assert.Equal(Constants.RCWT_PACKET_TYPE_UNKNOWN, result[0]); // Packet type
         // FTS bytes [1-8] - just verify they're not all zero
-        Assert.True(result.Skip(1).Take(8).Any(b => b != 0));
+        Assert.Contains(result.Skip(1).Take(8), b => b != 0);
         Assert.Equal(Constants.RCWT_FIELD_0_MARKER, result[9]); // Field marker for field 0
         Assert.Equal(Constants.RCWT_FRAMING_CODE, result[10]); // Framing code
         // T42 payload [11-52]

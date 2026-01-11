@@ -51,6 +51,7 @@ public class TS : FormatIOBase
     /// </summary>
     /// <param name="inputFile">Path to the TS file</param>
     /// <exception cref="FileNotFoundException">Thrown when the file does not exist</exception>
+    [Obsolete("Use FormatIO.Open() instead. This constructor will be removed in v3.0.0.")]
     [SetsRequiredMembers]
     public TS(string inputFile)
     {
@@ -68,6 +69,7 @@ public class TS : FormatIOBase
     /// <summary>
     /// Constructor for TS format from stdin.
     /// </summary>
+    [Obsolete("Use FormatIO.OpenStdin() instead. This constructor will be removed in v3.0.0.")]
     [SetsRequiredMembers]
     public TS()
     {
@@ -81,6 +83,7 @@ public class TS : FormatIOBase
     /// </summary>
     /// <param name="inputStream">The input stream to read from</param>
     /// <exception cref="ArgumentNullException">Thrown if inputStream is null</exception>
+    [Obsolete("Use FormatIO.Open(stream, format) instead. This constructor will be removed in v3.0.0.")]
     [SetsRequiredMembers]
     public TS(Stream inputStream)
     {

@@ -73,6 +73,7 @@ public class MXF : FormatIOBase
     /// <exception cref="FileNotFoundException">Thrown when the specified file does not exist</exception>
     /// <exception cref="InvalidDataException">Thrown when the file is not a valid MXF file</exception>
     /// <exception cref="InvalidOperationException">Thrown when unable to retrieve start timecode</exception>
+    [Obsolete("Use FormatIO.Open() instead. This constructor will be removed in v3.0.0.")]
     [SetsRequiredMembers]
     public MXF(string inputFile)
     {
@@ -114,6 +115,7 @@ public class MXF : FormatIOBase
     /// <exception cref="FileNotFoundException">Thrown when the specified file does not exist</exception>
     /// <exception cref="InvalidDataException">Thrown when the file is not a valid MXF file</exception>
     /// <exception cref="InvalidOperationException">Thrown when unable to retrieve start timecode</exception>
+    [Obsolete("Use FormatIO.Open() instead. This constructor will be removed in v3.0.0.")]
     [SetsRequiredMembers]
     public MXF(FileInfo inputFileInfo)
     {

@@ -1,8 +1,8 @@
 # libopx v3.0 Architecture Redesign
 
-**Status:** Phase 3 (FormatConverter) COMPLETE ✅ - FormatIO API implementation next
+**Status:** Phase 3 COMPLETE ✅ - FormatConverter + FormatIO API ready for v2.4.0 release
 **Target Release:** v3.0.0
-**Last Updated:** 2026-01-11 (Phase 1 ✅, Phase 2 ✅, Phase 3 Core ✅: FormatConverter centralization complete)
+**Last Updated:** 2026-01-11 (Phase 1 ✅, Phase 2 ✅, Phase 3 ✅: FormatConverter + FormatIO complete)
 
 ## Executive Summary
 
@@ -1193,8 +1193,10 @@ public class T42 : FormatIOBase
 **Deliverables:**
 
 - [x] `lib/Core/FormatConverter.cs` ✅
-- [ ] `lib/FormatIO.cs` (new public API)
+- [x] `lib/FormatIO.cs` (new public API) ✅
+- [x] `tests/FormatIOTests.cs` (84 comprehensive tests) ✅
 - [x] Deprecated methods in VBI, T42, Line classes ✅
+- [x] Deprecated constructors in VBI, T42, ANC, TS, MXF classes ✅
 - [x] Updated handlers to use FormatConverter ✅
 - [x] Migration guide in docs (CHANGELOG.md updated) ✅
 - [x] All tests updated (238/238 passing) ✅
@@ -1234,10 +1236,11 @@ warning CS0618: 'VBI.ToT42(byte[], bool)' is obsolete:
 **Success Criteria:**
 
 - [x] All conversion logic in one place (FormatConverter) ✅
-- [ ] New FormatIO API fully functional alongside old API
-- [x] Old methods still work but show warnings ✅
+- [x] New FormatIO API fully functional alongside old API ✅
+- [x] Old methods and constructors still work but show warnings ✅
 - [x] All handlers use FormatConverter ✅
 - [x] Documentation updated with migration examples ✅
+- [x] All tests passing (322/322) ✅
 - [x] All tests pass with deprecation warnings (238/238) ✅
 - [ ] FFmpeg.AutoGen integration working for video VBI extraction
 - [ ] Users have clear migration path from old to new API
@@ -2183,6 +2186,6 @@ This is a living document. If you have suggestions or questions about the v3.0 r
 2. Tag with `v3.0-design` label
 3. Reference this document
 
-**Last Updated:** 2026-01-11 (FormatConverter implementation complete - Phase 3 core tasks done)
-**Document Version:** 1.5
-**Status:** Phase 2 Complete ✅ - v2.3.0 released - Phase 3 (FormatConverter) ✅ - FormatIO API next
+**Last Updated:** 2026-01-11 (FormatConverter + FormatIO implementation complete - Phase 3 done)
+**Document Version:** 1.6
+**Status:** Phase 3 Complete ✅ - v2.4.0 ready (FormatConverter ✅ + FormatIO ✅) - Phase 4 (v3.0.0 breaking changes) next

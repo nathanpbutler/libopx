@@ -169,33 +169,33 @@ To avoid flooding NuGet with rapid incremental releases:
 - [ ] Update documentation in docs/NEXT.md
 - [ ] Add example usage in README.md
 
-### FormatIO Public API
+### FormatIO Public API ✅ COMPLETE
 
-- [ ] Implement complete `FormatIO` class with fluent API
-- [ ] Implement `Open()`, `OpenStdin()`, `Open(Stream)` methods
-- [ ] Implement `Parse()` and `ParseAsync()` methods
-- [ ] Implement `ConvertTo()` fluent method
-- [ ] Implement `Filter()` fluent method
-- [ ] Implement `SaveTo()` and `SaveToAsync()` methods
-- [ ] Implement `WithOptions()` for configuration
-- [ ] Add format auto-detection
-- [ ] Make old API available alongside new API (both work simultaneously)
-- [ ] Add deprecation warnings to old API methods
-- [ ] Create `lib/FormatIO.cs`
-- [ ] Add unit tests for FormatIO class
-- [ ] Add integration tests for all workflows
-- [ ] Create side-by-side API comparison examples
+- [x] Implement complete `FormatIO` class with fluent API ✅
+- [x] Implement `Open()`, `OpenStdin()`, `Open(Stream)` methods ✅
+- [x] Implement `ParseLines()`, `ParsePackets()`, and async variants ✅
+- [x] Implement `ConvertTo()` fluent method ✅
+- [x] Implement `Filter()` fluent method ✅
+- [x] Implement `SaveTo()` and `SaveToAsync()` methods ✅
+- [x] Implement `WithOptions()`, `WithLineCount()`, `WithStartTimecode()`, `WithPIDs()` for configuration ✅
+- [x] Add format auto-detection ✅
+- [x] Make old API available alongside new API (both work simultaneously) ✅
+- [x] Add deprecation warnings to old API constructors ✅
+- [x] Create `lib/FormatIO.cs` (~870 lines) ✅
+- [x] Add unit tests for FormatIO class (84 tests in FormatIOTests.cs) ✅
+- [x] Add integration tests for all workflows ✅
+- [x] Dual parsing modes (ParseLines/ParsePackets) for VBI vertical offset support ✅
 
 **Success Criteria:**
 
 - [x] All conversion logic in one place (FormatConverter) ✅
-- [ ] New FormatIO API fully functional alongside old API
-- [x] Old methods still work but show warnings ✅
+- [x] New FormatIO API fully functional alongside old API ✅
+- [x] Old methods and constructors still work but show warnings ✅
 - [x] All handlers use FormatConverter ✅
 - [x] Documentation updated with migration examples ✅
-- [x] All tests pass with deprecation warnings (238/238 tests passing) ✅
-- [ ] FFmpeg.AutoGen integration working for video VBI extraction
-- [ ] Users have clear migration path from old to new API
+- [x] All tests pass with deprecation warnings (322/322 tests passing) ✅
+- [ ] FFmpeg.AutoGen integration working for video VBI extraction (deferred)
+- [x] Users have clear migration path from old to new API ✅
 
 ---
 

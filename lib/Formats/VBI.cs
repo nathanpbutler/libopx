@@ -47,6 +47,7 @@ public class VBI : FormatIOBase
     /// <param name="inputFile">Path to the VBI file</param>
     /// <param name="vbiType">The VBI format type (VBI or VBI_DOUBLE)</param>
     /// <exception cref="FileNotFoundException">Thrown when the file does not exist</exception>
+    [Obsolete("Use FormatIO.Open() instead. This constructor will be removed in v3.0.0.")]
     [SetsRequiredMembers]
     public VBI(string inputFile, Format? vbiType = Format.VBI)
     {
@@ -71,6 +72,7 @@ public class VBI : FormatIOBase
     /// <summary>
     /// Constructor for VBI format from stdin
     /// </summary>
+    [Obsolete("Use FormatIO.OpenStdin() instead. This constructor will be removed in v3.0.0.")]
     [SetsRequiredMembers]
     public VBI()
     {
@@ -85,6 +87,7 @@ public class VBI : FormatIOBase
     /// <param name="inputStream">The input stream to read from</param>
     /// <param name="vbiType">The VBI format type (VBI or VBI_DOUBLE)</param>
     /// <exception cref="ArgumentNullException">Thrown if inputStream is null</exception>
+    [Obsolete("Use FormatIO.Open(stream, format) instead. This constructor will be removed in v3.0.0.")]
     [SetsRequiredMembers]
     public VBI(Stream inputStream, Format? vbiType = Format.VBI)
     {

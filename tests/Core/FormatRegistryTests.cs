@@ -9,6 +9,7 @@ namespace nathanbutlerDEV.libopx.Tests.Core;
 /// Unit tests for the FormatRegistry class.
 /// Tests registration and retrieval of format handlers.
 /// </summary>
+[Collection("FormatRegistry")]
 public class FormatRegistryTests : IDisposable
 {
     public FormatRegistryTests()
@@ -188,6 +189,9 @@ public class FormatRegistryTests : IDisposable
     [Fact]
     public void GetRegisteredFormats_NoHandlers_ReturnsEmpty()
     {
+        // Arrange - Clear any existing handlers from other tests
+        FormatRegistry.Clear();
+
         // Act
         var formats = FormatRegistry.GetRegisteredFormats().ToList();
 

@@ -163,7 +163,7 @@ public class MXFHandler : IPacketFormatHandler
     /// <param name="printProgress">Whether to print progress updates (default: false)</param>
     /// <param name="function">The function mode to use (default: Filter)</param>
     public MXFHandler(
-        Timecode startTimecode,
+        Timecode? startTimecode = null,
         string? inputFilePath = null,
         List<KeyType>? requiredKeys = null,
         bool checkSequential = true,
@@ -175,7 +175,7 @@ public class MXFHandler : IPacketFormatHandler
         bool printProgress = false,
         Function function = Function.Filter)
     {
-        StartTimecode = startTimecode;
+        StartTimecode = startTimecode ?? new Timecode(0);
         _inputFilePath = inputFilePath;
         _requiredKeys = requiredKeys ?? [];
         _checkSequential = checkSequential;

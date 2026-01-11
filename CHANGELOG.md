@@ -9,6 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* **FormatIO fluent API** - New primary user-facing API for parsing and converting teletext data with method chaining:
+  * **Factory methods**:
+    * `FormatIO.Open(string path)` - Auto-detects format from file extension (.vbi, .t42, .mxf, .ts, .bin, etc.)
+    * `FormatIO.OpenStdin(Format format)` - Read from standard input with explicit format
+    * `FormatIO.Open(Stream stream, Format format)` - Read from custom stream
+  * **Fluent configuration**:
+    * `WithOptions(Action<ParseOptions>)` - Configure ParseOptions via lambda
+    * `ConvertTo(Format targetFormat)` - Set output format with validation
+    * `Filter(int? magazine, params int[] rows)` - Set magazine/row filters
+    * `WithLineCount(int lineCount)` - Set timecode increment (625 or 525)
+    * `WithStartTimecode(Timecode tc)` - Set starting timecode for packets
+    * `WithPIDs(params int[] pids)` - Set TS PID filters
+  * **Dual parsing modes**:
+    * `ParseLines()` / `ParseLinesAsync()` - Returns `IEnumerable<Line>` for line-by-line processing
+    * `ParsePackets()` / `ParsePacketsAsync()` - Returns `IEnumerable<Packet>` preserving packet grouping for VBI vertical offset (720x32 or 1440x32 output)
+  * **SaveTo methods**:
+    * `SaveTo(string path, bool useSTLMerging = false)` - Write to file with optional STL intelligent merging
+    * `SaveToStdout(bool useSTLMerging = false)` - Write to standard output
+    * Async variants: `SaveToAsync()` and `SaveToStdoutAsync()` with cancellation support
+  * **Automatic header writing** - RCWT (11 bytes) and STL GSI (1024 bytes) headers written automatically
+  * **STL merging opt-in** - Explicit `useSTLMerging` parameter for intelligent subtitle merging (changed from automatic)
+  * **Format auto-detection** - Detects format from file extensions (case-insensitive)
+  * **Custom exception** - `FormatDetectionException` for unknown file extensions
+* 84 comprehensive unit tests in `tests/FormatIOTests.cs` covering all FormatIO workflows:
+  * Factory method tests (12 tests) - File, stdin, stream patterns
+  * Format detection tests (11 tests) - Extension mapping and case handling
+  * Fluent API tests (11 tests) - Method chaining and configuration
+  * Parsing tests (10 tests) - Lines, packets, sync, async, filtering
+  * SaveTo tests (10 tests) - All formats, headers, STL merging
+  * Conversion support tests (16 tests) - Supported/unsupported conversion validation
+  * Disposal tests (5 tests) - Stream ownership and cleanup
+  * Error handling tests (5 tests) - Disposal checks, null validation
+  * Integration tests (4 tests) - End-to-end workflows
 * **FormatConverter static class** - Centralized format conversion logic consolidating all conversion methods previously scattered across VBI.cs, T42.cs, Line.cs, and STLExporter.cs:
   * `FormatConverter.VBIToT42()` - Convert VBI/VBI_DOUBLE (720/1440 bytes) to T42 (42 bytes)
   * `FormatConverter.T42ToVBI()` - Convert T42 to VBI or VBI_DOUBLE with format selection
@@ -22,6 +55,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+* **Deprecated format class constructors with migration path to v3.0.0**:
+  * `new VBI(string)` → Use `FormatIO.Open(path)` instead (removed in v3.0.0)
+  * `new VBI()` → Use `FormatIO.OpenStdin(Format.VBI)` instead (removed in v3.0.0)
+  * `new VBI(Stream)` → Use `FormatIO.Open(stream, Format.VBI)` instead (removed in v3.0.0)
+  * `new T42(string)` → Use `FormatIO.Open(path)` instead (removed in v3.0.0)
+  * `new T42()` → Use `FormatIO.OpenStdin(Format.T42)` instead (removed in v3.0.0)
+  * `new T42(Stream)` → Use `FormatIO.Open(stream, Format.T42)` instead (removed in v3.0.0)
+  * `new ANC(string)` → Use `FormatIO.Open(path)` instead (removed in v3.0.0)
+  * `new ANC()` → Use `FormatIO.OpenStdin(Format.ANC)` instead (removed in v3.0.0)
+  * `new ANC(Stream)` → Use `FormatIO.Open(stream, Format.ANC)` instead (removed in v3.0.0)
+  * `new TS(string)` → Use `FormatIO.Open(path)` instead (removed in v3.0.0)
+  * `new TS()` → Use `FormatIO.OpenStdin(Format.TS)` instead (removed in v3.0.0)
+  * `new TS(Stream)` → Use `FormatIO.Open(stream, Format.TS)` instead (removed in v3.0.0)
+  * `new MXF(string)` → Use `FormatIO.Open(path)` instead (removed in v3.0.0)
+  * `new MXF(FileInfo)` → Use `FormatIO.Open(path)` instead (removed in v3.0.0)
 * **Deprecated conversion methods with migration path to v3.0.0**:
   * `VBI.ToT42()` → Use `FormatConverter.VBIToT42()` instead (removed in v3.0.0)
   * `T42.ToVBI()` → Use `FormatConverter.T42ToVBI()` instead (removed in v3.0.0)
@@ -40,12 +88,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Technical Details
 
+* Created `lib/FormatIO.cs` (~870 lines) - Complete fluent API implementation with factory pattern, dual parsing modes, and format auto-detection
+* Created `tests/FormatIOTests.cs` (~800 lines) - 84 comprehensive unit tests covering all workflows
+* Added `[Obsolete]` attributes to 17 format class constructors across VBI.cs, T42.cs, ANC.cs, TS.cs, MXF.cs
 * Created `lib/Core/FormatConverter.cs` (408 lines) with 8 public and 2 private static methods
 * Created `tests/Core/FormatConverterTests.cs` (403 lines) with comprehensive test coverage
 * Modified 7 files to use FormatConverter: VBI.cs, T42.cs, Line.cs, VBIHandler.cs, T42Handler.cs, Functions.cs, STLExporter.cs
 * Deleted ~150 lines of duplicate code from Line.cs and STLExporter.cs
-* All 238 tests passing (210 existing + 28 new FormatConverter tests)
-* Maintains 100% backward compatibility - all deprecated methods still work with [Obsolete] warnings
+* All tests passing (238 existing + 84 new FormatIO tests = 322 total)
+* Maintains 100% backward compatibility - all deprecated methods and constructors still work with [Obsolete] warnings
+* FormatIO provides cleaner API while existing format classes remain available for advanced use cases
 
 ## [2.3.0] - 2026-01-09
 

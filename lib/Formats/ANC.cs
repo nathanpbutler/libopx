@@ -34,6 +34,7 @@ public class ANC : FormatIOBase
     /// </summary>
     /// <param name="inputFile">Path to the input file (typically *.bin)</param>
     /// <exception cref="FileNotFoundException">Thrown if the specified file does not exist</exception>
+    [Obsolete("Use FormatIO.Open() instead. This constructor will be removed in v3.0.0.")]
     [SetsRequiredMembers]
     public ANC(string inputFile)
     {
@@ -52,6 +53,7 @@ public class ANC : FormatIOBase
     /// <summary>
     /// Constructor for extracted MXF ancillary data from stdin
     /// </summary>
+    [Obsolete("Use FormatIO.OpenStdin() instead. This constructor will be removed in v3.0.0.")]
     [SetsRequiredMembers]
     public ANC()
     {
@@ -65,6 +67,7 @@ public class ANC : FormatIOBase
     /// </summary>
     /// <param name="inputStream">The input stream to read from</param>
     /// <exception cref="ArgumentNullException">Thrown if inputStream is null</exception>
+    [Obsolete("Use FormatIO.Open(stream, format) instead. This constructor will be removed in v3.0.0.")]
     [SetsRequiredMembers]
     public ANC(Stream inputStream)
     {
