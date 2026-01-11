@@ -45,6 +45,52 @@ public class ParseOptions
     public int[]? PIDs { get; set; } = null;
 
     /// <summary>
+    /// Gets or sets whether to preserve blank bytes for filtered-out rows.
+    /// When true, filtered rows are replaced with blank bytes instead of being omitted.
+    /// This preserves stream structure and byte alignment.
+    /// </summary>
+    public bool KeepBlanks { get; set; } = false;
+
+    #region MXF-Specific Options
+
+    /// <summary>
+    /// Gets or sets whether to extract all keys to separate files (demux mode).
+    /// MXF-specific option for extraction operations.
+    /// </summary>
+    public bool DemuxMode { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets whether to use key names instead of hex identifiers for output files.
+    /// MXF-specific option, only applies when DemuxMode is true.
+    /// </summary>
+    public bool UseKeyNames { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets whether to include KLV headers in extracted files.
+    /// MXF-specific option for extraction operations.
+    /// </summary>
+    public bool KlvMode { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets the key types to extract from MXF files.
+    /// MXF-specific option. When null, defaults based on DemuxMode.
+    /// </summary>
+    public List<KeyType>? RequiredKeys { get; set; } = null;
+
+    /// <summary>
+    /// Gets or sets whether to print progress during operations.
+    /// Useful for long-running MXF operations like restripe.
+    /// </summary>
+    public bool PrintProgress { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets whether verbose output is enabled.
+    /// </summary>
+    public bool Verbose { get; set; } = false;
+
+    #endregion
+
+    /// <summary>
     /// Creates a new instance of ParseOptions with default values.
     /// </summary>
     public ParseOptions()
@@ -79,7 +125,14 @@ public class ParseOptions
             OutputFormat = OutputFormat,
             LineCount = LineCount,
             StartTimecode = StartTimecode,
-            PIDs = PIDs?.ToArray()
+            PIDs = PIDs?.ToArray(),
+            KeepBlanks = KeepBlanks,
+            DemuxMode = DemuxMode,
+            UseKeyNames = UseKeyNames,
+            KlvMode = KlvMode,
+            RequiredKeys = RequiredKeys?.ToList(),
+            PrintProgress = PrintProgress,
+            Verbose = Verbose
         };
     }
 }

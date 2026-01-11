@@ -677,10 +677,17 @@ public class Functions
     {
         try
         {
-            // Validate output format - allow data formats plus RCWT (packetized) now
+            // Validate output format
             if (outputFormat != Format.VBI && outputFormat != Format.VBI_DOUBLE && outputFormat != Format.T42 && outputFormat != Format.RCWT)
             {
                 Console.Error.WriteLine($"Error: Unsupported output format '{outputFormat}'. Supported formats: VBI, VBI_DOUBLE, T42, RCWT");
+                return 1;
+            }
+
+            // MXF requires file input
+            if (inputFormat == Format.MXF && (input == null || !input.Exists))
+            {
+                Console.Error.WriteLine("Error: Input file must be specified and exist for MXF format conversion.");
                 return 1;
             }
 
@@ -701,185 +708,22 @@ public class Functions
                 Console.WriteLine($"   Line count: {lineCount}");
             }
 
-            // Set up output stream
-            // Note: Console.OpenStandardOutput() should NOT be disposed
-            Stream outputStream = output != null
-                ? new FileStream(output.FullName, FileMode.Create, FileAccess.Write, FileShare.None)
-                : Console.OpenStandardOutput();
+            // Use FormatIO for all formats
+            using var io = input is FileInfo inputFile && inputFile.Exists
+                ? FormatIO.Open(inputFile.FullName)
+                : FormatIO.OpenStdin(inputFormat);
 
-            try
-            {
-                // RCWT session init + header (only once per sync conversion)
-                if (outputFormat == Format.RCWT)
-                {
-                    ResetRCWTHeader();
-                    outputStream.Write(Constants.RCWT_HEADER, 0, Constants.RCWT_HEADER.Length);
-                }
-                switch (inputFormat)
-                {
-                    case Format.ANC:
-                        var anc = input is FileInfo inputANC && inputANC.Exists
-                            ? new ANC(inputANC.FullName)
-                            : new ANC(Console.OpenStandardInput());
-                        anc.OutputFormat = outputFormat;
-                        anc.SetOutput(outputStream);
-                        foreach (var packet in anc.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
-                        {
-                            foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
-                            {
-                                byte[] dataToWrite = line.Data;
-                                if (outputFormat == Format.RCWT)
-                                {
-                                    var (fts, fieldNumber) = GetRCWTState(line.LineTimecode, verbose);
-                                    dataToWrite = line.ToRCWT(fts, fieldNumber, verbose);
-                                }
+            io.Filter(magazine, rows)
+              .WithLineCount(lineCount)
+              .ConvertTo(outputFormat)
+              .WithKeepBlanks(keepBlanks);
 
-                                if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
-                                {
-                                    var blankData = new byte[dataToWrite.Length];
-                                    anc.Output.Write(blankData, 0, blankData.Length);
-                                }
-                                else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
-                                {
-                                    anc.Output.Write(dataToWrite, 0, dataToWrite.Length);
-                                }
-                            }
-                        }
-                        return 0;
+            if (output != null)
+                io.SaveTo(output.FullName);
+            else
+                io.SaveToStdout();
 
-                    case Format.VBI:
-                    case Format.VBI_DOUBLE:
-                        var vbi = input is FileInfo inputVBI && inputVBI.Exists
-                            ? new VBI(inputVBI.FullName, inputFormat)
-                            : new VBI(Console.OpenStandardInput(), inputFormat);
-                        vbi.OutputFormat = outputFormat;
-                        vbi.LineCount = lineCount;
-                        vbi.SetOutput(outputStream);
-                        foreach (var line in vbi.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
-                        {
-                            byte[] dataToWrite = line.Data;
-                            if (outputFormat == Format.RCWT)
-                            {
-                                var (fts, fieldNumber) = GetRCWTState(line.LineTimecode, verbose);
-                                dataToWrite = line.ToRCWT(fts, fieldNumber, verbose);
-                            }
-                            if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
-                            {
-                                var blankData = new byte[dataToWrite.Length];
-                                vbi.Output.Write(blankData, 0, blankData.Length);
-                            }
-                            else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
-                            {
-                                vbi.Output.Write(dataToWrite, 0, dataToWrite.Length);
-                            }
-                        }
-                        return 0;
-
-                    case Format.T42:
-                        var t42 = input is FileInfo inputT42 && inputT42.Exists
-                            ? new T42(inputT42.FullName)
-                            : new T42(Console.OpenStandardInput());
-                        t42.OutputFormat = outputFormat;
-                        t42.LineCount = lineCount;
-                        t42.SetOutput(outputStream);
-                        foreach (var line in t42.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
-                        {
-                            byte[] dataToWrite = line.Data;
-                            if (outputFormat == Format.RCWT)
-                            {
-                                var (fts, fieldNumber) = GetRCWTState(line.LineTimecode, verbose);
-                                dataToWrite = line.ToRCWT(fts, fieldNumber, verbose);
-                            }
-                            if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
-                            {
-                                var blankData = new byte[dataToWrite.Length];
-                                t42.Output.Write(blankData, 0, blankData.Length);
-                            }
-                            else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
-                            {
-                                t42.Output.Write(dataToWrite, 0, dataToWrite.Length);
-                            }
-                        }
-                        return 0;
-
-                    case Format.TS:
-                        var ts = input is FileInfo inputTS && inputTS.Exists
-                            ? new TS(inputTS.FullName)
-                            : new TS(Console.OpenStandardInput());
-                        ts.OutputFormat = outputFormat;
-                        ts.Verbose = verbose;
-                        ts.SetOutput(outputStream);
-                        foreach (var packet in ts.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
-                        {
-                            foreach (var line in packet.Lines)
-                            {
-                                byte[] dataToWrite = line.Data;
-                                if (outputFormat == Format.RCWT)
-                                {
-                                    var (fts, fieldNumber) = GetRCWTState(line.LineTimecode, verbose);
-                                    dataToWrite = line.ToRCWT(fts, fieldNumber, verbose);
-                                }
-                                if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
-                                {
-                                    var blankData = new byte[dataToWrite.Length];
-                                    ts.Output.Write(blankData, 0, blankData.Length);
-                                }
-                                else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
-                                {
-                                    ts.Output.Write(dataToWrite, 0, dataToWrite.Length);
-                                }
-                            }
-                        }
-                        return 0;
-
-                    case Format.MXF:
-                        if (input == null || !input.Exists)
-                        {
-                            Console.Error.WriteLine("Error: Input file must be specified and exist for MXF format conversion.");
-                            return 1;
-                        }
-                        var mxf = new MXF(input.FullName)
-                        {
-                            OutputFormat = outputFormat,
-                            Verbose = verbose
-                        };
-                        mxf.SetOutput(outputStream);
-                        foreach (var packet in mxf.Parse(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows))
-                        {
-                            foreach (var line in packet.Lines.Where(l => l.Type != Format.Unknown))
-                            {
-                                byte[] dataToWrite = line.Data;
-                                if (outputFormat == Format.RCWT)
-                                {
-                                    var (fts, fieldNumber) = GetRCWTState(line.LineTimecode, verbose);
-                                    dataToWrite = line.ToRCWT(fts, fieldNumber, verbose);
-                                }
-                                if (keepBlanks && ((magazine.HasValue && line.Magazine != magazine.Value) || !rows.Contains(line.Row)))
-                                {
-                                    var blankData = new byte[dataToWrite.Length];
-                                    mxf.Output.Write(blankData, 0, blankData.Length);
-                                }
-                                else if (!keepBlanks || ((!magazine.HasValue || line.Magazine == magazine.Value) && rows.Contains(line.Row)))
-                                {
-                                    mxf.Output.Write(dataToWrite, 0, dataToWrite.Length);
-                                }
-                            }
-                        }
-                        return 0;
-
-                    default:
-                        Console.Error.WriteLine($"Error: Unsupported input format '{inputFormat}'.");
-                        return 1;
-                }
-            }
-            finally
-            {
-                // Only dispose if we created a FileStream (not Console output)
-                if (output != null)
-                {
-                    outputStream?.Dispose();
-                }
-            }
+            return 0;
         }
         catch (FileNotFoundException ex)
         {
@@ -899,6 +743,11 @@ public class Functions
         catch (ArgumentException ex)
         {
             Console.Error.WriteLine($"Error: Invalid argument: {ex.Message}");
+            return 1;
+        }
+        catch (NotSupportedException ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
             return 1;
         }
         catch (Exception ex)
@@ -922,175 +771,67 @@ public class Functions
     /// <param name="verbose">Whether to enable verbose output.</param>
     /// <param name="keepBlanks">Whether to keep blank lines in the output.</param>
     /// <param name="pids">Optional array of PIDs to filter by (TS format only)</param>
-    /// <param name="rawStl">Whether to use raw STL output (one subtitle per line, no merging)</param>
+    /// <param name="stlMerge">Whether to enable intelligent STL merging (combines word-by-word caption buildup into single subtitles)</param>
     /// <param name="cancellationToken">Cancellation token for operation cancellation</param>
     /// <returns>Exit code: 0 for success, 1 for failure, 130 for cancellation</returns>
-    public static async Task<int> ConvertAsync(FileInfo? input, Format inputFormat, Format outputFormat, FileInfo? output, int? magazine, int[] rows, int lineCount, bool verbose, bool keepBlanks = false, int[]? pids = null, bool rawStl = false, CancellationToken cancellationToken = default)
+    public static async Task<int> ConvertAsync(FileInfo? input, Format inputFormat, Format outputFormat, FileInfo? output, int? magazine, int[] rows, int lineCount, bool verbose, bool keepBlanks = false, int[]? pids = null, bool stlMerge = false, CancellationToken cancellationToken = default)
     {
         try
         {
-            // Validate output format - only data formats allowed
+            // Validate output format
             if (outputFormat != Format.VBI && outputFormat != Format.VBI_DOUBLE && outputFormat != Format.T42 && outputFormat != Format.RCWT && outputFormat != Format.STL)
             {
                 await Console.Error.WriteLineAsync($"Error: Unsupported output format '{outputFormat}'. Supported formats: VBI, VBI_DOUBLE, T42, RCWT, STL");
                 return 1;
             }
 
+            // MXF requires file input
+            if (inputFormat == Format.MXF && (input == null || !input.Exists))
+            {
+                await Console.Error.WriteLineAsync("Error: Input file must be specified and exist for MXF format conversion.");
+                return 1;
+            }
+
             if (verbose)
             {
                 if (input is { Exists: true })
-                {
                     Console.WriteLine($"   Input file: {input.FullName}");
-                }
                 else
-                {
                     Console.WriteLine("Reading from stdin");
-                }
                 Console.WriteLine($" Input format: {inputFormat}");
                 Console.WriteLine($"Output format: {outputFormat}");
                 if (output != null)
-                {
                     Console.WriteLine($"  Output file: {output.FullName}");
-                }
                 else
-                {
                     Console.WriteLine("Writing to stdout");
-                }
                 Console.WriteLine($"     Magazine: {magazine?.ToString() ?? "all"}");
                 Console.WriteLine($"         Rows: [{string.Join(", ", rows)}]");
                 Console.WriteLine($"   Line count: {lineCount}");
             }
 
-            // Set up output stream
-            Stream outputStream = output != null
-                ? new FileStream(output.FullName, FileMode.Create, FileAccess.Write, FileShare.None)
-                : Console.OpenStandardOutput();
+            // Use FormatIO for all formats
+            using var io = input is FileInfo inputFile && inputFile.Exists
+                ? FormatIO.Open(inputFile.FullName)
+                : FormatIO.OpenStdin(inputFormat);
 
-            try
-            {
-                // Reset state for new conversion session
-                if (outputFormat == Format.RCWT)
-                {
-                    if (verbose) Console.Error.WriteLine("DEBUG: Resetting RCWT state for new conversion session");
-                    ResetRCWTHeader();
-                }
-                else if (outputFormat == Format.STL)
-                {
-                    if (verbose) Console.Error.WriteLine("DEBUG: Resetting STL state for new conversion session");
-                    ResetSTLSubtitleNumber();
-                }
+            io.Filter(magazine, rows)
+              .WithLineCount(lineCount)
+              .ConvertTo(outputFormat)
+              .WithKeepBlanks(keepBlanks);
 
-                // Write headers for formats that require them
-                if (outputFormat == Format.RCWT || outputFormat == Format.STL)
-                {
-                    await WriteHeaderAsync(outputStream, outputFormat, cancellationToken);
-                }
+            // Configure PIDs for TS format
+            if (pids != null && pids.Length > 0)
+                io.WithPIDs(pids);
 
-                // Use intelligent STLExporter for STL output (unless --raw-stl is specified)
-                if (outputFormat == Format.STL && !rawStl)
-                {
-                    return await ConvertToSTLAsync(input, inputFormat, outputStream, magazine, rows, lineCount, verbose, keepBlanks, pids, cancellationToken);
-                }
+            // STL merging is opt-in via --stl-merge flag
+            bool useSTLMerging = outputFormat == Format.STL && stlMerge;
 
-                switch (inputFormat)
-                {
-                    case Format.ANC:
-                        var anc = input is { Exists: true } inputANC
-                            ? new ANC(inputANC.FullName)
-                            : new ANC(Console.OpenStandardInput());
-                        anc.OutputFormat = outputFormat;
-                        anc.SetOutput(outputStream);
-                        await foreach (var packet in anc.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken: cancellationToken))
-                        {
-                            foreach (var line in packet.Lines)
-                            {
-                                await WriteOutputAsync(line, anc.Output, outputFormat, magazine, rows, keepBlanks, verbose, cancellationToken);
-                            }
-                        }
-                        return 0;
+            if (output != null)
+                await io.SaveToAsync(output.FullName, useSTLMerging, cancellationToken);
+            else
+                await io.SaveToStdoutAsync(useSTLMerging, cancellationToken);
 
-                    case Format.VBI:
-                    case Format.VBI_DOUBLE:
-                        var vbi = input is { Exists: true } inputVBI
-                            ? new VBI(inputVBI.FullName, inputFormat)
-                            : new VBI(Console.OpenStandardInput(), inputFormat);
-                        vbi.OutputFormat = outputFormat;
-                        vbi.LineCount = lineCount;
-                        vbi.SetOutput(outputStream);
-                        await foreach (var line in vbi.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken))
-                        {
-                            await WriteOutputAsync(line, vbi.Output, outputFormat, magazine, rows, keepBlanks, verbose, cancellationToken);
-                        }
-                        return 0;
-
-                    case Format.T42:
-                        var t42 = input is { Exists: true } inputT42
-                            ? new T42(inputT42.FullName)
-                            : new T42(Console.OpenStandardInput());
-                        t42.OutputFormat = outputFormat;
-                        t42.LineCount = lineCount;
-                        t42.SetOutput(outputStream);
-                        await foreach (var line in t42.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken))
-                        {
-                            await WriteOutputAsync(line, t42.Output, outputFormat, magazine, rows, keepBlanks, verbose, cancellationToken);
-                        }
-                        return 0;
-
-                    case Format.TS:
-                        var ts = input is { Exists: true } inputTS
-                            ? new TS(inputTS.FullName)
-                            : new TS(Console.OpenStandardInput());
-                        ts.OutputFormat = outputFormat;
-                        ts.Verbose = verbose;
-                        if (pids != null)
-                            ts.PIDs = pids;
-                        ts.SetOutput(outputStream);
-                        await foreach (var packet in ts.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken: cancellationToken))
-                        {
-                            foreach (var line in packet.Lines)
-                            {
-                                await WriteOutputAsync(line, ts.Output, outputFormat, magazine, rows, keepBlanks, verbose, cancellationToken);
-                            }
-                        }
-                        return 0;
-
-                    case Format.MXF:
-                        if (input == null || !input.Exists)
-                        {
-                            await Console.Error.WriteLineAsync("Error: Input file must be specified and exist for MXF format conversion.");
-                            return 1;
-                        }
-                        var mxf = new MXF(input.FullName)
-                        {
-                            OutputFormat = outputFormat,
-                            Verbose = verbose
-                        };
-                        mxf.SetOutput(outputStream);
-                        await foreach (var packet in mxf.ParseAsync(magazine, keepBlanks ? Constants.DEFAULT_ROWS : rows, cancellationToken: cancellationToken))
-                        {
-                            foreach (var line in packet.Lines)
-                            {
-                                await WriteOutputAsync(line, mxf.Output, outputFormat, magazine, rows, keepBlanks, verbose, cancellationToken);
-                            }
-                        }
-                        return 0;
-
-                    case Format.RCWT: // Not supported as input format yet
-                    case Format.STL:  // Not supported as input format yet
-                    case Format.Unknown:
-                    default:
-                        await Console.Error.WriteLineAsync($"Error: Unsupported input format '{inputFormat}'.");
-                        return 1;
-                }
-            }
-            finally
-            {
-                // Only dispose if we created a FileStream (not Console output)
-                if (output != null)
-                {
-                    await outputStream.DisposeAsync();
-                }
-            }
+            return 0;
         }
         catch (OperationCanceledException)
         {
@@ -1115,6 +856,11 @@ public class Functions
         catch (ArgumentException ex)
         {
             await Console.Error.WriteLineAsync($"Error: Invalid argument: {ex.Message}");
+            return 1;
+        }
+        catch (NotSupportedException ex)
+        {
+            await Console.Error.WriteLineAsync($"Error: {ex.Message}");
             return 1;
         }
         catch (Exception ex)

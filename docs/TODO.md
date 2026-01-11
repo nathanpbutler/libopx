@@ -306,7 +306,7 @@ To avoid flooding NuGet with rapid incremental releases:
 - [x] Content-based tracking (handles row-shifting) ✅
 - [x] Text growth detection (word-by-word buildup) ✅
 - [x] Delayed clear mechanism (30 frames buffer) ✅
-- [x] `--raw-stl` CLI option for raw output ✅
+- [x] `--stl-merge` CLI option for intelligent merging (default is raw output) ✅
 - [x] 30 unit tests in STLExporterTests.cs ✅
 - [x] Functions.cs integration ✅
 - [x] CLI documentation updated ✅

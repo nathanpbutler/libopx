@@ -28,6 +28,13 @@ public sealed class FormatIO : IDisposable
     private FileInfo? _outputFile;
     private bool _disposed;
 
+    // Store original filter settings for keepBlanks checking
+    private int? _filterMagazine;
+    private int[]? _filterRows;
+
+    // Store input file path for MXF extension methods
+    private string? _inputFilePath;
+
     #endregion
 
     #region Constructor (Private)
@@ -74,7 +81,11 @@ public sealed class FormatIO : IDisposable
                 $"Supported extensions: .bin, .vbi, .vbid, .t42, .mxf, .ts, .rcwt, .stl");
 
         var stream = fileInfo.OpenRead();
-        return new FormatIO(stream, format, ownsStream: true);
+        var io = new FormatIO(stream, format, ownsStream: true)
+        {
+            _inputFilePath = fileInfo.FullName
+        };
+        return io;
     }
 
     /// <summary>
@@ -108,6 +119,23 @@ public sealed class FormatIO : IDisposable
 
         return new FormatIO(stream, format, ownsStream: false);
     }
+
+    #endregion
+
+    #region Public Accessors for Extension Methods
+
+    /// <summary>
+    /// Gets the input file path if FormatIO was opened from a file.
+    /// Returns null if opened from stdin or a stream.
+    /// </summary>
+    /// <returns>The full path to the input file, or null</returns>
+    public string? GetInputFilePath() => _inputFilePath;
+
+    /// <summary>
+    /// Gets the input format.
+    /// </summary>
+    /// <returns>The input format</returns>
+    public Format GetInputFormat() => _inputFormat;
 
     #endregion
 
@@ -160,6 +188,11 @@ public sealed class FormatIO : IDisposable
     {
         _options.Magazine = magazine;
         _options.Rows = rows?.Length > 0 ? rows : null;
+
+        // Store original filter settings for keepBlanks checking
+        _filterMagazine = magazine;
+        _filterRows = rows?.Length > 0 ? rows : null;
+
         return this;
     }
 
@@ -198,6 +231,19 @@ public sealed class FormatIO : IDisposable
     public FormatIO WithPIDs(params int[] pids)
     {
         _options.PIDs = pids?.Length > 0 ? pids : null;
+        return this;
+    }
+
+    /// <summary>
+    /// Configures whether to preserve blank bytes for filtered-out rows.
+    /// When enabled, filtered rows are replaced with blank bytes instead of being omitted,
+    /// preserving stream structure and byte alignment.
+    /// </summary>
+    /// <param name="keepBlanks">True to write blank bytes for filtered rows, false to omit them</param>
+    /// <returns>This FormatIO instance for method chaining</returns>
+    public FormatIO WithKeepBlanks(bool keepBlanks = true)
+    {
+        _options.KeepBlanks = keepBlanks;
         return this;
     }
 
@@ -491,13 +537,28 @@ public sealed class FormatIO : IDisposable
             return;
         }
 
-        // Standard output path
-        foreach (var packet in ParsePackets())
+        // When keepBlanks is true, parse all rows and filter during output
+        var originalRows = _options.Rows;
+        if (_options.KeepBlanks)
         {
-            foreach (var line in packet.Lines)
+            _options.Rows = Constants.DEFAULT_ROWS;
+        }
+
+        try
+        {
+            // Standard output path
+            foreach (var packet in ParsePackets())
             {
-                WriteLineToStream(line, outputStream, outputFormat);
+                foreach (var line in packet.Lines)
+                {
+                    WriteLineToStream(line, outputStream, outputFormat);
+                }
             }
+        }
+        finally
+        {
+            // Restore original rows
+            _options.Rows = originalRows;
         }
     }
 
@@ -525,13 +586,28 @@ public sealed class FormatIO : IDisposable
             return;
         }
 
-        // Standard output path
-        await foreach (var packet in ParsePacketsAsync(cancellationToken))
+        // When keepBlanks is true, parse all rows and filter during output
+        var originalRows = _options.Rows;
+        if (_options.KeepBlanks)
         {
-            foreach (var line in packet.Lines)
+            _options.Rows = Constants.DEFAULT_ROWS;
+        }
+
+        try
+        {
+            // Standard output path
+            await foreach (var packet in ParsePacketsAsync(cancellationToken))
             {
-                await WriteLineToStreamAsync(line, outputStream, outputFormat, cancellationToken);
+                foreach (var line in packet.Lines)
+                {
+                    await WriteLineToStreamAsync(line, outputStream, outputFormat, cancellationToken);
+                }
             }
+        }
+        finally
+        {
+            // Restore original rows
+            _options.Rows = originalRows;
         }
     }
 
@@ -540,16 +616,21 @@ public sealed class FormatIO : IDisposable
         if (line.Type == Format.Unknown)
             return;
 
-        byte[] dataToWrite = outputFormat switch
-        {
-            Format.RCWT => ConvertLineToRCWT(line),
-            Format.STL => ConvertLineToSTL(line),
-            _ => line.Data
-        };
+        byte[] dataToWrite = ConvertLineData(line, outputFormat);
 
         if (dataToWrite.Length > 0)
         {
-            outputStream.Write(dataToWrite, 0, dataToWrite.Length);
+            // Check if line matches filter when keepBlanks is enabled
+            if (_options.KeepBlanks && !LineMatchesFilter(line))
+            {
+                // Write blank bytes to preserve stream structure
+                var blankData = new byte[dataToWrite.Length];
+                outputStream.Write(blankData, 0, blankData.Length);
+            }
+            else
+            {
+                outputStream.Write(dataToWrite, 0, dataToWrite.Length);
+            }
         }
     }
 
@@ -559,17 +640,80 @@ public sealed class FormatIO : IDisposable
         if (line.Type == Format.Unknown)
             return;
 
-        byte[] dataToWrite = outputFormat switch
-        {
-            Format.RCWT => ConvertLineToRCWT(line),
-            Format.STL => ConvertLineToSTL(line),
-            _ => line.Data
-        };
+        byte[] dataToWrite = ConvertLineData(line, outputFormat);
 
         if (dataToWrite.Length > 0)
         {
-            await outputStream.WriteAsync(dataToWrite, cancellationToken);
+            // Check if line matches filter when keepBlanks is enabled
+            if (_options.KeepBlanks && !LineMatchesFilter(line))
+            {
+                // Write blank bytes to preserve stream structure
+                var blankData = new byte[dataToWrite.Length];
+                await outputStream.WriteAsync(blankData, cancellationToken);
+            }
+            else
+            {
+                await outputStream.WriteAsync(dataToWrite, cancellationToken);
+            }
         }
+    }
+
+    /// <summary>
+    /// Converts line data to the target output format.
+    /// Handles all supported format conversions (T42, VBI, VBI_DOUBLE, RCWT, STL).
+    /// </summary>
+    private byte[] ConvertLineData(Line line, Format outputFormat)
+    {
+        // Handle special formats first
+        if (outputFormat == Format.RCWT)
+            return ConvertLineToRCWT(line);
+        if (outputFormat == Format.STL)
+            return ConvertLineToSTL(line);
+
+        // Get the line's current format and data
+        var inputFormat = line.Type;
+        var data = line.Data;
+
+        // If formats match, no conversion needed
+        if (inputFormat == outputFormat)
+            return data;
+
+        // Convert to target format based on input format
+        return (inputFormat, outputFormat) switch
+        {
+            // T42 to VBI/VBI_DOUBLE
+            (Format.T42, Format.VBI) => Core.FormatConverter.T42ToVBI(data, Format.VBI),
+            (Format.T42, Format.VBI_DOUBLE) => Core.FormatConverter.T42ToVBI(data, Format.VBI_DOUBLE),
+
+            // VBI to other formats
+            (Format.VBI, Format.T42) => Core.FormatConverter.VBIToT42(data),
+            (Format.VBI, Format.VBI_DOUBLE) => Core.FormatConverter.VBIToVBIDouble(data),
+
+            // VBI_DOUBLE to other formats
+            (Format.VBI_DOUBLE, Format.T42) => Core.FormatConverter.VBIToT42(data),
+            (Format.VBI_DOUBLE, Format.VBI) => Core.FormatConverter.VBIDoubleToVBI(data),
+
+            // Default: return data as-is (may happen for same format or unsupported conversion)
+            _ => data
+        };
+    }
+
+    /// <summary>
+    /// Checks if a line matches the original filter settings (magazine and rows).
+    /// Used by keepBlanks logic to determine whether to write actual data or blank bytes.
+    /// </summary>
+    private bool LineMatchesFilter(Line line)
+    {
+        // Check magazine filter
+        if (_filterMagazine.HasValue && line.Magazine != _filterMagazine.Value)
+            return false;
+
+        // Check rows filter (use DEFAULT_ROWS if no filter was set)
+        var rows = _filterRows ?? Constants.DEFAULT_ROWS;
+        if (!rows.Contains(line.Row))
+            return false;
+
+        return true;
     }
 
     private byte[] ConvertLineToRCWT(Line line)
@@ -588,7 +732,11 @@ public sealed class FormatIO : IDisposable
 
     private byte[] ConvertLineToSTL(Line line)
     {
-        // Skip empty lines
+        // Skip row 0 (page header) - never contains subtitle content
+        if (line.Row == 0)
+            return Array.Empty<byte>();
+
+        // Skip empty lines (spaces and control codes only)
         if (IsSTLLineEmpty(line))
             return Array.Empty<byte>();
 
@@ -609,7 +757,6 @@ public sealed class FormatIO : IDisposable
     private static bool IsSTLLineEmpty(Line line)
     {
         // Check if line contains only spaces or is effectively empty
-        // Reuse logic from Functions.IsSTLLineEmpty if available
         byte[] t42Data = line.Type == Format.T42 && line.Data.Length >= Constants.T42_LINE_SIZE
             ? line.Data.Take(Constants.T42_LINE_SIZE).ToArray()
             : line.Type == Format.VBI || line.Type == Format.VBI_DOUBLE
@@ -619,8 +766,9 @@ public sealed class FormatIO : IDisposable
         // Extract text data (skip first 2 bytes for mag/row)
         var textBytes = t42Data.Skip(2).Take(40).ToArray();
 
-        // Check if all bytes are spaces (0x20) or control codes
-        return textBytes.All(b => b == 0x20 || b < 0x20);
+        // Check if all bytes are spaces (0x20) or control codes (< 0x20)
+        // Strip parity bit (0x7F mask) since T42 data includes odd parity on MSB
+        return textBytes.All(b => (b & 0x7F) == 0x20 || (b & 0x7F) < 0x20);
     }
 
     private void WriteSTLHeader(Stream outputStream)

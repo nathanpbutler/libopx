@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>nathanbutlerDEV.libopx</RootNamespace>
-    <Version>2.3.0</Version>
+    <Version>2.4.0</Version>
 
     <!-- Package Information -->
     <PackageId>libopx</PackageId>

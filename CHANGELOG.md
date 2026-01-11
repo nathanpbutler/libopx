@@ -56,6 +56,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+* **CLI `--raw-stl` renamed to `--stl-merge`** - Flipped STL export default behavior:
+  * **Default**: Raw STL output (one subtitle per caption line, frame-accurate timing)
+  * **`--stl-merge`**: Opt-in intelligent merging (combines word-by-word caption buildup into single subtitles)
+  * This change aligns with future STL options like `--stl-merge-rows` for cross-row merging
+
 * **Functions.Filter() and Functions.FilterAsync() migrated to FormatIO**:
   * Filter() reduced from 120 lines to 60 lines (50% reduction)
   * FilterAsync() reduced from 140 lines to 75 lines (46% reduction)
@@ -88,6 +93,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * `Functions.cs` updated to use FormatConverter for VBI-to-T42 conversion (line 1486)
 
 ### Fixed
+
+* **STL output now skips row 0 and empty lines** - Two fixes for cleaner STL output:
+  * Row 0 (page header) is now automatically skipped - it contains station name/time, never subtitle content
+  * Fixed `IsSTLLineEmpty` to strip parity bit (0x7F mask) before checking for spaces and control codes - T42 data includes odd parity on the MSB, so spaces appear as `0xA0` not `0x20`
 
 * **Eliminated duplicate method implementations**:
   * Consolidated two identical `EncodeTimecodeToSTL()` implementations (Line.cs and STLExporter.cs) into single FormatConverter method

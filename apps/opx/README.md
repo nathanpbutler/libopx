@@ -97,7 +97,7 @@ opx convert [options] <input-file?>
 - `-c, --caps`: Use caption rows (1-24) instead of default rows (0-31)
 - `--pid`: Specify MPEG-TS PID(s) to extract (comma-separated, e.g., 70 or 70,71). Only applies to TS format.
 - `--keep`: Write blank bytes if rows or magazine doesn't match
-- `--raw-stl`: Output raw STL (no intelligent merging). By default, STL output from MXF, ANC, TS uses intelligent merging that combines word-by-word caption buildup into single subtitles with proper timing.
+- `--stl-merge`: Enable intelligent STL merging (combines word-by-word caption buildup into single subtitles with proper timing). By default, STL output preserves raw timing with one subtitle per caption line.
 - `-V, --verbose`: Enable verbose output
 
 **Examples:**
@@ -144,15 +144,15 @@ opx convert --pid 70,71 -c input.ts output.vbi
 # Convert TS to STL subtitle format
 opx convert --pid 70 -m 8 -c input.ts output.stl
 
-# Convert MXF/TS to STL with intelligent merging (default)
-# Captions that build word-by-word are merged into single subtitles
+# Convert MXF/TS to STL with raw output (default, one subtitle per caption line)
+# Preserves frame-accurate timing without merging
 opx convert -c input.mxf output.stl
 opx convert -c input.ts output.stl
 
-# Convert to STL with raw output (one subtitle per caption line)
-# Use when you need frame-accurate timing without merging
-opx convert -c --raw-stl input.mxf output.stl
-opx convert -c --raw-stl input.ts output.stl
+# Convert to STL with intelligent merging
+# Use when captions build word-by-word and should be merged into single subtitles
+opx convert -c --stl-merge input.mxf output.stl
+opx convert -c --stl-merge input.ts output.stl
 ```
 
 ### extract - Extract/demux streams from MXF files
