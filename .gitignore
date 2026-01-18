@@ -430,7 +430,12 @@ samples/
 *.rcwt
 
 # Claude Code specific files
-.claude/
+# Ignore Claude Code local/personal data
+.claude/projects/
+.claude/settings.local.json
+.claude/statsig/
+.claude/credentials/
+!.claude/settings.json
 
 # JetBrains Rider
 .idea/
