@@ -182,25 +182,50 @@ public class Constants
     /// </summary>
     public const byte T42_BLOCK_START_BYTE = 0x0B;
     /// <summary>
-    /// Background control character code for T42 teletext display.
+    /// Background control character code for T42 teletext display (New Background - 0x1D).
+    /// Sets background color to current foreground color.
     /// </summary>
-    public const byte T42_BACKGROUND_CONTROL = 29;
+    public const byte T42_BACKGROUND_CONTROL = 0x1D;
     /// <summary>
-    /// Normal height control character code for T42 teletext display.
+    /// Black background control character code for T42 teletext display (0x1C).
+    /// Resets background to black.
     /// </summary>
-    public const byte T42_NORMAL_HEIGHT = 10;
+    public const byte T42_BLACK_BACKGROUND = 0x1C;
+    /// <summary>
+    /// Normal height control character code for T42 teletext display (End Box - 0x0A).
+    /// </summary>
+    public const byte T42_NORMAL_HEIGHT = 0x0A;
+    /// <summary>
+    /// Graphics foreground color range start (0x10).
+    /// </summary>
+    public const byte T42_GRAPHICS_COLOR_START = 0x10;
+    /// <summary>
+    /// Graphics foreground color range end (0x17).
+    /// </summary>
+    public const byte T42_GRAPHICS_COLOR_END = 0x17;
     /// <summary>
     /// ANSI escape sequence for resetting terminal formatting.
     /// </summary>
     public const string T42_ANSI_RESET = "\x1b[0m";
     /// <summary>
-    /// ANSI escape sequence for default T42 colors (white foreground, black background).
+    /// Teletext 3-bit colors mapped to ANSI 256-color palette for terminal-theme-independent display.
+    /// Index: 0=Black, 1=Red, 2=Green, 3=Yellow, 4=Blue, 5=Magenta, 6=Cyan, 7=White
+    /// These explicit color codes ensure consistent display regardless of terminal color scheme.
     /// </summary>
-    public const string T42_DEFAULT_COLORS = "\x1b[37m\x1b[40m";
+    public static readonly int[] T42_ANSI_256_COLORS = [16, 196, 46, 226, 21, 201, 51, 231];
     /// <summary>
-    /// Pre-formatted blank line with default T42 colors and spacing.
+    /// ANSI escape sequence for default T42 colors using 256-color palette (white foreground, black background).
+    /// Uses explicit 256-color codes to ensure colors are not affected by terminal themes.
     /// </summary>
-    public const string T42_BLANK_LINE = "\x1b[37m\x1b[40m                                        \x1b[0m";
+    public const string T42_DEFAULT_COLORS = "\x1b[38;5;231m\x1b[48;5;16m";
+    /// <summary>
+    /// Pre-formatted blank line with default T42 colors and spacing (40 characters).
+    /// </summary>
+    public const string T42_BLANK_LINE = "\x1b[38;5;231m\x1b[48;5;16m                                        \x1b[0m";
+    /// <summary>
+    /// Display width for teletext content (40 characters per line).
+    /// </summary>
+    public const int T42_DISPLAY_WIDTH = 40;
     #endregion
 
     #region TS Constants

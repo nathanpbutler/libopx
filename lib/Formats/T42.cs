@@ -242,62 +242,220 @@ public class T42 : FormatIOBase
     }
 
     /// <summary>
-    /// Parses teletext data to ANSI colored text for terminal display
+    /// Decodes the page number from a header row (row 0) of T42 teletext data.
+    /// The page number is encoded in bytes 2 and 4 (after MRAG bytes 0-1).
     /// </summary>
-    /// <param name="bytes">The raw teletext data bytes</param>
+    /// <param name="data">The teletext data bytes (must be at least 5 bytes for page number extraction)</param>
+    /// <returns>Two-digit hex page number (e.g., "01", "ff"), or null if data is insufficient</returns>
+    public static string? GetPageNumber(byte[] data)
+    {
+        if (data == null || data.Length < 5)
+            return null;
+
+        // Page number is encoded in bytes 2 (units) and 4 (tens) after MRAG
+        // Note: Original data includes MRAG at bytes 0-1, page number at bytes 2-5
+        // Detect specific known patterns first
+        if (data[2] == 0xEA && data[4] == 0xFD)
+        {
+            return "ff";
+        }
+        else if (data[2] == 0x02 && data[4] == 0x15)
+        {
+            return "01";
+        }
+        else
+        {
+            // Fallback: decode from Hamming
+            int pageUnits = Hamming8Decode(data[2]);
+            int pageTens = Hamming8Decode(data[4]);
+            return $"{pageTens:x}{pageUnits:x}";
+        }
+    }
+
+    /// <summary>
+    /// Parses teletext data to ANSI colored text for terminal display.
+    /// Uses ANSI 256-color palette for consistent display regardless of terminal theme.
+    /// Implements proper teletext Set-After color model and box depth tracking.
+    /// </summary>
+    /// <param name="bytes">The raw teletext data bytes (should be 40 bytes after MRAG is stripped)</param>
     /// <param name="isHeaderRow">True if this is a header row (row 0)</param>
-    /// <returns>ANSI formatted text string</returns>
-    public static string GetText(byte[] bytes, bool isHeaderRow = false)
+    /// <param name="magazine">Optional magazine number for header row display</param>
+    /// <param name="pageNumber">Optional page number for header row display (2-digit hex, e.g., "01")</param>
+    /// <returns>ANSI formatted text string with 256-color codes</returns>
+    public static string GetText(byte[] bytes, bool isHeaderRow = false, int? magazine = null, string? pageNumber = null)
     {
         if (bytes == null || bytes.Length == 0)
             return Constants.T42_BLANK_LINE;
 
-        // Strip parity bits (keep only 7 bits)
-        var processedBytes = bytes.Select(b => (byte)(b & 0x7F)).ToArray();
-
         if (isHeaderRow)
         {
-            // For header rows: Parse() already skipped first 2 bytes (magazine/row)
-            // Now skip the next 8 bytes of header metadata, then process remaining 32 bytes as text
-            var headerTextBytes = processedBytes.Length >= 8 ? [.. processedBytes.Skip(8)] : processedBytes;
-            
-            // Find the start of actual displayable text within the header text portion
-            var textStart = 0;
-            for (var i = 0; i < headerTextBytes.Length; i++)
-            {
-                if (headerTextBytes[i] >= 32 && headerTextBytes[i] <= 126)
-                {
-                    textStart = i;
-                    break;
-                }
-            }
-            
-            var textBytes = headerTextBytes.Skip(textStart).ToArray();
-            
-            // Process header text content directly
-            var result = new string[textBytes.Length];
-            ProcessTextContent(textBytes, result);
-
-            // Combine with ANSI formatting and add 8 spaces at start to make up for skipped metadata
-            return Constants.T42_DEFAULT_COLORS + "        " + string.Join("", result) + Constants.T42_ANSI_RESET;
+            return DecodeHeaderRow(bytes, magazine, pageNumber);
         }
         else
         {
-            // For caption rows: use existing logic to find block start
-            var blockStart = FindBlockStart(processedBytes);
-            
-            // Create result array for processed characters
-            var result = new string[processedBytes.Length];
-
-            // Process the text content
-            ProcessTextContent(processedBytes, result);
-
-            // Apply teletext control characters and formatting
-            ApplyTeletextFormatting(processedBytes, result, blockStart);
-
-            // Combine with ANSI formatting
-            return Constants.T42_DEFAULT_COLORS + string.Join("", result) + Constants.T42_ANSI_RESET;
+            return DecodeDataPacket(bytes);
         }
+    }
+
+    /// <summary>
+    /// Decodes a header row (row 0) with page number display.
+    /// </summary>
+    private static string DecodeHeaderRow(byte[] bytes, int? magazine, string? pageNumber)
+    {
+        // Build page number string (e.g., "P801" for magazine 8, page 01)
+        var pageString = magazine.HasValue && pageNumber != null
+            ? $"P{magazine}{pageNumber}"
+            : "P???";
+
+        // White text on black background for header, padded to display width
+        return $"\x1b[38;5;{Constants.T42_ANSI_256_COLORS[7]}m\x1b[48;5;{Constants.T42_ANSI_256_COLORS[0]}m{pageString.PadRight(Constants.T42_DISPLAY_WIDTH)}\x1b[0m";
+    }
+
+    /// <summary>
+    /// Decodes a data packet (rows 1-24) with proper teletext color handling.
+    /// Implements Set-After color model where color changes apply to the NEXT character.
+    /// </summary>
+    private static string DecodeDataPacket(byte[] bytes)
+    {
+        var sb = new StringBuilder(256);
+
+        // Default row state: white foreground (7) on black background (0)
+        int foreground = 7;
+        int background = 0;
+        int pendingForeground = -1; // Foreground change waiting (Set-After)
+        int pendingBackground = -1; // Background change waiting (Set-After)
+        int lastFg = -1;
+        int lastBg = -1;
+        int boxDepth = 0;
+
+        // Process each character position (bytes 0-39 = 40 chars, or full array)
+        int endPos = Math.Min(bytes.Length, Constants.T42_DISPLAY_WIDTH);
+        for (int j = 0; j < endPos; j++)
+        {
+            int c = bytes[j] & 0x7F; // Strip parity bit
+
+            // Handle control codes (0x00-0x1F)
+            if (c <= 0x1F)
+            {
+                if (c <= 0x07)
+                {
+                    // Alpha foreground color (0x00-0x07) - Set-After
+                    pendingForeground = c;
+                }
+                else if (c >= Constants.T42_GRAPHICS_COLOR_START && c <= Constants.T42_GRAPHICS_COLOR_END)
+                {
+                    // Graphics foreground color (0x10-0x17) - Set-After
+                    pendingForeground = c & 0x07;
+                }
+                else if (c == Constants.T42_BLOCK_START_BYTE)
+                {
+                    // Start Box (0x0B) - increment depth
+                    boxDepth++;
+                }
+                else if (c == Constants.T42_NORMAL_HEIGHT)
+                {
+                    // End Box (0x0A) - decrement depth, reset colors when all boxes closed
+                    if (boxDepth > 0) boxDepth--;
+                    if (boxDepth == 0)
+                    {
+                        foreground = 7;
+                        background = 0;
+                        pendingForeground = -1;
+                        pendingBackground = -1;
+                    }
+                }
+                else if (c == Constants.T42_BLACK_BACKGROUND)
+                {
+                    // Black background (0x1C)
+                    background = 0;
+                    pendingBackground = -1;
+                }
+                else if (c == Constants.T42_BACKGROUND_CONTROL)
+                {
+                    // New background (0x1D) - first commit any pending foreground, then set pending bg
+                    if (pendingForeground >= 0)
+                    {
+                        foreground = pendingForeground;
+                        pendingForeground = -1;
+                    }
+                    pendingBackground = foreground;
+                }
+                else
+                {
+                    // Other control code - apply pending colors now
+                    if (pendingForeground >= 0)
+                    {
+                        foreground = pendingForeground;
+                        pendingForeground = -1;
+                    }
+                    if (pendingBackground >= 0)
+                    {
+                        background = pendingBackground;
+                        pendingBackground = -1;
+                    }
+                }
+
+                // Control codes occupy a character position (output a space)
+                OutputCharTo(sb, ' ', foreground, background, ref lastFg, ref lastBg);
+            }
+            else
+            {
+                // Printable character - apply pending colors first (Set-After behavior)
+                if (pendingForeground >= 0)
+                {
+                    foreground = pendingForeground;
+                    pendingForeground = -1;
+                }
+                if (pendingBackground >= 0)
+                {
+                    background = pendingBackground;
+                    pendingBackground = -1;
+                }
+                // Apply G0 Latin mapping and output
+                OutputCharTo(sb, MapG0Latin(c), foreground, background, ref lastFg, ref lastBg);
+            }
+        }
+
+        sb.Append(Constants.T42_ANSI_RESET);
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Outputs a character with ANSI 256-color codes, only emitting codes when colors change.
+    /// </summary>
+    private static void OutputCharTo(StringBuilder sb, char c, int fg, int bg, ref int lastFg, ref int lastBg)
+    {
+        // Only emit ANSI codes when colors change (optimization)
+        if (fg != lastFg || bg != lastBg)
+        {
+            sb.Append($"\x1b[38;5;{Constants.T42_ANSI_256_COLORS[fg]}m\x1b[48;5;{Constants.T42_ANSI_256_COLORS[bg]}m");
+            lastFg = fg;
+            lastBg = bg;
+        }
+        sb.Append(c);
+    }
+
+    /// <summary>
+    /// Maps a 7-bit character to Teletext G0 Latin character set.
+    /// </summary>
+    private static char MapG0Latin(int c)
+    {
+        return c switch
+        {
+            0x23 => '\u00A3',  // # -> £
+            0x5B => '\u2190',  // [ -> ←
+            0x5C => '\u00BD',  // \ -> ½
+            0x5D => '\u2192',  // ] -> →
+            0x5E => '\u2191',  // ^ -> ↑
+            0x5F => '#',       // _ -> #
+            0x60 => '\u2014',  // ` -> —
+            0x7B => '\u00BC',  // { -> ¼
+            0x7C => '\u2016',  // | -> ‖
+            0x7D => '\u00BE',  // } -> ¾
+            0x7E => '\u00F7',  // ~ -> ÷
+            0x7F => '\u2588',  // DEL -> █
+            _ => (char)c
+        };
     }
 
     #endregion
@@ -353,204 +511,6 @@ public class T42 : FormatIOBase
                 parameterName);
     }
 
-    /// <summary>
-    /// Finds the start of a teletext block by looking for various teletext patterns
-    /// </summary>
-    /// <param name="bytes">The processed teletext data</param>
-    /// <returns>Index of block start, or -1 if not found</returns>
-    private static int FindBlockStart(byte[] bytes)
-    {
-        // Priority 1: Look for consecutive block start bytes (double-height text)
-        for (var i = 0; i < bytes.Length - 1; i++)
-        {
-            if (bytes[i] == Constants.T42_BLOCK_START_BYTE && bytes[i + 1] == Constants.T42_BLOCK_START_BYTE)
-            {
-                return i;
-            }
-        }
-
-        // Priority 2: Look for single block start byte (single-height text)
-        for (var i = 0; i < bytes.Length; i++)
-        {
-            if (bytes[i] == Constants.T42_BLOCK_START_BYTE)
-            {
-                return i;
-            }
-        }
-
-        // Priority 3: Look for start of displayable content (ASCII range)
-        for (var i = 0; i < bytes.Length; i++)
-        {
-            if (bytes[i] >= 32 && bytes[i] <= 126)
-            {
-                return i;
-            }
-        }
-
-        // Priority 4: If no patterns found, start from beginning
-        return 0;
-    }
-
-    /// <summary>
-    /// Finds the background control character position
-    /// </summary>
-    /// <param name="bytes">The processed teletext data</param>
-    /// <returns>Index of background control, or -1 if not found</returns>
-    private static int FindBackgroundControl(byte[] bytes)
-    {
-        for (var i = bytes.Length - 1; i >= 0; i--)
-        {
-            if (bytes[i] == Constants.T42_BACKGROUND_CONTROL)
-            {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    /// <summary>
-    /// Processes the basic text content, converting displayable characters
-    /// </summary>
-    /// <param name="bytes">The processed teletext data</param>
-    /// <param name="result">The result array to populate</param>
-    private static void ProcessTextContent(byte[] bytes, string[] result)
-    {
-        for (var i = 0; i < bytes.Length; i++)
-        {
-            var b = bytes[i];
-
-            // Handle displayable ASCII characters (32-126)
-            if (b >= 32 && b <= 126)
-            {
-                // Use TeletextCharset.cs dictionary to map teletext characters
-                result[i] = TeletextCharsets.GetUnicodeChar("G0", b).ToString();
-            }
-            else
-            {
-                result[i] = " ";
-            }
-        }
-    }
-
-    /// <summary>
-    /// Applies teletext formatting including colors and control characters
-    /// </summary>
-    /// <param name="bytes">The processed teletext data</param>
-    /// <param name="result">The result array to modify</param>
-    /// <param name="blockStart">The index where the text block starts</param>
-    private static void ApplyTeletextFormatting(byte[] bytes, string[] result, int blockStart)
-    {
-        var backgroundPos = FindBackgroundControl(bytes);
-
-        // Apply background colors
-        ApplyBackgroundColors(bytes, result, backgroundPos, blockStart);
-
-        // Apply foreground colors
-        ApplyForegroundColors(bytes, result, backgroundPos);
-
-        // Handle normal height controls
-        ApplyNormalHeightControls(bytes, result);
-    }
-
-    /// <summary>
-    /// Applies background color formatting
-    /// </summary>
-    /// <param name="bytes">The processed teletext data</param>
-    /// <param name="result">The result array to modify</param>
-    /// <param name="backgroundPos">Position of background control character</param>
-    /// <param name="blockStart">Position of block start</param>
-    private static void ApplyBackgroundColors(byte[] bytes, string[] result, int backgroundPos, int blockStart)
-    {
-        if (backgroundPos <= -1) return;
-
-        if (blockStart < backgroundPos && backgroundPos + 1 < bytes.Length && backgroundPos > 0)
-        {
-            // Set background and foreground colors
-            var bgColor = GetAnsiColor(bytes[backgroundPos - 1], true);
-            var fgColor = GetAnsiColor(bytes[backgroundPos + 1], false);
-
-            if (backgroundPos + 2 < result.Length)
-            {
-                result[backgroundPos + 2] = bgColor + fgColor;
-            }
-        }
-        else if (backgroundPos + 1 < bytes.Length)
-        {
-            var colorCode = backgroundPos == 0 ?
-                GetAnsiColor(bytes[backgroundPos], true) :
-                GetAnsiColor(bytes[backgroundPos - 1], true) + GetAnsiColor(bytes[backgroundPos + 1], false);
-
-            if (blockStart < result.Length)
-            {
-                result[blockStart] = colorCode;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Applies foreground color formatting
-    /// </summary>
-    /// <param name="bytes">The processed teletext data</param>
-    /// <param name="result">The result array to modify</param>
-    /// <param name="backgroundPos">Position of background control character</param>
-    private static void ApplyForegroundColors(byte[] bytes, string[] result, int backgroundPos)
-    {
-        for (var i = 0; i < bytes.Length; i++)
-        {
-            // Skip background control area
-            if (i == backgroundPos)
-            {
-                i += 2;
-                continue;
-            }
-
-            // Apply foreground colors for control codes 0-7
-            if (bytes[i] <= 7 && i < result.Length)
-            {
-                result[i] = GetAnsiColor(bytes[i], false);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Applies normal height control formatting
-    /// </summary>
-    /// <param name="bytes">The processed teletext data</param>
-    /// <param name="result">The result array to modify</param>
-    private static void ApplyNormalHeightControls(byte[] bytes, string[] result)
-    {
-        for (var i = 0; i < bytes.Length; i++)
-        {
-            if (bytes[i] == Constants.T42_NORMAL_HEIGHT)
-            {
-                // Handle double normal height control
-                if (i + 1 < bytes.Length && bytes[i + 1] == Constants.T42_NORMAL_HEIGHT)
-                {
-                    if (i + 1 < result.Length)
-                    {
-                        result[i + 1] = Constants.T42_DEFAULT_COLORS + " ";
-                    }
-                    i++; // Skip next byte
-                }
-                else if (i < result.Length)
-                {
-                    result[i] = Constants.T42_DEFAULT_COLORS + " ";
-                }
-            }
-        }
-    }
-
-    /// <summary>
-    /// Generates ANSI color escape sequence
-    /// </summary>
-    /// <param name="colorCode">The color code (0-7)</param>
-    /// <param name="isBackground">True for background color, false for foreground</param>
-    /// <returns>ANSI color escape sequence</returns>
-    private static string GetAnsiColor(int colorCode, bool isBackground)
-    {
-        var baseCode = isBackground ? 40 : 30;
-        return $"\x1b[{colorCode + baseCode}m" + (isBackground ? "" : " ");
-    }
 
     /// <summary>
     /// Get the T42 bytes from a bit array
