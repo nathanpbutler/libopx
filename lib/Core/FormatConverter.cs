@@ -14,6 +14,8 @@ public static class FormatConverter
 
     /// <summary>
     /// Converts VBI or VBI_DOUBLE format data to T42 teletext format.
+    /// For VBID (1440-byte) input, halves first then doubles to ensure consistent
+    /// processing through the standard VBI decode pipeline.
     /// </summary>
     /// <param name="lineData">VBI line data (must be 720 or 1440 bytes)</param>
     /// <param name="debug">Enable debug output during conversion</param>
@@ -25,8 +27,13 @@ public static class FormatConverter
         {
             throw new ArgumentException($"Line data must be {Constants.VBI_LINE_SIZE} or {Constants.VBI_DOUBLE_LINE_SIZE} bytes long.");
         }
-        // Double the line data
-        var newLine = lineData.Length == Constants.VBI_DOUBLE_LINE_SIZE ? lineData : Functions.Double(lineData);
+        // For VBID input (1440 bytes), halve to 720 bytes first to normalize
+        // This ensures both VBI and VBID go through the same interpolation pipeline
+        var vbiData = lineData.Length == Constants.VBI_DOUBLE_LINE_SIZE
+            ? Functions.Halve(lineData)
+            : lineData;
+        // Double the line data (720 -> 1440)
+        var newLine = Functions.Double(vbiData);
 
         // Normalise the line data
         var normalised = Functions.Normalise(newLine);
