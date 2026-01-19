@@ -298,17 +298,53 @@ public class T42 : FormatIOBase
     }
 
     /// <summary>
-    /// Decodes a header row (row 0) with page number display.
+    /// Decodes a header row (row 0) with page number and header text display.
+    /// Header format: bytes 0-7 are metadata (page number extracted separately),
+    /// bytes 8-39 are the displayable header text (32 characters).
     /// </summary>
     private static string DecodeHeaderRow(byte[] bytes, int? magazine, string? pageNumber)
     {
+        var sb = new StringBuilder(256);
+
         // Build page number string (e.g., "P801" for magazine 8, page 01)
         var pageString = magazine.HasValue && pageNumber != null
             ? $"P{magazine}{pageNumber}"
             : "P???";
 
-        // White text on black background for header, padded to display width
-        return $"\x1b[38;5;{Constants.T42_ANSI_256_COLORS[7]}m\x1b[48;5;{Constants.T42_ANSI_256_COLORS[0]}m{pageString.PadRight(Constants.T42_DISPLAY_WIDTH)}\x1b[0m";
+        // Start with default colors (white on black)
+        sb.Append($"\x1b[38;5;{Constants.T42_ANSI_256_COLORS[7]}m\x1b[48;5;{Constants.T42_ANSI_256_COLORS[0]}m");
+
+        // Output page number padded to 8 characters (replacing metadata bytes 0-7)
+        sb.Append(pageString.PadRight(8));
+
+        // Decode the header text content (bytes 8-39, or whatever is available)
+        int headerTextStart = 8;
+        int headerTextEnd = Math.Min(bytes.Length, Constants.T42_DISPLAY_WIDTH);
+
+        for (int j = headerTextStart; j < headerTextEnd; j++)
+        {
+            int c = bytes[j] & 0x7F; // Strip parity bit
+
+            // For header text, just map printable characters (simpler than data packets)
+            if (c >= 0x20 && c <= 0x7F)
+            {
+                sb.Append(MapG0Latin(c));
+            }
+            else
+            {
+                sb.Append(' ');
+            }
+        }
+
+        // Pad to full display width if needed
+        int currentLength = 8 + (headerTextEnd - headerTextStart);
+        if (currentLength < Constants.T42_DISPLAY_WIDTH)
+        {
+            sb.Append(new string(' ', Constants.T42_DISPLAY_WIDTH - currentLength));
+        }
+
+        sb.Append(Constants.T42_ANSI_RESET);
+        return sb.ToString();
     }
 
     /// <summary>
