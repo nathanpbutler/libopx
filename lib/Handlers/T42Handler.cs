@@ -78,7 +78,9 @@ public class T42Handler : ILineFormatHandler
             {
                 line.Magazine = T42.GetMagazine(t42Buffer[0]);
                 line.Row = T42.GetRow([.. t42Buffer.Take(2)]);
-                line.Text = T42.GetText([.. t42Buffer.Skip(2)], line.Row == 0);
+                // For header rows (row 0), extract and display page number
+                var pageNumber = line.Row == 0 ? T42.GetPageNumber(t42Buffer) : null;
+                line.Text = T42.GetText([.. t42Buffer.Skip(2)], line.Row == 0, line.Magazine, pageNumber);
             }
             else
             {
@@ -195,7 +197,9 @@ public class T42Handler : ILineFormatHandler
                 {
                     line.Magazine = T42.GetMagazine(line.Data[0]);
                     line.Row = T42.GetRow([.. line.Data.Take(2)]);
-                    line.Text = T42.GetText([.. line.Data.Skip(2)], line.Row == 0);
+                    // For header rows (row 0), extract and display page number
+                    var pageNumber = line.Row == 0 ? T42.GetPageNumber(line.Data) : null;
+                    line.Text = T42.GetText([.. line.Data.Skip(2)], line.Row == 0, line.Magazine, pageNumber);
                 }
                 else
                 {

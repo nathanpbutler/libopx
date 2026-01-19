@@ -474,7 +474,9 @@ public class Line : IDisposable
                 {
                     Magazine = T42.GetMagazine(Data[0]);
                     Row = T42.GetRow([.. Data.Take(2)]);
-                    Text = T42.GetText([.. Data.Skip(2)], Row == 0);
+                    // For header rows (row 0), extract and display page number
+                    var pageNumber = Row == 0 ? T42.GetPageNumber(Data) : null;
+                    Text = T42.GetText([.. Data.Skip(2)], Row == 0, Magazine, pageNumber);
                 }
                 else
                 {

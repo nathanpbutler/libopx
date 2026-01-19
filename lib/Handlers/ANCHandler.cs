@@ -35,7 +35,8 @@ public class ANCHandler : IPacketFormatHandler
 
         // Use default rows if not specified
         var rows = options.Rows ?? Constants.DEFAULT_ROWS;
-        var outputFormat = options.OutputFormat;
+        // ANC is a container format; default to T42 for line parsing since ANC data contains T42
+        var outputFormat = options.OutputFormat == Format.ANC ? Format.T42 : options.OutputFormat;
         var lineNumber = 0;
         var timecode = options.StartTimecode ?? new Timecode(0);
 
@@ -100,7 +101,8 @@ public class ANCHandler : IPacketFormatHandler
         ArgumentNullException.ThrowIfNull(options);
 
         var rows = options.Rows ?? Constants.DEFAULT_ROWS;
-        var outputFormat = options.OutputFormat;
+        // ANC is a container format; default to T42 for line parsing since ANC data contains T42
+        var outputFormat = options.OutputFormat == Format.ANC ? Format.T42 : options.OutputFormat;
         int lineNumber = 0;
         var timecode = options.StartTimecode ?? new Timecode(0);
 

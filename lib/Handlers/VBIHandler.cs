@@ -91,6 +91,9 @@ public class VBIHandler : ILineFormatHandler
             }
 
             // Create Line object with T42 metadata
+            var magazine = T42.GetMagazine(t42Data[0]);
+            var row = T42.GetRow([.. t42Data.Take(2)]);
+            var pageNumber = row == 0 ? T42.GetPageNumber(t42Data) : null;
             var line = new Line()
             {
                 LineNumber = lineNumber,
@@ -99,9 +102,9 @@ public class VBIHandler : ILineFormatHandler
                 SampleCoding = 0x31,
                 SampleCount = t42Data.Length,
                 LineTimecode = timecode,
-                Magazine = T42.GetMagazine(t42Data[0]),
-                Row = T42.GetRow([.. t42Data.Take(2)]),
-                Text = T42.GetText([.. t42Data.Skip(2)], T42.GetRow([.. t42Data.Take(2)]) == 0)
+                Magazine = magazine,
+                Row = row,
+                Text = T42.GetText([.. t42Data.Skip(2)], row == 0, magazine, pageNumber)
             };
 
             // Apply filtering (works for all output formats since we have T42 metadata)
@@ -226,6 +229,9 @@ public class VBIHandler : ILineFormatHandler
                 }
 
                 // Create Line object with T42 metadata
+                var magazine = T42.GetMagazine(t42Data[0]);
+                var row = T42.GetRow([.. t42Data.Take(2)]);
+                var pageNumber = row == 0 ? T42.GetPageNumber(t42Data) : null;
                 var line = new Line()
                 {
                     LineNumber = lineNumber,
@@ -234,9 +240,9 @@ public class VBIHandler : ILineFormatHandler
                     SampleCoding = 0x31,
                     SampleCount = t42Data.Length,
                     LineTimecode = timecode,
-                    Magazine = T42.GetMagazine(t42Data[0]),
-                    Row = T42.GetRow([.. t42Data.Take(2)]),
-                    Text = T42.GetText([.. t42Data.Skip(2)], T42.GetRow([.. t42Data.Take(2)]) == 0)
+                    Magazine = magazine,
+                    Row = row,
+                    Text = T42.GetText([.. t42Data.Skip(2)], row == 0, magazine, pageNumber)
                 };
 
                 // Apply filtering (works for all output formats since we have T42 metadata)

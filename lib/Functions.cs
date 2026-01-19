@@ -1262,6 +1262,27 @@ public class Functions
     }
 
     /// <summary>
+    /// Halve the length of a byte array by averaging adjacent samples.
+    /// Used for VBID (1440-byte) to VBI (720-byte) conversion to ensure
+    /// consistent processing through the standard VBI decode pipeline.
+    /// </summary>
+    /// <param name="bytes">The byte array to halve (typically 1440 bytes).</param>
+    /// <returns>The halved byte array (typically 720 bytes).</returns>
+    public static byte[] Halve(byte[] bytes)
+    {
+        // Create a new byte array with half the length of the input
+        var halved = new byte[bytes.Length / 2];
+        // For each byte in the output...
+        for (var i = 0; i < halved.Length; i++)
+        {
+            // Set the byte to the average of adjacent samples
+            halved[i] = (byte)((bytes[i * 2] + bytes[i * 2 + 1]) / 2);
+        }
+        // Return the halved bytes
+        return halved;
+    }
+
+    /// <summary>
     /// Normalise a byte array
     /// </summary>
     /// <param name="line">The byte array to normalise.</param>
@@ -1318,27 +1339,14 @@ public class Functions
     }
 
     /// <summary>
-    /// Check if a byte has odd parity
+    /// Check if a byte has odd parity using O(1) lookup table.
     /// </summary>
     /// <param name="value">The byte to check.</param>
-    /// <returns>True if the byte has odd parity, false otherwise.</returns>
+    /// <returns>True if the byte has odd parity (odd number of set bits), false otherwise.</returns>
     public static bool HasOddParity(byte value)
     {
-        // Set count to 0
-        var count = 0;
-
-        // For each bit in the byte...
-        for (var i = 0; i < 8; i++)
-        {
-            // If the bit is 1, increment the count
-            if ((value & (1 << i)) != 0)
-            {
-                count++;
-            }
-        }
-
-        // Return true if the count of '1' bits is odd
-        return count % 2 != 0;
+        // Use parity lookup table for O(1) lookup instead of counting bits
+        return Constants.VBI_PARITY_TABLE[value] == 1;
     }
 
     /// <summary>
