@@ -55,7 +55,13 @@ public class Commands
         var capsOption = new Option<bool>("-c")
         {
             Aliases = { "--caps" },
-            Description = "Use caption rows (1-24) instead of default rows (0-31)"
+            Description = "Use caption rows (1-24) and filter out rows with only spaces/control codes"
+        };
+
+        var pageOption = new Option<string?>("-p")
+        {
+            Aliases = { "--page" },
+            Description = "Filter by page number (2-digit hex like '01', or 3-digit with magazine like '801')"
         };
 
         var verboseOption = new Option<bool>("-V")
@@ -75,6 +81,7 @@ public class Commands
         filterCommand.Options.Add(rowsOption);
         filterCommand.Options.Add(lineCountOption);
         filterCommand.Options.Add(capsOption);
+        filterCommand.Options.Add(pageOption);
         filterCommand.Options.Add(pidOption);
         filterCommand.Options.Add(verboseOption);
 
@@ -88,16 +95,31 @@ public class Commands
                 int? magazine = parseResult.GetValue(magazineOption);
                 string? rowsString = parseResult.GetValue(rowsOption);
                 bool useCaps = parseResult.GetValue(capsOption);
+                string? pageString = parseResult.GetValue(pageOption);
                 string? inputFormatString = parseResult.GetValue(inputFormatOption);
                 int lineCount = parseResult.GetValue(lineCountOption) ?? 2;
                 string? pidString = parseResult.GetValue(pidOption);
                 bool verbose = parseResult.GetValue(verboseOption);
 
-                int[] rows = CommandHelpers.DetermineRows(rowsString, useCaps);
+                // Parse page number and potentially override magazine
+                string? pageNumber = null;
+                if (!string.IsNullOrEmpty(pageString))
+                {
+                    var (pageMagazine, pageHex) = FilterHelpers.ParsePageNumber(pageString);
+                    pageNumber = pageHex;
+
+                    // If 3-digit format, override magazine
+                    if (pageMagazine.HasValue)
+                    {
+                        magazine = pageMagazine;
+                    }
+                }
+
+                int[] rows = FilterHelpers.DetermineRows(rowsString, useCaps);
                 Format inputFormat = CommandHelpers.DetermineFormatFromFile(inputFile, inputFormatString, Format.VBI);
                 int[]? pids = CommandHelpers.ParsePidsString(pidString);
 
-                return await Functions.FilterAsync(inputFile, magazine, rows, lineCount, inputFormat, verbose, pids, cancellationToken);
+                return await Functions.FilterAsync(inputFile, magazine, rows, lineCount, inputFormat, verbose, pids, pageNumber, useCaps, cancellationToken);
             }
             catch (OperationCanceledException)
             {

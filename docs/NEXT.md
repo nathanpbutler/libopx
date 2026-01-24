@@ -9,7 +9,7 @@
 **FormatIO** is the fluent API for **all teletext operations**:
 
 - Parsing files to extract teletext data
-- Filtering by magazine/rows
+- Filtering by magazine/rows/page number with content filtering
 - Converting between formats (T42 ↔ VBI ↔ STL ↔ RCWT)
 - **Extract**: Demuxing essence streams from MXF to separate files
 - **Restripe**: In-place modification of MXF timecodes

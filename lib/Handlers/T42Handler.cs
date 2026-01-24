@@ -50,6 +50,7 @@ public class T42Handler : ILineFormatHandler
         int lineNumber = 0;
         var timecode = new Timecode(0);
         var t42Buffer = new byte[LineLength];
+        string? currentPageNumber = null; // Track current page for filtering
 
         while (inputStream.Read(t42Buffer, 0, LineLength) == LineLength)
         {
@@ -78,8 +79,14 @@ public class T42Handler : ILineFormatHandler
             {
                 line.Magazine = T42.GetMagazine(t42Buffer[0]);
                 line.Row = T42.GetRow([.. t42Buffer.Take(2)]);
+
                 // For header rows (row 0), extract and display page number
                 var pageNumber = line.Row == 0 ? T42.GetPageNumber(t42Buffer) : null;
+                if (line.Row == 0 && pageNumber != null)
+                {
+                    currentPageNumber = pageNumber;
+                }
+
                 line.Text = T42.GetText([.. t42Buffer.Skip(2)], line.Row == 0, line.Magazine, pageNumber);
             }
             else
@@ -119,13 +126,32 @@ public class T42Handler : ILineFormatHandler
             // This prevents double-conversion (T42 -> RCWT -> RCWT)
 
             // Apply filtering if specified
+            // Magazine filtering
             if (options.Magazine.HasValue && line.Magazine != options.Magazine.Value)
             {
                 lineNumber++;
                 continue;
             }
 
+            // Page number filtering
+            if (!string.IsNullOrEmpty(options.PageNumber))
+            {
+                if (currentPageNumber == null || currentPageNumber != options.PageNumber)
+                {
+                    lineNumber++;
+                    continue;
+                }
+            }
+
+            // Row filtering
             if (rows != null && !rows.Contains(line.Row))
+            {
+                lineNumber++;
+                continue;
+            }
+
+            // Caption content filtering - skip rows with only spaces/control codes
+            if (options.UseCaps && line.Row > 0 && !T42.HasMeaningfulContent(t42Buffer))
             {
                 lineNumber++;
                 continue;
@@ -158,6 +184,7 @@ public class T42Handler : ILineFormatHandler
 
         int lineNumber = 0;
         var timecode = new Timecode(0);
+        string? currentPageNumber = null; // Track current page for filtering
 
         var arrayPool = ArrayPool<byte>.Shared;
         var t42Buffer = arrayPool.Rent(LineLength);
@@ -197,8 +224,14 @@ public class T42Handler : ILineFormatHandler
                 {
                     line.Magazine = T42.GetMagazine(line.Data[0]);
                     line.Row = T42.GetRow([.. line.Data.Take(2)]);
+
                     // For header rows (row 0), extract and display page number
                     var pageNumber = line.Row == 0 ? T42.GetPageNumber(line.Data) : null;
+                    if (line.Row == 0 && pageNumber != null)
+                    {
+                        currentPageNumber = pageNumber;
+                    }
+
                     line.Text = T42.GetText([.. line.Data.Skip(2)], line.Row == 0, line.Magazine, pageNumber);
                 }
                 else
@@ -230,13 +263,32 @@ public class T42Handler : ILineFormatHandler
                 // For RCWT/STL output, keep the T42 data - WriteOutputAsync will handle packet generation
 
                 // Apply filtering
+                // Magazine filtering
                 if (options.Magazine.HasValue && line.Magazine != options.Magazine.Value)
                 {
                     lineNumber++;
                     continue;
                 }
 
+                // Page number filtering
+                if (!string.IsNullOrEmpty(options.PageNumber))
+                {
+                    if (currentPageNumber == null || currentPageNumber != options.PageNumber)
+                    {
+                        lineNumber++;
+                        continue;
+                    }
+                }
+
+                // Row filtering
                 if (rows != null && !rows.Contains(line.Row))
+                {
+                    lineNumber++;
+                    continue;
+                }
+
+                // Caption content filtering - skip rows with only spaces/control codes
+                if (options.UseCaps && line.Row > 0 && !T42.HasMeaningfulContent(line.Data))
                 {
                     lineNumber++;
                     continue;

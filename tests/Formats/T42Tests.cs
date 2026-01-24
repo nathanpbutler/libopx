@@ -253,4 +253,62 @@ public class T42Tests : IAsyncLifetime, IDisposable
             Assert.NotNull(line.Data);
         });
     }
+
+    [Theory]
+    [InlineData(new byte[] { 0x15, 0x2A, 0x48, 0x65, 0x6C, 0x6C, 0x6F }, true)]   // "Hello"
+    [InlineData(new byte[] { 0x15, 0x2A, 0x41, 0x42, 0x43 }, true)]               // "ABC"
+    [InlineData(new byte[] { 0x15, 0x2A, 0x20, 0x20, 0x20, 0x20 }, false)]        // Only spaces
+    [InlineData(new byte[] { 0x15, 0x2A, 0x00, 0x01, 0x07, 0x0D }, false)]        // Only control codes
+    [InlineData(new byte[] { 0x15, 0x2A, 0x20, 0x00, 0x20, 0x07 }, false)]        // Spaces + control
+    [InlineData(new byte[] { 0x15, 0x2A, 0x20, 0x20, 0x21 }, true)]               // Space + '!'
+    [InlineData(new byte[] { 0x15, 0x2A, 0x1F, 0x1F, 0x1F }, false)]              // Control codes (0x1F)
+    [InlineData(new byte[] { 0x15, 0x2A, 0x7E, 0x7F }, true)]                     // High characters
+    public void HasMeaningfulContent_VariousInputs_ReturnsExpected(byte[] data, bool expected)
+    {
+        // Arrange - Ensure data is at least T42_LINE_SIZE
+        var paddedData = new byte[Constants.T42_LINE_SIZE];
+        Array.Copy(data, 0, paddedData, 0, Math.Min(data.Length, Constants.T42_LINE_SIZE));
+
+        // Act
+        var result = T42.HasMeaningfulContent(paddedData);
+
+        // Assert
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void HasMeaningfulContent_NullData_ReturnsFalse()
+    {
+        // Act
+        var result = T42.HasMeaningfulContent(null!);
+
+        // Assert
+        Assert.False(result);
+    }
+
+    [Fact]
+    public void HasMeaningfulContent_EmptyData_ReturnsFalse()
+    {
+        // Arrange
+        var data = new byte[0];
+
+        // Act
+        var result = T42.HasMeaningfulContent(data);
+
+        // Assert
+        Assert.False(result);
+    }
+
+    [Fact]
+    public void HasMeaningfulContent_TooShortData_ReturnsFalse()
+    {
+        // Arrange
+        var data = new byte[1];
+
+        // Act
+        var result = T42.HasMeaningfulContent(data);
+
+        // Assert
+        Assert.False(result);
+    }
 }

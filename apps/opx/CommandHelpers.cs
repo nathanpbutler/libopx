@@ -61,36 +61,7 @@ public static class CommandHelpers
     /// <returns>An array of integers representing the parsed rows.</returns>
     public static int[] ParseRowsString(string rowsString)
     {
-        var rows = new List<int>();
-        var parts = rowsString.Split(',', StringSplitOptions.RemoveEmptyEntries);
-
-        foreach (var part in parts)
-        {
-            var trimmed = part.Trim();
-            if (trimmed.Contains('-'))
-            {
-                // Handle range like "5-8"
-                var rangeParts = trimmed.Split('-');
-                if (rangeParts.Length == 2 &&
-                    int.TryParse(rangeParts[0], out int start) &&
-                    int.TryParse(rangeParts[1], out int end))
-                {
-                    for (int i = start; i <= end; i++)
-                    {
-                        if (i >= 0 && i <= 31)
-                            rows.Add(i);
-                    }
-                }
-            }
-            else if (int.TryParse(trimmed, out int row))
-            {
-                // Handle single number
-                if (row >= 0 && row <= 31)
-                    rows.Add(row);
-            }
-        }
-
-        return [.. rows.Distinct().OrderBy(x => x)];
+        return FilterHelpers.ParseRowsString(rowsString);
     }
 
     /// <summary>
@@ -188,12 +159,7 @@ public static class CommandHelpers
     /// <returns>Array of row numbers to process.</returns>
     public static int[] DetermineRows(string? rowsString, bool useCaps)
     {
-        if (!string.IsNullOrEmpty(rowsString))
-        {
-            return ParseRowsString(rowsString);
-        }
-        
-        return useCaps ? Constants.CAPTION_ROWS : Constants.DEFAULT_ROWS;
+        return FilterHelpers.DetermineRows(rowsString, useCaps);
     }
 
     /// <summary>

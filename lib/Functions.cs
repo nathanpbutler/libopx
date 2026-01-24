@@ -122,6 +122,8 @@ public class Functions
     /// <param name="inputFormat">The input format to use (e.g., MXFData, VBI, T42).</param>
     /// <param name="verbose">Whether to enable verbose output.</param>
     /// <param name="pids">Optional array of PIDs to filter by (TS format only)</param>
+    /// <param name="pageNumber">Optional page number for header row display (2-digit hex, e.g., "01")</param>
+    /// <param name="useCaps">Whether to filter out rows with only spaces/control codes</param>
     /// <param name="cancellationToken">Cancellation token for operation cancellation</param>
     /// <returns>Exit code: 0 for success, 1 for failure, 130 for cancellation</returns>
     /// <remarks>
@@ -132,7 +134,7 @@ public class Functions
     /// <exception cref="ArgumentException">Thrown if an unsupported input format is specified.</exception>
     /// <exception cref="FileNotFoundException">Thrown if the specified input file does not exist.</exception>
     /// <exception cref="IOException">Thrown if there is an error reading the input file or stdin.</exception>
-    public static async Task<int> FilterAsync(FileInfo? input, int? magazine, int[] rows, int lineCount, Format inputFormat, bool verbose, int[]? pids = null, CancellationToken cancellationToken = default)
+    public static async Task<int> FilterAsync(FileInfo? input, int? magazine, int[] rows, int lineCount, Format inputFormat, bool verbose, int[]? pids = null, string? pageNumber = null, bool useCaps = false, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -140,7 +142,11 @@ public class Functions
             {
                 Console.WriteLine(input is { Exists: true } ? $"  Input file: {input.FullName}" : "Reading from stdin");
                 Console.WriteLine($"    Magazine: {magazine?.ToString() ?? "all"}");
+                if (!string.IsNullOrEmpty(pageNumber))
+                    Console.WriteLine($"        Page: {pageNumber}");
                 Console.WriteLine($"        Rows: [{string.Join(", ", rows)}]");
+                if (useCaps)
+                    Console.WriteLine($"        Caps: filtering out empty rows");
                 Console.WriteLine($"Input format: {inputFormat}");
                 Console.WriteLine($"  Line count: {lineCount}");
             }
@@ -161,7 +167,9 @@ public class Functions
 
             io.Filter(magazine, rows)
               .WithLineCount(lineCount)
-              .WithPIDs(pids ?? []);
+              .WithPIDs(pids ?? [])
+              .WithPageNumber(pageNumber)
+              .WithUseCaps(useCaps);
 
             // Packet-based formats (ANC, TS, MXF): Print packets
             // Line-based formats (VBI, VBI_DOUBLE, T42): Print lines

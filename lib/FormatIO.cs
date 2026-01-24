@@ -244,6 +244,28 @@ public sealed class FormatIO : IDisposable
     }
 
     /// <summary>
+    /// Sets the page number filter for teletext data.
+    /// </summary>
+    /// <param name="pageNumber">Page number (2-digit hex)</param>
+    /// <returns>This FormatIO instance for method chaining</returns>
+    public FormatIO WithPageNumber(string? pageNumber)
+    {
+        _options.PageNumber = pageNumber;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets whether to use caption row filtering (1-24) with content filtering.
+    /// </summary>
+    /// <param name="useCaps">Whether to filter out rows with only spaces/control codes</param>
+    /// <returns>This FormatIO instance for method chaining</returns>
+    public FormatIO WithUseCaps(bool useCaps)
+    {
+        _options.UseCaps = useCaps;
+        return this;
+    }
+
+    /// <summary>
     /// Configures whether to preserve blank bytes for filtered-out rows.
     /// When enabled, filtered rows are replaced with blank bytes instead of being omitted,
     /// preserving stream structure and byte alignment.

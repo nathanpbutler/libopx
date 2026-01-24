@@ -27,6 +27,7 @@ public class TSHandler : IPacketFormatHandler
     private int _packetSize = 0; // Detected packet size (188 or 192 bytes)
     private bool _frameRateDetected = false; // Flag to track if frame rate has been auto-detected
     private long? _firstPTS = null; // First PTS value for normalization
+    private string? _currentPageNumber = null; // Track current page for filtering
 
     /// <inheritdoc />
     public Format InputFormat => Format.TS;
@@ -161,7 +162,7 @@ public class TSHandler : IPacketFormatHandler
                 AccumulatePES(pid, payload, payloadStart, continuityCounter);
 
                 // Try to process complete PES packet into a Packet object
-                var packet = ProcessPESPacketToPacket(pid, ref packetNumber, ref fallbackTimecode, options.Magazine, rows);
+                var packet = ProcessPESPacketToPacket(pid, ref packetNumber, ref fallbackTimecode, options.Magazine, rows, options.PageNumber, options.UseCaps);
                 if (packet != null)
                 {
                     yield return packet;
@@ -172,7 +173,7 @@ public class TSHandler : IPacketFormatHandler
         // Flush any remaining data
         foreach (var pid in _teletextPIDs)
         {
-            var packet = ProcessPESPacketToPacket(pid, ref packetNumber, ref fallbackTimecode, options.Magazine, rows);
+            var packet = ProcessPESPacketToPacket(pid, ref packetNumber, ref fallbackTimecode, options.Magazine, rows, options.PageNumber, options.UseCaps);
             if (packet != null)
             {
                 yield return packet;
@@ -294,7 +295,7 @@ public class TSHandler : IPacketFormatHandler
                     AccumulatePES(pid, payload, payloadStart, continuityCounter);
 
                     // Try to process complete PES packet into a Packet object
-                    var packet = ProcessPESPacketToPacket(pid, ref packetNumber, ref fallbackTimecode, options.Magazine, rows);
+                    var packet = ProcessPESPacketToPacket(pid, ref packetNumber, ref fallbackTimecode, options.Magazine, rows, options.PageNumber, options.UseCaps);
                     if (packet != null)
                     {
                         yield return packet;
@@ -331,6 +332,7 @@ public class TSHandler : IPacketFormatHandler
         _packetSize = 0;
         _frameRateDetected = false;
         _firstPTS = null;
+        _currentPageNumber = null;
     }
 
     /// <summary>
@@ -709,8 +711,10 @@ public class TSHandler : IPacketFormatHandler
     /// <param name="fallbackTimecode">Reference to the fallback timecode for packets without PTS</param>
     /// <param name="magazine">Optional magazine filter</param>
     /// <param name="rows">Optional row filter</param>
+    /// <param name="pageNumber">Optional page number filter</param>
+    /// <param name="useCaps">Whether to filter out rows with only spaces/control codes</param>
     /// <returns>A Packet object containing all lines from this PES packet, or null if no valid data</returns>
-    private Packet? ProcessPESPacketToPacket(int pid, ref int packetNumber, ref Timecode fallbackTimecode, int? magazine = null, int[]? rows = null)
+    private Packet? ProcessPESPacketToPacket(int pid, ref int packetNumber, ref Timecode fallbackTimecode, int? magazine = null, int[]? rows = null, string? pageNumber = null, bool useCaps = false)
     {
         if (!_pesBuffers.TryGetValue(pid, out var pesData) || pesData.Length == 0)
             return null;
@@ -806,11 +810,36 @@ public class TSHandler : IPacketFormatHandler
                     var outputFormat = Format.T42; // Default to T42, will be set later if needed
                     line.ParseLine(t42Data, outputFormat);
 
+                    // Track current page for filtering
+                    if (line.Row == 0 && t42Data.Length >= Constants.T42_LINE_SIZE)
+                    {
+                        var pageNum = T42.GetPageNumber(t42Data);
+                        if (pageNum != null)
+                        {
+                            _currentPageNumber = pageNum;
+                        }
+                    }
+
                     // Apply filtering
                     bool includeThisLine = true;
+
+                    // Magazine filtering
                     if (magazine.HasValue && line.Magazine != magazine.Value)
                         includeThisLine = false;
+
+                    // Page number filtering
+                    if (!string.IsNullOrEmpty(pageNumber))
+                    {
+                        if (_currentPageNumber == null || _currentPageNumber != pageNumber)
+                            includeThisLine = false;
+                    }
+
+                    // Row filtering
                     if (rows != null && !rows.Contains(line.Row))
+                        includeThisLine = false;
+
+                    // Caption content filtering - skip rows with only spaces/control codes
+                    if (useCaps && line.Row > 0 && t42Data.Length >= Constants.T42_LINE_SIZE && !T42.HasMeaningfulContent(t42Data))
                         includeThisLine = false;
 
                     if (includeThisLine)

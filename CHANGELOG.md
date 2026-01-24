@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+* **Page number filtering** - New `-p`/`--page` option for filtering by teletext page number:
+  * Supports 2-digit hex format (e.g., `-p 01`) to filter any magazine
+  * Supports 3-digit format (e.g., `-p 801`) with magazine override
+  * Available via `FormatIO.WithPageNumber(string)` fluent API
+  * Available via `ParseOptions.PageNumber` property
+* **Enhanced caption filtering** - Improved `-c`/`--caps` option:
+  * Now filters to rows 1-24 AND excludes rows with only spaces/control codes
+  * Available via `FormatIO.WithUseCaps(bool)` fluent API
+  * Available via `ParseOptions.UseCaps` property
+  * New `T42.HasMeaningfulContent(byte[])` method for content detection
+* **FilterHelpers utility class** - New library utilities for filter parameter parsing:
+  * `ParsePageNumber(string)` - Parse and validate page numbers with magazine extraction
+  * `ParseRowsString(string)` - Parse row ranges (e.g., "1,2,5-8,15")
+  * `DetermineRows(string, bool)` - Determine row array based on caps flag
 * **FormatIO fluent API** - New primary user-facing API for parsing and converting teletext data with method chaining:
   * **Factory methods**:
     * `FormatIO.Open(string path)` - Auto-detects format from file extension (.vbi, .t42, .mxf, .ts, .bin, etc.)
@@ -494,7 +508,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Dependencies**: Minimal external dependencies with System.CommandLine for CLI
 
 [unreleased]: https://github.com/nathanpbutler/libopx/compare/v2.3.0...HEAD
-[2.4.0]: https://github.com/nathanpbutler/libopx/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/nathanpbutler/libopx/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/nathanpbutler/libopx/compare/v2.1.2...v2.2.0
 [2.1.2]: https://github.com/nathanpbutler/libopx/compare/v2.1.1...v2.1.2

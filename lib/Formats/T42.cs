@@ -273,6 +273,34 @@ public class T42 : FormatIOBase
     }
 
     /// <summary>
+    /// Determines if a teletext row contains meaningful content.
+    /// A row is considered meaningful if it has visible characters beyond spaces and control codes.
+    /// </summary>
+    /// <param name="data">The T42 data bytes (should be 42 bytes)</param>
+    /// <returns>True if the row has meaningful content, false if only spaces/control codes</returns>
+    public static bool HasMeaningfulContent(byte[] data)
+    {
+        if (data == null || data.Length < Constants.T42_LINE_SIZE)
+            return false;
+
+        // Skip MRAG bytes (first 2 bytes), check the remaining 40 bytes
+        for (int i = 2; i < data.Length; i++)
+        {
+            int c = data[i] & 0x7F; // Strip parity bit
+
+            // Control codes are 0x00-0x1F
+            // Space is 0x20
+            // If we find anything > 0x20, it's visible content
+            if (c > 0x20)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Parses teletext data to ANSI colored text for terminal display.
     /// Uses ANSI 256-color palette for consistent display regardless of terminal theme.
     /// Implements proper teletext Set-After color model and box depth tracking.

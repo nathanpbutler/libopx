@@ -45,7 +45,8 @@ opx filter [options] <input-file?>
 - `-m, --magazine`: Filter by magazine number (default: all magazines)
 - `-r, --rows`: Filter by number of rows (comma-separated or hyphen ranges, e.g., 1,2,5-8,15)
 - `-l, --line-count`: Number of lines per frame for timecode incrementation [default: 2]
-- `-c, --caps`: Use caption rows (1-24) instead of default rows (0-31)
+- `-c, --caps`: Use caption rows (1-24) and filter out rows with only spaces/control codes
+- `-p, --page`: Filter by page number (2-digit hex like '01', or 3-digit with magazine like '801')
 - `--pid`: Specify MPEG-TS PID(s) to extract (comma-separated, e.g., 70 or 70,71). Only applies to TS format.
 - `-V, --verbose`: Enable verbose output
 
@@ -77,6 +78,15 @@ opx filter --pid 70 -m 8 input.ts
 
 # Filter TS with multiple PIDs
 opx filter --pid 70,71 -c input.ts
+
+# Filter for page 801 (magazine 8, page 01)
+opx filter -p 801 input.t42
+
+# Filter for page 01 across all magazines
+opx filter -p 01 input.vbi
+
+# Filter for caption rows with content only (excludes blank lines)
+opx filter -c input.mxf
 ```
 
 ### convert - Convert between different teletext data formats
@@ -94,7 +104,8 @@ opx convert [options] <input-file?>
 - `-m, --magazine`: Filter by magazine number (default: all magazines)
 - `-r, --rows`: Filter by number of rows (comma-separated or hyphen ranges, e.g., 1,2,5-8,15)
 - `-l, --line-count`: Number of lines per frame for timecode incrementation [default: 2]
-- `-c, --caps`: Use caption rows (1-24) instead of default rows (0-31)
+- `-c, --caps`: Use caption rows (1-24) and filter out rows with only spaces/control codes
+- `-p, --page`: Filter by page number (2-digit hex like '01', or 3-digit with magazine like '801')
 - `--pid`: Specify MPEG-TS PID(s) to extract (comma-separated, e.g., 70 or 70,71). Only applies to TS format.
 - `--keep`: Write blank bytes if rows or magazine doesn't match
 - `--stl-merge`: Enable intelligent STL merging (combines word-by-word caption buildup into single subtitles with proper timing). By default, STL output preserves raw timing with one subtitle per caption line.

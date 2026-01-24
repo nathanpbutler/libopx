@@ -21,6 +21,19 @@ public class ParseOptions
     public int[]? Rows { get; set; } = null;
 
     /// <summary>
+    /// Gets or sets the page number filter for teletext data.
+    /// Supports 2-digit hex (e.g., "01") or 3-digit with magazine (e.g., "801").
+    /// When specified with 3 digits via ParsePageNumber, magazine component overrides Magazine property.
+    /// </summary>
+    public string? PageNumber { get; set; } = null;
+
+    /// <summary>
+    /// Gets or sets whether to use caption row filtering (1-24) with content filtering.
+    /// When true, filters to rows 1-24 AND excludes rows with only spaces/control codes.
+    /// </summary>
+    public bool UseCaps { get; set; } = false;
+
+    /// <summary>
     /// Gets or sets the desired output format.
     /// Determines how the parsed data should be converted.
     /// </summary>
@@ -122,6 +135,8 @@ public class ParseOptions
         {
             Magazine = Magazine,
             Rows = Rows?.ToArray(),
+            PageNumber = PageNumber,
+            UseCaps = UseCaps,
             OutputFormat = OutputFormat,
             LineCount = LineCount,
             StartTimecode = StartTimecode,

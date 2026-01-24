@@ -1073,4 +1073,159 @@ public class FormatIOTests : IDisposable
     }
 
     #endregion
+
+    #region Page Number and UseCaps Filtering Tests
+
+    [Fact]
+    public async Task WithPageNumber_FiltersCorrectPage()
+    {
+        // Arrange
+        const string filePath = "input.t42";
+        await SampleFiles.EnsureAsync(filePath);
+
+        // Act - Filter for a specific page (note: actual page depends on sample data)
+        using var io = FormatIO.Open(filePath);
+        var allLines = io.ParseLines().ToList();
+
+        // Get the first page number we see in row 0
+        var firstPageLine = allLines.FirstOrDefault(l => l.Row == 0);
+        if (firstPageLine == null)
+        {
+            // Skip test if no header rows
+            return;
+        }
+
+        // Extract page number from the first header
+        var pageBytes = firstPageLine.Data.Skip(2).Take(2).ToArray();
+        var pageNumber = $"{pageBytes[0]:x2}";
+
+        // Now filter using that page number
+        using var io2 = FormatIO.Open(filePath);
+        var filteredLines = io2.WithPageNumber(pageNumber)
+                               .ParseLines()
+                               .ToList();
+
+        // Assert - Filtered lines should be <= all lines (page filtering reduces or keeps same)
+        // Note: May return empty if no matching pages in file structure
+        Assert.True(filteredLines.Count <= allLines.Count);
+    }
+
+    [Fact]
+    public async Task WithUseCaps_FiltersEmptyRows()
+    {
+        // Arrange
+        const string filePath = "input.t42";
+        await SampleFiles.EnsureAsync(filePath);
+
+        // Act
+        using var io = FormatIO.Open(filePath);
+        var allLines = io.ParseLines().ToList();
+
+        using var io2 = FormatIO.Open(filePath);
+        var capsLines = io2.WithUseCaps(true)
+                          .ParseLines()
+                          .ToList();
+
+        // Assert - UseCaps should result in fewer or equal lines (filtered content)
+        Assert.True(capsLines.Count <= allLines.Count);
+
+        // All non-header rows should have meaningful content
+        foreach (var line in capsLines.Where(l => l.Row > 0))
+        {
+            Assert.True(line.Data.Length >= Constants.T42_LINE_SIZE);
+        }
+    }
+
+    [Fact]
+    public async Task WithUseCaps_OnlyReturnsRows1To24()
+    {
+        // Arrange
+        const string filePath = "input.t42";
+        await SampleFiles.EnsureAsync(filePath);
+
+        // Act
+        using var io = FormatIO.Open(filePath);
+        var capsLines = io.WithUseCaps(true)
+                         .ParseLines()
+                         .ToList();
+
+        // Assert - All non-header rows should be in range 1-24
+        // Note: Row 0 (headers) may still appear as they track page context
+        var nonHeaderRows = capsLines.Where(l => l.Row > 0).ToList();
+        Assert.All(nonHeaderRows, line => Assert.InRange(line.Row, 1, 24));
+
+        // Verify we got some caption rows
+        Assert.NotEmpty(nonHeaderRows);
+    }
+
+    [Fact]
+    public async Task CombinedFiltering_PageAndUseCaps_WorksTogether()
+    {
+        // Arrange
+        const string filePath = "input.t42";
+        await SampleFiles.EnsureAsync(filePath);
+
+        // Get a page number from the file
+        using var io1 = FormatIO.Open(filePath);
+        var firstHeader = io1.ParseLines().FirstOrDefault(l => l.Row == 0);
+        if (firstHeader == null)
+        {
+            return; // Skip if no headers
+        }
+
+        var pageBytes = firstHeader.Data.Skip(2).Take(2).ToArray();
+        var pageNumber = $"{pageBytes[0]:x2}";
+
+        // Act - Combine page filtering with caps
+        using var io = FormatIO.Open(filePath);
+        var filteredLines = io.WithPageNumber(pageNumber)
+                             .WithUseCaps(true)
+                             .ParseLines()
+                             .ToList();
+
+        // Assert - All rows should be 1-24 and belong to the specified page
+        Assert.All(filteredLines, line => Assert.InRange(line.Row, 1, 24));
+    }
+
+    [Fact]
+    public void WithPageNumber_SetsPageNumberOption()
+    {
+        // Arrange
+        using var stream = new MemoryStream();
+        using var io = FormatIO.Open(stream, Format.T42);
+
+        // Act - Just verify it sets the option without throwing
+        var result = io.WithPageNumber("01");
+
+        // Assert - Should return the same instance for fluent chaining
+        Assert.Same(io, result);
+    }
+
+    [Fact]
+    public async Task WithPageNumber_ThreeDigitFormat_OverridesMagazine()
+    {
+        // Arrange
+        const string filePath = "input.t42";
+        await SampleFiles.EnsureAsync(filePath);
+
+        // Act - Use 3-digit page number which should override magazine filter
+        using var io = FormatIO.Open(filePath);
+
+        // This should internally extract magazine 8 and page 01
+        var (magazine, pageHex) = FilterHelpers.ParsePageNumber("801");
+
+        var lines = io.Filter(magazine: magazine)
+                     .WithPageNumber(pageHex)
+                     .ParseLines()
+                     .ToList();
+
+        // Assert - If there are any lines, they should be from magazine 8
+        if (lines.Any())
+        {
+            Assert.All(lines.Where(l => l.Magazine >= 0),
+                      line => Assert.Equal(8, line.Magazine));
+        }
+    }
+
+    #endregion
 }

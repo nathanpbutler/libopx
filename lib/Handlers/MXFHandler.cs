@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Runtime.CompilerServices;
 using nathanbutlerDEV.libopx.Core;
 using nathanbutlerDEV.libopx.Enums;
+using nathanbutlerDEV.libopx.Formats;
 using nathanbutlerDEV.libopx.SMPTE;
 
 namespace nathanbutlerDEV.libopx.Handlers;
@@ -60,6 +61,11 @@ public class MXFHandler : IPacketFormatHandler
     /// Cache the previous timecode for sequential checking to avoid recalculation.
     /// </summary>
     private Timecode? _lastTimecode;
+
+    /// <summary>
+    /// Track current page number for filtering across lines.
+    /// </summary>
+    private string? _currentPageNumber;
 
     #endregion
 
@@ -264,7 +270,7 @@ public class MXFHandler : IPacketFormatHandler
                     case KeyType.Data:
                         if (_function == Function.Filter)
                         {
-                            var packet = FilterDataPacket(inputStream, options.Magazine, options.Rows, timecode, lineNumber, options.OutputFormat);
+                            var packet = FilterDataPacket(inputStream, options.Magazine, options.Rows, timecode, lineNumber, options.OutputFormat, options.PageNumber, options.UseCaps);
                             if (_verbose) Console.WriteLine($"Packet found at timecode {timecode}");
                             // Only yield packets that have at least one line after filtering
                             if (packet.Lines.Count > 0)
@@ -391,7 +397,7 @@ public class MXFHandler : IPacketFormatHandler
                     case KeyType.Data:
                         if (_function == Function.Filter)
                         {
-                            var (packet, updatedLineNumber) = await FilterDataPacketAsync(inputStream, options.Magazine, options.Rows, timecode, lineNumber, options.OutputFormat, cancellationToken);
+                            var (packet, updatedLineNumber) = await FilterDataPacketAsync(inputStream, options.Magazine, options.Rows, timecode, lineNumber, options.OutputFormat, cancellationToken, options.PageNumber, options.UseCaps);
                             lineNumber = updatedLineNumber;
                             if (_verbose) Console.WriteLine($"Packet found at timecode {timecode}");
 
@@ -657,9 +663,9 @@ public class MXFHandler : IPacketFormatHandler
     }
 
     /// <summary>
-    /// Filters a Data packet based on magazine and row criteria.
+    /// Filters a Data packet based on magazine, row, page number, and content criteria.
     /// </summary>
-    private Packet FilterDataPacket(Stream input, int? magazine, int[]? rows, Timecode startTimecode, int lineNumber = 0, Format outputFormat = Format.T42)
+    private Packet FilterDataPacket(Stream input, int? magazine, int[]? rows, Timecode startTimecode, int lineNumber = 0, Format outputFormat = Format.T42, string? pageNumber = null, bool useCaps = false)
     {
         Span<byte> header = stackalloc byte[Constants.PACKET_HEADER_SIZE];
         Span<byte> lineHeader = stackalloc byte[Constants.LINE_HEADER_SIZE];
@@ -686,14 +692,43 @@ public class MXFHandler : IPacketFormatHandler
 
             line.ParseLine(input, outputFormat);
 
+            // Track current page for filtering
+            if (line.Row == 0 && line.Data.Length >= Constants.T42_LINE_SIZE)
+            {
+                var pageNum = T42.GetPageNumber(line.Data);
+                if (pageNum != null)
+                {
+                    _currentPageNumber = pageNum;
+                }
+            }
+
             // Apply filtering if specified
+            // Magazine filtering
             if (magazine.HasValue && line.Magazine != magazine.Value)
             {
                 lineNumber++;
                 continue;
             }
 
+            // Page number filtering
+            if (!string.IsNullOrEmpty(pageNumber))
+            {
+                if (_currentPageNumber == null || _currentPageNumber != pageNumber)
+                {
+                    lineNumber++;
+                    continue;
+                }
+            }
+
+            // Row filtering
             if (rows != null && !rows.Contains(line.Row))
+            {
+                lineNumber++;
+                continue;
+            }
+
+            // Caption content filtering - skip rows with only spaces/control codes
+            if (useCaps && line.Row > 0 && line.Data.Length >= Constants.T42_LINE_SIZE && !T42.HasMeaningfulContent(line.Data))
             {
                 lineNumber++;
                 continue;
@@ -778,7 +813,7 @@ public class MXFHandler : IPacketFormatHandler
     }
 
     /// <summary>
-    /// Asynchronously filters a Data packet.
+    /// Asynchronously filters a Data packet based on magazine, row, page number, and content criteria.
     /// </summary>
     private async Task<(Packet packet, int updatedLineNumber)> FilterDataPacketAsync(
         Stream input,
@@ -787,7 +822,9 @@ public class MXFHandler : IPacketFormatHandler
         Timecode startTimecode,
         int lineNumber = 0,
         Format outputFormat = Format.T42,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? pageNumber = null,
+        bool useCaps = false)
     {
         var arrayPool = ArrayPool<byte>.Shared;
         var headerBuffer = arrayPool.Rent(Constants.PACKET_HEADER_SIZE);
@@ -827,14 +864,43 @@ public class MXFHandler : IPacketFormatHandler
 
                 await line.ParseLineAsync(input, outputFormat, cancellationToken);
 
+                // Track current page for filtering
+                if (line.Row == 0 && line.Data.Length >= Constants.T42_LINE_SIZE)
+                {
+                    var pageNum = T42.GetPageNumber(line.Data);
+                    if (pageNum != null)
+                    {
+                        _currentPageNumber = pageNum;
+                    }
+                }
+
                 // Apply filtering
+                // Magazine filtering
                 if (magazine.HasValue && line.Magazine != magazine.Value)
                 {
                     lineNumber++;
                     continue;
                 }
 
+                // Page number filtering
+                if (!string.IsNullOrEmpty(pageNumber))
+                {
+                    if (_currentPageNumber == null || _currentPageNumber != pageNumber)
+                    {
+                        lineNumber++;
+                        continue;
+                    }
+                }
+
+                // Row filtering
                 if (rows != null && !rows.Contains(line.Row))
+                {
+                    lineNumber++;
+                    continue;
+                }
+
+                // Caption content filtering - skip rows with only spaces/control codes
+                if (useCaps && line.Row > 0 && line.Data.Length >= Constants.T42_LINE_SIZE && !T42.HasMeaningfulContent(line.Data))
                 {
                     lineNumber++;
                     continue;

@@ -57,6 +57,7 @@ public class VBIHandler : ILineFormatHandler
         int lineNumber = 0;
         var timecode = new Timecode(0);
         var vbiBuffer = new byte[LineLength];
+        string? currentPageNumber = null; // Track current page for filtering
 
         while (inputStream.Read(vbiBuffer, 0, LineLength) == LineLength)
         {
@@ -94,6 +95,13 @@ public class VBIHandler : ILineFormatHandler
             var magazine = T42.GetMagazine(t42Data[0]);
             var row = T42.GetRow([.. t42Data.Take(2)]);
             var pageNumber = row == 0 ? T42.GetPageNumber(t42Data) : null;
+
+            // Track current page for filtering
+            if (row == 0 && pageNumber != null)
+            {
+                currentPageNumber = pageNumber;
+            }
+
             var line = new Line()
             {
                 LineNumber = lineNumber,
@@ -108,13 +116,32 @@ public class VBIHandler : ILineFormatHandler
             };
 
             // Apply filtering (works for all output formats since we have T42 metadata)
+            // Magazine filtering
             if (options.Magazine.HasValue && line.Magazine != options.Magazine.Value)
             {
                 lineNumber++;
                 continue;
             }
 
+            // Page number filtering
+            if (!string.IsNullOrEmpty(options.PageNumber))
+            {
+                if (currentPageNumber == null || currentPageNumber != options.PageNumber)
+                {
+                    lineNumber++;
+                    continue;
+                }
+            }
+
+            // Row filtering
             if (rows != null && !rows.Contains(line.Row))
+            {
+                lineNumber++;
+                continue;
+            }
+
+            // Caption content filtering - skip rows with only spaces/control codes
+            if (options.UseCaps && line.Row > 0 && !T42.HasMeaningfulContent(t42Data))
             {
                 lineNumber++;
                 continue;
@@ -182,6 +209,7 @@ public class VBIHandler : ILineFormatHandler
 
         int lineNumber = 0;
         var timecode = new Timecode(0);
+        string? currentPageNumber = null; // Track current page for filtering
 
         // Use ArrayPool for better memory management
         var arrayPool = ArrayPool<byte>.Shared;
@@ -232,6 +260,13 @@ public class VBIHandler : ILineFormatHandler
                 var magazine = T42.GetMagazine(t42Data[0]);
                 var row = T42.GetRow([.. t42Data.Take(2)]);
                 var pageNumber = row == 0 ? T42.GetPageNumber(t42Data) : null;
+
+                // Track current page for filtering
+                if (row == 0 && pageNumber != null)
+                {
+                    currentPageNumber = pageNumber;
+                }
+
                 var line = new Line()
                 {
                     LineNumber = lineNumber,
@@ -246,13 +281,32 @@ public class VBIHandler : ILineFormatHandler
                 };
 
                 // Apply filtering (works for all output formats since we have T42 metadata)
+                // Magazine filtering
                 if (options.Magazine.HasValue && line.Magazine != options.Magazine.Value)
                 {
                     lineNumber++;
                     continue;
                 }
 
+                // Page number filtering
+                if (!string.IsNullOrEmpty(options.PageNumber))
+                {
+                    if (currentPageNumber == null || currentPageNumber != options.PageNumber)
+                    {
+                        lineNumber++;
+                        continue;
+                    }
+                }
+
+                // Row filtering
                 if (rows != null && !rows.Contains(line.Row))
+                {
+                    lineNumber++;
+                    continue;
+                }
+
+                // Caption content filtering - skip rows with only spaces/control codes
+                if (options.UseCaps && line.Row > 0 && !T42.HasMeaningfulContent(t42Data))
                 {
                     lineNumber++;
                     continue;

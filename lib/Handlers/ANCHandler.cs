@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Runtime.CompilerServices;
 using nathanbutlerDEV.libopx.Core;
 using nathanbutlerDEV.libopx.Enums;
+using nathanbutlerDEV.libopx.Formats;
 
 namespace nathanbutlerDEV.libopx.Handlers;
 
@@ -39,6 +40,7 @@ public class ANCHandler : IPacketFormatHandler
         var outputFormat = options.OutputFormat == Format.ANC ? Format.T42 : options.OutputFormat;
         var lineNumber = 0;
         var timecode = options.StartTimecode ?? new Timecode(0);
+        string? currentPageNumber = null; // Track current page for filtering
 
         while (inputStream.Read(_packetHeader, 0, Constants.PACKET_HEADER_SIZE) == Constants.PACKET_HEADER_SIZE)
         {
@@ -64,14 +66,43 @@ public class ANCHandler : IPacketFormatHandler
                 // Use the more efficient ParseLine method
                 line.ParseLine(inputStream, outputFormat);
 
+                // Track current page for filtering
+                if (line.Row == 0 && line.Data.Length >= Constants.T42_LINE_SIZE)
+                {
+                    var pageNumber = T42.GetPageNumber(line.Data);
+                    if (pageNumber != null)
+                    {
+                        currentPageNumber = pageNumber;
+                    }
+                }
+
                 // Apply filtering if specified
+                // Magazine filtering
                 if (options.Magazine.HasValue && line.Magazine != options.Magazine.Value)
                 {
                     lineNumber++;
                     continue;
                 }
 
+                // Page number filtering
+                if (!string.IsNullOrEmpty(options.PageNumber))
+                {
+                    if (currentPageNumber == null || currentPageNumber != options.PageNumber)
+                    {
+                        lineNumber++;
+                        continue;
+                    }
+                }
+
+                // Row filtering
                 if (rows != null && !rows.Contains(line.Row))
+                {
+                    lineNumber++;
+                    continue;
+                }
+
+                // Caption content filtering - skip rows with only spaces/control codes
+                if (options.UseCaps && line.Row > 0 && line.Data.Length >= Constants.T42_LINE_SIZE && !T42.HasMeaningfulContent(line.Data))
                 {
                     lineNumber++;
                     continue;
@@ -105,6 +136,7 @@ public class ANCHandler : IPacketFormatHandler
         var outputFormat = options.OutputFormat == Format.ANC ? Format.T42 : options.OutputFormat;
         int lineNumber = 0;
         var timecode = options.StartTimecode ?? new Timecode(0);
+        string? currentPageNumber = null; // Track current page for filtering
 
         var arrayPool = ArrayPool<byte>.Shared;
         var packetBuffer = arrayPool.Rent(Constants.PACKET_HEADER_SIZE);
@@ -150,14 +182,43 @@ public class ANCHandler : IPacketFormatHandler
                     // Use the more efficient ParseLine method
                     await line.ParseLineAsync(inputStream, outputFormat, cancellationToken);
 
+                    // Track current page for filtering
+                    if (line.Row == 0 && line.Data.Length >= Constants.T42_LINE_SIZE)
+                    {
+                        var pageNumber = T42.GetPageNumber(line.Data);
+                        if (pageNumber != null)
+                        {
+                            currentPageNumber = pageNumber;
+                        }
+                    }
+
                     // Apply filtering
+                    // Magazine filtering
                     if (options.Magazine.HasValue && line.Magazine != options.Magazine.Value)
                     {
                         lineNumber++;
                         continue;
                     }
 
+                    // Page number filtering
+                    if (!string.IsNullOrEmpty(options.PageNumber))
+                    {
+                        if (currentPageNumber == null || currentPageNumber != options.PageNumber)
+                        {
+                            lineNumber++;
+                            continue;
+                        }
+                    }
+
+                    // Row filtering
                     if (rows != null && !rows.Contains(line.Row))
+                    {
+                        lineNumber++;
+                        continue;
+                    }
+
+                    // Caption content filtering - skip rows with only spaces/control codes
+                    if (options.UseCaps && line.Row > 0 && line.Data.Length >= Constants.T42_LINE_SIZE && !T42.HasMeaningfulContent(line.Data))
                     {
                         lineNumber++;
                         continue;
