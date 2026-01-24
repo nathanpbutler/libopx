@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [2.4.0] - 2026-01-24
+
+### Added
+
 * **Page number filtering** - New `-p`/`--page` option for filtering by teletext page number:
   * Supports 2-digit hex format (e.g., `-p 01`) to filter any magazine
   * Supports 3-digit format (e.g., `-p 801`) with magazine override
@@ -507,7 +515,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Publishing**: Single-file deployment with ReadyToRun optimization
 * **Dependencies**: Minimal external dependencies with System.CommandLine for CLI
 
-[unreleased]: https://github.com/nathanpbutler/libopx/compare/v2.3.0...HEAD
+[unreleased]: https://github.com/nathanpbutler/libopx/compare/v2.4.0...HEAD
+[2.4.0]: https://github.com/nathanpbutler/libopx/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/nathanpbutler/libopx/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/nathanpbutler/libopx/compare/v2.1.2...v2.2.0
 [2.1.2]: https://github.com/nathanpbutler/libopx/compare/v2.1.1...v2.1.2

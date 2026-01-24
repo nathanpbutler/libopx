@@ -19,7 +19,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageTags>mxf;teletext;vbi;t42;mpeg-ts;transport-stream;dvb;smpte;timecode;caption;subtitles;broadcast;video;parsing;extraction;conversion;op42;op47;cli;dotnet;async;performance</PackageTags>
     <Copyright>Copyright (c) 2025 Nathan Butler</Copyright>
-    <PackageReleaseNotes>v2.3.0: Added STL (EBU Tech 3264) export support via new STLExporter class. Convert T42/VBI teletext data to EBU STL subtitle format with automatic GSI header generation, teletext-to-STL character mapping, and proper TTI block encoding. Includes support for double-height text, box mode detection, and configurable output options.</PackageReleaseNotes>
+    <PackageReleaseNotes>v2.4.0: Major API update introducing FormatIO fluent API for simplified teletext processing with method chaining. New FormatConverter centralizes all format conversion logic. Added page number filtering (-p/--page) and enhanced caption content filtering. All existing APIs deprecated with migration path to v3.0 - old constructors still work with warnings. Extract/Restripe now first-class FormatIO operations. 84 new tests, 382 total passing.</PackageReleaseNotes>
     
     <!-- Documentation -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>

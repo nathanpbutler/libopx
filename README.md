@@ -73,30 +73,40 @@ opx extract -k d,v input.mxf
 
 ### Using the Library
 
+**New in v2.4.0:** FormatIO fluent API provides a unified, simplified interface for all teletext operations.
+
 ```csharp
-using nathanbutlerDEV.libopx.Formats;
+using nathanbutlerDEV.libopx;
 
-// Parse and filter teletext data from VBI
-using var vbi = new VBI("input.vbi");
-foreach (var line in vbi.Parse(magazine: 8, rows: new[] { 20, 22 }))
+// Parse and filter teletext data (auto-detects format from extension)
+using var io = FormatIO.Open("input.vbi");
+foreach (var line in io.ParseLines(magazine: 8, rows: [20, 22]))
 {
-    Console.WriteLine(line);
+    Console.WriteLine(line.Text);
 }
 
-// Parse and filter teletext from MPEG-TS (auto-detects PIDs)
-using var ts = new TS("input.ts");
-foreach (var line in ts.Parse(magazine: 8))
+// Filter and convert in one pass
+using var io2 = FormatIO.Open("input.vbi")
+    .Filter(magazine: 8, rows: [20, 22])
+    .ConvertTo(Format.T42);
+io2.SaveTo("output.t42");
+
+// Parse MPEG-TS with PID filtering
+using var io3 = FormatIO.Open("input.ts")
+    .WithPIDs(70);
+foreach (var line in io3.ParseLines(magazine: 8))
 {
-    Console.WriteLine(line);
+    Console.WriteLine(line.Text);
 }
 
-// Parse MPEG-TS with specific PID
-using var ts2 = new TS("input.ts") { PIDs = new[] { 70 } };
-foreach (var line in ts2.Parse())
-{
-    Console.WriteLine(line);
-}
+// Convert to EBU STL subtitle format
+using var io4 = FormatIO.Open("input.mxf");
+await io4.ConvertTo(Format.STL)
+    .Filter(magazine: 8, rows: [20, 21, 22, 23, 24])
+    .SaveToAsync("output.stl");
 ```
+
+**Migration Note:** The old API (`new VBI()`, `new T42()`, etc.) is deprecated but still works in v2.4.0 with warnings. It will be removed in v3.0.0. See [CHANGELOG.md](CHANGELOG.md) for migration details.
 
 ## Documentation
 

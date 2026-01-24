@@ -1,8 +1,8 @@
 # libopx v3.0 Architecture Redesign
 
-**Status:** Phase 3 COMPLETE ✅ - FormatConverter + FormatIO API ready for v2.4.0 release
+**Status:** v2.4.0 RELEASED ✅ - Phase 4 (v3.0.0 breaking changes) next
 **Target Release:** v3.0.0
-**Last Updated:** 2026-01-11 (Phase 1 ✅, Phase 2 ✅, Phase 3 ✅: FormatConverter + FormatIO complete)
+**Last Updated:** 2026-01-24 (v2.4.0 released with FormatIO API, FormatConverter, and deprecation warnings)
 
 ## Unified FormatIO API
 
@@ -2021,7 +2021,7 @@ public IEnumerable<Line> Parse()
 
 ---
 
-### 10.2 v2.4.0 - New API + Deprecation (Phase 3) ✅
+### 10.2 v2.4.0 - New API + Deprecation (Phase 3) ✅ RELEASED
 
 **Focus:** New public FormatIO API available, deprecation warnings
 
@@ -2034,14 +2034,13 @@ public IEnumerable<Line> Parse()
 - [x] Add `[Obsolete]` attributes to old methods ✅
 - [x] Old API works alongside new API (both functional) ✅
 - [x] Migration guide published ✅
-- [ ] Side-by-side API comparison examples
-- [ ] Deprecation blog post
+- [x] FormatIO examples added to README files ✅
+- [x] CHANGELOG.md updated ✅
+- [x] Package metadata updated ✅
 
-**Timeline:** Month 3-4
+**Release Date:** 2026-01-24
 
-**Release Date:** TBD
-
-**Migration Period:** 2-3 months after release
+**Migration Period:** 2-3 months before v3.0.0 (breaking changes)
 
 ---
 
@@ -2254,6 +2253,6 @@ This is a living document. If you have suggestions or questions about the v3.0 r
 2. Tag with `v3.0-design` label
 3. Reference this document
 
-**Last Updated:** 2026-01-11 (FormatIO unified API complete with Extract/Restripe as first-class operations)
-**Document Version:** 1.7
-**Status:** Phase 3 Complete ✅ - v2.4.0 ready (FormatConverter ✅ + FormatIO ✅ + Extract/Restripe in FormatIO ✅) - Phase 4 (v3.0.0 breaking changes) next
+**Last Updated:** 2026-01-24 (v2.4.0 released)
+**Document Version:** 1.8
+**Status:** v2.4.0 Released ✅ - Phase 4 (v3.0.0 breaking changes) next

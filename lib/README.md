@@ -25,12 +25,60 @@ dotnet build
 
 ## Quick Start
 
-### Basic Parsing
+### FormatIO API (v2.4.0+) - Recommended
+
+The new FormatIO fluent API provides a unified, simplified interface for all teletext operations:
+
+```csharp
+using nathanbutlerDEV.libopx;
+
+// Parse and filter teletext data (auto-detects format)
+using var io = FormatIO.Open("input.vbi");
+foreach (var line in io.ParseLines(magazine: 8, rows: [20, 22]))
+{
+    Console.WriteLine(line.Text);
+}
+
+// Filter and convert in one pass
+using var io2 = FormatIO.Open("input.vbi")
+    .Filter(magazine: 8, rows: [20, 22])
+    .ConvertTo(Format.T42);
+io2.SaveTo("output.t42");
+
+// Parse MPEG-TS with PID filtering
+using var io3 = FormatIO.Open("input.ts")
+    .WithPIDs(70);
+await foreach (var line in io3.ParseLinesAsync(magazine: 8))
+{
+    Console.WriteLine(line.Text);
+}
+
+// Convert to EBU STL with filtering
+using var io4 = FormatIO.Open("input.mxf");
+await io4.ConvertTo(Format.STL)
+    .Filter(magazine: 8, rows: [20, 21, 22, 23, 24])
+    .SaveToAsync("output.stl");
+
+// MXF Extract operation
+using var io5 = FormatIO.Open("input.mxf")
+    .WithDemuxMode()
+    .WithKeyNames();
+var result = io5.ExtractTo("output_base");
+
+// MXF Restripe operation
+using var io6 = FormatIO.Open("input.mxf")
+    .WithProgress();
+io6.Restripe("10:00:00:00");
+```
+
+### Legacy API (Deprecated in v2.4.0)
+
+The following API is deprecated and will be removed in v3.0.0. Use FormatIO instead.
 
 ```csharp
 using nathanbutlerDEV.libopx.Formats;
 
-// Parse VBI file with filtering
+// Parse VBI file with filtering (DEPRECATED - use FormatIO.Open() instead)
 using var vbi = new VBI("input.vbi");
 foreach (var line in vbi.Parse(magazine: 8, rows: new[] { 20, 22 }))
 {
@@ -70,13 +118,15 @@ foreach (var line in ts2.Parse())
 }
 ```
 
-### Format Conversion
+### Format Conversion (Legacy - Deprecated)
+
+**Note:** The following examples use the deprecated API. Use `FormatIO` instead (see above).
 
 ```csharp
 using nathanbutlerDEV.libopx.Formats;
 using nathanbutlerDEV.libopx.Enums;
 
-// Convert VBI to T42
+// Convert VBI to T42 (DEPRECATED)
 using var parser = new VBI("input.vbi");
 parser.OutputFormat = Format.T42;
 parser.SetOutput("output.t42");
@@ -109,13 +159,15 @@ await Functions.ConvertAsync(
 );
 ```
 
-### Filtering Teletext Data
+### Filtering Teletext Data (Legacy - Deprecated)
+
+**Note:** The following examples use the deprecated API. Use `FormatIO` instead (see above).
 
 ```csharp
 using nathanbutlerDEV.libopx;
 using nathanbutlerDEV.libopx.Formats;
 
-// Filter by magazine and specific rows
+// Filter by magazine and specific rows (DEPRECATED)
 using var vbi = new VBI("input.vbi");
 foreach (var line in vbi.Parse(magazine: 8, rows: new[] { 20, 22 }))
 {

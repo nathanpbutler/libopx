@@ -1,8 +1,8 @@
 # libopx v3.0 Implementation TODO
 
-**Status:** Phase 3 COMPLETE ✅ - FormatConverter + FormatIO + Extract/Restripe architecture finalized
-**Last Updated:** 2026-01-11
-**Release Strategy:** Consolidated releases (v2.2.0 ✅, v2.3.0 ✅, v2.4.0 ready, v3.0.0)
+**Status:** Phase 3 COMPLETE ✅ - v2.4.0 RELEASED ✅
+**Last Updated:** 2026-01-24
+**Release Strategy:** Consolidated releases (v2.2.0 ✅, v2.3.0 ✅, v2.4.0 ✅, v3.0.0 next)
 
 ---
 
@@ -134,11 +134,11 @@ To avoid flooding NuGet with rapid incremental releases:
 
 ---
 
-## Phase 3: Centralize Conversions & New API (v2.4.0)
+## Phase 3: Centralize Conversions & New API (v2.4.0) ✅ RELEASED
 
-**Goal:** Move all format conversion logic to FormatConverter + introduce new FormatIO public API + add MXF video VBI extraction
+**Goal:** Move all format conversion logic to FormatConverter + introduce new FormatIO public API
 
-**Note:** v2.3.0 released with STL export support. Phase 3 combines conversion centralization with new API introduction.
+**Note:** v2.3.0 released with STL export support. Phase 3 combines conversion centralization with new API introduction. v2.4.0 released on 2026-01-24.
 
 ### Core Conversion Tasks ✅ COMPLETE
 
@@ -329,7 +329,7 @@ To avoid flooding NuGet with rapid incremental releases:
 - [x] CHANGELOG.md updated ✅
 - [x] Tag and release ✅
 
-### v2.4.0 - New API + Deprecation (Phase 3) ✅
+### v2.4.0 - New API + Deprecation (Phase 3) ✅ RELEASED
 
 - [x] Phase 3 complete: FormatConverter ✅
 - [x] FormatIO public API implemented and tested (84 tests) ✅
@@ -343,9 +343,11 @@ To avoid flooding NuGet with rapid incremental releases:
 - [x] Deprecation warnings in place ✅
 - [x] Old API works alongside new API ✅
 - [x] Migration guide published (CHANGELOG.md) ✅
-- [ ] Side-by-side examples documented
-- [x] Tests passing (317/317) ✅
-- [ ] Deprecation blog post published
+- [x] FormatIO examples documented in README files ✅
+- [x] Tests passing (382/382) ✅
+- [x] CHANGELOG.md updated with v2.4.0 release date ✅
+- [x] Package metadata updated ✅
+- [x] Tag and release (v2.4.0 - 2026-01-24) ✅
 
 ### v3.0.0 - Breaking Changes (Phase 4)
 
