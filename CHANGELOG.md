@@ -13,6 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [2.4.1] - 2026-01-25
+
+### Fixed
+
+* **T42 page number parsing** - Page tens digit was incorrectly read from byte 4 instead of byte 3, causing page filtering (`-p`/`--page`) to fail. The T42 header structure is: bytes 0-1 (MRAG), byte 2 (page units), byte 3 (page tens), bytes 4+ (subcode/control).
+
+### Changed
+
+* **Line output ANSI colors** - Colors now apply starting from the timecode/line number prefix for consistent visual formatting.
+
 ## [2.4.0] - 2026-01-24
 
 ### Added
@@ -515,7 +525,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Publishing**: Single-file deployment with ReadyToRun optimization
 * **Dependencies**: Minimal external dependencies with System.CommandLine for CLI
 
-[unreleased]: https://github.com/nathanpbutler/libopx/compare/v2.4.0...HEAD
+[unreleased]: https://github.com/nathanpbutler/libopx/compare/v2.4.1...HEAD
+[2.4.1]: https://github.com/nathanpbutler/libopx/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/nathanpbutler/libopx/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/nathanpbutler/libopx/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/nathanpbutler/libopx/compare/v2.1.2...v2.2.0
