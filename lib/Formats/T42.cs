@@ -270,7 +270,7 @@ public class T42 : FormatIOBase
     /// <returns>True if the row has meaningful content, false if only spaces/control codes</returns>
     public static bool HasMeaningfulContent(byte[] data)
     {
-        if (data.Length < Constants.T42_LINE_SIZE)
+        if (data == null || data.Length < Constants.T42_LINE_SIZE)
             return false;
 
         // Skip MRAG bytes (first 2 bytes), check the remaining 40 bytes
