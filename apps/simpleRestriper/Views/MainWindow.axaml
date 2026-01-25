@@ -2,11 +2,17 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:simpleRestriper.ViewModels"
         xmlns:models="using:simpleRestriper.Models"
+        xmlns:converters="using:simpleRestriper.Converters"
         x:Class="simpleRestriper.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="simpleRestriper"
         Width="600" Height="450"
         MinWidth="500" MinHeight="350">
+
+    <Window.Resources>
+        <converters:StatusToSymbolConverter x:Key="StatusToSymbol"/>
+        <converters:StatusToColorConverter x:Key="StatusToColor"/>
+    </Window.Resources>
 
     <DockPanel Margin="12">
         <!-- Bottom controls -->
@@ -77,13 +83,10 @@
                             <TextBlock DockPanel.Dock="Right"
                                        VerticalAlignment="Center"
                                        Margin="8,0,0,0"
-                                       FontSize="16">
-                                <TextBlock.Text>
-                                    <MultiBinding StringFormat="{}{0}">
-                                        <Binding Path="Status"/>
-                                    </MultiBinding>
-                                </TextBlock.Text>
-                            </TextBlock>
+                                       FontSize="16"
+                                       FontWeight="Bold"
+                                       Text="{Binding Status, Converter={StaticResource StatusToSymbol}}"
+                                       Foreground="{Binding Status, Converter={StaticResource StatusToColor}}"/>
 
                             <StackPanel>
                                 <TextBlock Text="{Binding FileName}"
