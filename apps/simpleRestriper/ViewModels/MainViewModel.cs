@@ -98,16 +98,12 @@ public partial class MainViewModel : INotifyPropertyChanged
 
     public async Task AddFilesAsync(IEnumerable<string> filePaths)
     {
-        foreach (var path in filePaths)
+        var newMxfFiles = filePaths
+            .Where(path => path.EndsWith(".mxf", StringComparison.OrdinalIgnoreCase))
+            .Where(path => !Files.Any(f => f.FilePath.Equals(path, StringComparison.OrdinalIgnoreCase)));
+
+        foreach (var path in newMxfFiles)
         {
-            // Skip duplicates
-            if (Files.Any(f => f.FilePath.Equals(path, StringComparison.OrdinalIgnoreCase)))
-                continue;
-
-            // Skip non-MXF files
-            if (!path.EndsWith(".mxf", StringComparison.OrdinalIgnoreCase))
-                continue;
-
             var fileInfo = await _restripeService.LoadFileAsync(path);
             Files.Add(fileInfo);
         }

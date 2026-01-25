@@ -34,7 +34,11 @@ public class RestripeService
                 var firstSmpte = ReadFirstSmpteTimecode(filePath, mxf.StartTimecode.Timebase, mxf.StartTimecode.DropFrame);
                 fileInfo.SmpteTimecode = firstSmpte ?? mxf.StartTimecode;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is FileNotFoundException or
+                                        InvalidDataException or
+                                        InvalidOperationException or
+                                        IOException or
+                                        UnauthorizedAccessException)
             {
                 fileInfo.Status = RestripeStatus.Error;
                 fileInfo.ErrorMessage = ex.Message;
@@ -94,7 +98,11 @@ public class RestripeService
                 }
             }
         }
-        catch
+        catch (Exception ex) when (ex is IOException or
+                                    UnauthorizedAccessException or
+                                    ArgumentException or
+                                    FormatException or
+                                    OverflowException)
         {
             // Fall back to TimecodeComponent if SMPTE read fails
         }
@@ -165,7 +173,11 @@ public class RestripeService
             file.Status = RestripeStatus.Pending;
             throw;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is InvalidOperationException or
+                                    ArgumentException or
+                                    InvalidDataException or
+                                    IOException or
+                                    UnauthorizedAccessException)
         {
             file.Status = RestripeStatus.Error;
             file.ErrorMessage = ex.Message;
