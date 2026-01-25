@@ -136,6 +136,11 @@ public class MXFHandler : IPacketFormatHandler
     /// </summary>
     private readonly Function _function;
 
+    /// <summary>
+    /// Optional progress reporter for tracking operation progress (0-100).
+    /// </summary>
+    private readonly IProgress<double>? _progress;
+
     #endregion
 
     #region IPacketFormatHandler Implementation
@@ -168,6 +173,7 @@ public class MXFHandler : IPacketFormatHandler
     /// <param name="verbose">Whether to enable verbose output (default: false)</param>
     /// <param name="printProgress">Whether to print progress updates (default: false)</param>
     /// <param name="function">The function mode to use (default: Filter)</param>
+    /// <param name="progress">Optional progress reporter for tracking operation progress (0-100)</param>
     public MXFHandler(
         Timecode? startTimecode = null,
         string? inputFilePath = null,
@@ -179,7 +185,8 @@ public class MXFHandler : IPacketFormatHandler
         string? outputBasePath = null,
         bool verbose = false,
         bool printProgress = false,
-        Function function = Function.Filter)
+        Function function = Function.Filter,
+        IProgress<double>? progress = null)
     {
         StartTimecode = startTimecode ?? new Timecode(0);
         _inputFilePath = inputFilePath;
@@ -192,6 +199,7 @@ public class MXFHandler : IPacketFormatHandler
         _verbose = verbose;
         _printProgress = printProgress;
         _function = function;
+        _progress = progress;
     }
 
     #endregion
@@ -299,12 +307,16 @@ public class MXFHandler : IPacketFormatHandler
                         break;
                 }
 
-                // Print progress if enabled
-                if (_printProgress && (DateTime.Now - restripeNow).TotalMilliseconds >= 1000 && _function == Function.Restripe)
+                // Report progress if enabled
+                if ((DateTime.Now - restripeNow).TotalMilliseconds >= 100 && _function == Function.Restripe)
                 {
                     restripeNow = DateTime.Now;
                     var percentComplete = (double)inputStream.Position / inputStream.Length * 100;
-                    Console.WriteLine($"Progress: {percentComplete:F2}% complete. Current position: {inputStream.Position} bytes of {inputStream.Length} bytes.");
+                    _progress?.Report(percentComplete);
+                    if (_printProgress)
+                    {
+                        Console.WriteLine($"Progress: {percentComplete:F2}% complete. Current position: {inputStream.Position} bytes of {inputStream.Length} bytes.");
+                    }
                 }
             }
 
@@ -428,12 +440,16 @@ public class MXFHandler : IPacketFormatHandler
                 }
 
                 // Progress reporting with throttling
-                if (_printProgress && _function == Function.Restripe &&
-                    (DateTime.Now - lastProgressUpdate).TotalMilliseconds >= 1000)
+                if (_function == Function.Restripe &&
+                    (DateTime.Now - lastProgressUpdate).TotalMilliseconds >= 100)
                 {
                     lastProgressUpdate = DateTime.Now;
                     var percentComplete = (double)inputStream.Position / inputStream.Length * 100;
-                    Console.WriteLine($"Progress: {percentComplete:F2}% complete. Current position: {inputStream.Position} bytes of {inputStream.Length} bytes.");
+                    _progress?.Report(percentComplete);
+                    if (_printProgress)
+                    {
+                        Console.WriteLine($"Progress: {percentComplete:F2}% complete. Current position: {inputStream.Position} bytes of {inputStream.Length} bytes.");
+                    }
                 }
             }
 

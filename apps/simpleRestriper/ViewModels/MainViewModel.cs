@@ -150,7 +150,8 @@ public partial class MainViewModel : INotifyPropertyChanged
                 var file = Files[i];
                 StatusText = $"Processing {i + 1} of {total}...";
 
-                await _restripeService.RestripeAsync(file, timecode, cancellationToken);
+                var progress = new Progress<double>(p => file.Progress = p);
+                await _restripeService.RestripeAsync(file, timecode, progress, cancellationToken);
 
                 if (file.Status == RestripeStatus.Success)
                     succeeded++;

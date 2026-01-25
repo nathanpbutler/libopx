@@ -116,6 +116,11 @@
                                                Foreground="Red"
                                                FontSize="11"
                                                IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                    <ProgressBar Value="{Binding Progress}"
+                                                 Maximum="100"
+                                                 Height="4"
+                                                 Margin="0,4,0,0"
+                                                 IsVisible="{Binding Status, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:RestripeStatus.Processing}}"/>
                                 </StackPanel>
                             </DockPanel>
                         </DataTemplate>

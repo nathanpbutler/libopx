@@ -129,10 +129,11 @@ public class RestripeService
     /// <summary>
     /// Restripes an MXF file with the new timecode.
     /// </summary>
-    public async Task RestripeAsync(MxfFileInfo file, string newTimecode, CancellationToken cancellationToken = default)
+    public async Task RestripeAsync(MxfFileInfo file, string newTimecode, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
     {
         file.Status = RestripeStatus.Processing;
         file.ErrorMessage = null;
+        file.Progress = 0;
 
         try
         {
@@ -140,8 +141,18 @@ public class RestripeService
                 .WithProgress(false)
                 .WithVerbose(false);
 
-            await io.RestripeAsync(newTimecode, cancellationToken);
+            // Create a progress wrapper that updates the file's Progress property
+            var fileProgress = progress != null
+                ? new Progress<double>(p =>
+                {
+                    file.Progress = p;
+                    progress.Report(p);
+                })
+                : new Progress<double>(p => file.Progress = p);
 
+            await io.RestripeAsync(newTimecode, cancellationToken, fileProgress);
+
+            file.Progress = 100;
             file.Status = RestripeStatus.Success;
 
             // Re-read the file to update displayed timecodes

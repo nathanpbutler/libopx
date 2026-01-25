@@ -937,13 +937,15 @@ public sealed class FormatIO : IDisposable
     /// </summary>
     /// <param name="newStartTimecode">New start timecode in HH:MM:SS:FF format</param>
     /// <param name="cancellationToken">Cancellation token</param>
+    /// <param name="progress">Optional progress reporter (0-100)</param>
     /// <exception cref="InvalidOperationException">If FormatIO was not opened from a file,
     /// format is not MXF, or instance has been consumed</exception>
     /// <exception cref="ArgumentException">If timecode format is invalid</exception>
     /// <exception cref="ObjectDisposedException">If the FormatIO instance has been disposed</exception>
     public async Task RestripeAsync(
         string newStartTimecode,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IProgress<double>? progress = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureNotConsumed();
@@ -972,7 +974,8 @@ public sealed class FormatIO : IDisposable
             {
                 Function = Function.Restripe,
                 Verbose = _options.Verbose,
-                PrintProgress = _options.PrintProgress
+                PrintProgress = _options.PrintProgress,
+                Progress = progress
             };
 
             // Execute restripe asynchronously

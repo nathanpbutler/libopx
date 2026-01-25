@@ -67,6 +67,11 @@ public class MXF : FormatIOBase
     public bool PrintProgress { get; set; } = false;
 
     /// <summary>
+    /// Gets or sets the progress reporter for tracking operation progress (0-100).
+    /// </summary>
+    public IProgress<double>? Progress { get; set; }
+
+    /// <summary>
     /// Initializes a new instance of the MXF parser with the specified input file path.
     /// </summary>
     /// <param name="inputFile">Path to the MXF file to be processed</param>
@@ -176,7 +181,8 @@ public class MXF : FormatIOBase
             OutputBasePath,
             Verbose,
             PrintProgress,
-            Function);
+            Function,
+            Progress);
         return _handler;
     }
 

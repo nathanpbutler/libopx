@@ -19,6 +19,7 @@ public class MxfFileInfo : INotifyPropertyChanged
     private Timecode? _timecodeComponent;
     private Timecode? _smpteTimecode;
     private int _timebase;
+    private double _progress;
 
     public required string FilePath { get; init; }
     public string FileName => Path.GetFileName(FilePath);
@@ -63,6 +64,12 @@ public class MxfFileInfo : INotifyPropertyChanged
     {
         get => _errorMessage;
         set => SetField(ref _errorMessage, value);
+    }
+
+    public double Progress
+    {
+        get => _progress;
+        set => SetField(ref _progress, value);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
