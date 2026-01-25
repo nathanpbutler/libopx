@@ -85,7 +85,7 @@ public partial class MainViewModel : INotifyPropertyChanged
 
     // Commands (cached to avoid recreating on every access)
     public ICommand ClearCommand => _clearCommand ??= new RelayCommand(ClearFiles, () => !IsProcessing);
-    public ICommand RestripeCommand => _restripeCommand ??= new AsyncRelayCommand(RestripeAllAsync, () => CanRestripe);
+    public ICommand RestripeCommand => _restripeCommand ??= new AsyncRelayCommand(() => RestripeAllAsync(), () => CanRestripe);
 
     public async Task AddFilesAsync(IEnumerable<string> filePaths)
     {
