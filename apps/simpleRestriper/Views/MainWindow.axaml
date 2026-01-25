@@ -73,46 +73,57 @@
                 BorderThickness="1"
                 Margin="0,0,0,12"
                 DragDrop.AllowDrop="True">
-            <ListBox ItemsSource="{Binding Files}"
-                     Background="White"
-                     x:Name="FileListBox">
-                <ListBox.ItemTemplate>
-                    <DataTemplate DataType="models:MxfFileInfo">
-                        <DockPanel Margin="4">
-                            <!-- Status indicator -->
-                            <TextBlock DockPanel.Dock="Right"
-                                       VerticalAlignment="Center"
-                                       Margin="8,0,0,0"
-                                       FontSize="16"
-                                       FontWeight="Bold"
-                                       Text="{Binding Status, Converter={StaticResource StatusToSymbol}}"
-                                       Foreground="{Binding Status, Converter={StaticResource StatusToColor}}"/>
+            <Grid>
+                <!-- Empty state hint -->
+                <TextBlock Text="Drag MXF files here or click Browse"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Foreground="Gray"
+                           IsVisible="{Binding !Files.Count}"/>
 
-                            <StackPanel>
-                                <TextBlock Text="{Binding FileName}"
-                                           FontWeight="SemiBold"/>
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="TC: "/>
-                                    <TextBlock Text="{Binding TimecodeComponent, TargetNullValue='--:--:--:--'}"/>
-                                    <TextBlock Text=" | SMPTE: "/>
-                                    <TextBlock Text="{Binding SmpteTimecode, TargetNullValue='--:--:--:--'}"/>
-                                    <TextBlock Text=" @ "/>
-                                    <TextBlock Text="{Binding Timebase}"/>
-                                    <TextBlock Text="fps"/>
-                                    <TextBlock Text=" ⚠"
-                                               Foreground="Orange"
-                                               IsVisible="{Binding HasMismatch}"
-                                               ToolTip.Tip="TimecodeComponent and SMPTE timecode do not match"/>
+                <!-- File list -->
+                <ListBox ItemsSource="{Binding Files}"
+                         Background="Transparent"
+                         x:Name="FileListBox"
+                         IsVisible="{Binding Files.Count}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="models:MxfFileInfo">
+                            <DockPanel Margin="4">
+                                <!-- Status indicator -->
+                                <TextBlock DockPanel.Dock="Right"
+                                           VerticalAlignment="Center"
+                                           Margin="8,0,0,0"
+                                           FontSize="16"
+                                           FontWeight="Bold"
+                                           Text="{Binding Status, Converter={StaticResource StatusToSymbol}}"
+                                           Foreground="{Binding Status, Converter={StaticResource StatusToColor}}"/>
+
+                                <StackPanel>
+                                    <TextBlock Text="{Binding FileName}"
+                                               FontWeight="SemiBold"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="TC: "/>
+                                        <TextBlock Text="{Binding TimecodeComponent, TargetNullValue='--:--:--:--'}"/>
+                                        <TextBlock Text=" | SMPTE: "/>
+                                        <TextBlock Text="{Binding SmpteTimecode, TargetNullValue='--:--:--:--'}"/>
+                                        <TextBlock Text=" @ "/>
+                                        <TextBlock Text="{Binding Timebase}"/>
+                                        <TextBlock Text="fps"/>
+                                        <TextBlock Text=" ⚠"
+                                                   Foreground="Orange"
+                                                   IsVisible="{Binding HasMismatch}"
+                                                   ToolTip.Tip="TimecodeComponent and SMPTE timecode do not match"/>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding ErrorMessage}"
+                                               Foreground="Red"
+                                               FontSize="11"
+                                               IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
                                 </StackPanel>
-                                <TextBlock Text="{Binding ErrorMessage}"
-                                           Foreground="Red"
-                                           FontSize="11"
-                                           IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-                            </StackPanel>
-                        </DockPanel>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+                            </DockPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
         </Border>
     </DockPanel>
 </Window>
