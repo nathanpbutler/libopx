@@ -169,7 +169,7 @@ public class Packet : IDisposable
             // Otherwise, filter by magazine and row
             if (line.Magazine == magazine && row.Contains(line.Row))
             {
-                sb.AppendLine($"{Timecode} {line.Magazine} {line.Row:D2} {line.Text}");
+                sb.AppendLine($"{Constants.T42_DEFAULT_COLORS}{Timecode} {line.Magazine} {line.Row:D2} {Constants.T42_ANSI_RESET}{line.Text}");
             }
         }
 

@@ -509,17 +509,14 @@ public class Line : IDisposable
     public override string ToString()
     {
         var sb = new StringBuilder();
-        
-        // Start with default colors (white on black)
-        sb.Append($"\x1b[38;5;{Constants.T42_ANSI_256_COLORS[7]}m\x1b[48;5;{Constants.T42_ANSI_256_COLORS[0]}m");
 
         if (LineTimecode != null)
         {
-            sb.Append($"{LineTimecode} {Magazine} {Row:D2} {Constants.T42_ANSI_RESET}{Text}");
+            sb.Append($"{Constants.T42_DEFAULT_COLORS}{LineTimecode} {Magazine} {Row:D2} {Constants.T42_ANSI_RESET}{Text}");
         }
         else
         {
-            sb.Append($"{LineNumber.ToString().PadLeft(11)} {Magazine} {Row:D2} {Constants.T42_ANSI_RESET}{Text}");
+            sb.Append($"{Constants.T42_DEFAULT_COLORS}{LineNumber.ToString().PadLeft(11)} {Magazine} {Row:D2} {Constants.T42_ANSI_RESET}{Text}");
         }
 
         return sb.ToString().TrimEnd();

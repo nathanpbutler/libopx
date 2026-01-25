@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [2.4.2] - 2026-01-25
+
+### Changed
+
+* **Line and Packet ANSI output** - Both `Line.ToString()` and `Packet.ToString()` now use `Constants.T42_DEFAULT_COLORS` for consistent ANSI color formatting starting from the timecode prefix.
+
 ## [2.4.1] - 2026-01-25
 
 ### Fixed
@@ -525,7 +531,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **Publishing**: Single-file deployment with ReadyToRun optimization
 * **Dependencies**: Minimal external dependencies with System.CommandLine for CLI
 
-[unreleased]: https://github.com/nathanpbutler/libopx/compare/v2.4.1...HEAD
+[unreleased]: https://github.com/nathanpbutler/libopx/compare/v2.4.2...HEAD
+[2.4.2]: https://github.com/nathanpbutler/libopx/compare/v2.4.1...v2.4.2
 [2.4.1]: https://github.com/nathanpbutler/libopx/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/nathanpbutler/libopx/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/nathanpbutler/libopx/compare/v2.2.0...v2.3.0

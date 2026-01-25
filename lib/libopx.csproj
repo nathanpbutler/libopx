@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>nathanbutlerDEV.libopx</RootNamespace>
-    <Version>2.4.1</Version>
+    <Version>2.4.2</Version>
 
     <!-- Package Information -->
     <PackageId>libopx</PackageId>
@@ -19,7 +19,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageTags>mxf;teletext;vbi;t42;mpeg-ts;transport-stream;dvb;smpte;timecode;caption;subtitles;broadcast;video;parsing;extraction;conversion;op42;op47;cli;dotnet;async;performance</PackageTags>
     <Copyright>Copyright (c) 2025 Nathan Butler</Copyright>
-    <PackageReleaseNotes>v2.4.1: Fixed T42 page number parsing - page tens digit was incorrectly read from byte 4 instead of byte 3, causing page filtering to fail. Line output now applies ANSI colors starting from the timecode/line number prefix.</PackageReleaseNotes>
+    <PackageReleaseNotes>v2.4.2: Line and Packet output now uses Constants.T42_DEFAULT_COLORS for consistent ANSI color formatting from the timecode prefix.</PackageReleaseNotes>
     
     <!-- Documentation -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
