@@ -35,14 +35,12 @@
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <TextBlock Text="New Timecode:"
                            VerticalAlignment="Center"/>
-                <TextBox x:Name="TimecodeTextBox"
-                         Text="{Binding TimecodeInput, Mode=TwoWay}"
-                         IsEnabled="{Binding !IsZeroChecked}"
-                         Watermark="00:00:00:00"
-                         Width="100"
-                         MaxLength="11"
-                         VerticalAlignment="Center"
-                         TextChanged="OnTimecodeTextChanged"/>
+                <MaskedTextBox x:Name="TimecodeTextBox"
+                               Text="{Binding TimecodeInput, Mode=TwoWay}"
+                               IsEnabled="{Binding !IsZeroChecked}"
+                               Mask="00:00:00:00"
+                               Width="100"
+                               VerticalAlignment="Center"/>
                 <TextBlock Text="{Binding ValidationHint}"
                            FontSize="11"
                            Foreground="Gray"
@@ -101,9 +99,9 @@
                                                FontWeight="SemiBold"/>
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="TC: "/>
-                                        <TextBlock Text="{Binding TimecodeComponent, TargetNullValue='--:--:--:--'}"/>
+                                        <TextBlock Text="{Binding TimecodeComponentDisplay, TargetNullValue='--:--:--:--'}"/>
                                         <TextBlock Text=" | SMPTE: "/>
-                                        <TextBlock Text="{Binding SmpteTimecode, TargetNullValue='--:--:--:--'}"/>
+                                        <TextBlock Text="{Binding SmpteTimecodeDisplay, TargetNullValue='--:--:--:--'}"/>
                                         <TextBlock Text=" @ "/>
                                         <TextBlock Text="{Binding Timebase}"/>
                                         <TextBlock Text="fps"/>

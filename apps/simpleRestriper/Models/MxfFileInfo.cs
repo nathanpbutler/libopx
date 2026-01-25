@@ -30,9 +30,14 @@ public class MxfFileInfo : INotifyPropertyChanged
         set
         {
             if (SetField(ref _timecodeComponent, value))
+            {
                 OnPropertyChanged(nameof(HasMismatch));
+                OnPropertyChanged(nameof(TimecodeComponentDisplay));
+            }
         }
     }
+
+    public string? TimecodeComponentDisplay => TimecodeComponent?.ToShortString();
 
     public Timecode? SmpteTimecode
     {
@@ -40,9 +45,14 @@ public class MxfFileInfo : INotifyPropertyChanged
         set
         {
             if (SetField(ref _smpteTimecode, value))
+            {
                 OnPropertyChanged(nameof(HasMismatch));
+                OnPropertyChanged(nameof(SmpteTimecodeDisplay));
+            }
         }
     }
+
+    public string? SmpteTimecodeDisplay => SmpteTimecode?.ToShortString();
 
     public int Timebase
     {

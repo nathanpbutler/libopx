@@ -523,12 +523,19 @@ public class Timecode : IEquatable<Timecode>, IComparable<Timecode>
     /// <summary>
     /// ToString override
     /// </summary>
-    /// <returns>The timecode as a string</returns>
+    /// <returns>The timecode as a string in HH:MM:SS:FF format</returns>
     public override string ToString()
     {
-        // If 50p, add field as ".00" or ".01"
-        var field = Timebase >= 48 ? $".{Field:D2}" : "";
-        return $"{Hours:D2}:{Minutes:D2}:{Seconds:D2}:{Frames:D2}{field}";
+        return $"{Hours:D2}:{Minutes:D2}:{Seconds:D2}:{Frames:D2}";
+    }
+
+    /// <summary>
+    /// Returns the timecode as a string (alias for ToString)
+    /// </summary>
+    /// <returns>The timecode in HH:MM:SS:FF format</returns>
+    public string ToShortString()
+    {
+        return ToString();
     }
 
     /// <summary>

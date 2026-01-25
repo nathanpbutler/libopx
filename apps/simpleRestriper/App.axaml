@@ -3,6 +3,6 @@
              x:Class="simpleRestriper.App"
              RequestedThemeVariant="Dark">
     <Application.Styles>
-        <SimpleTheme />
+        <FluentTheme />
     </Application.Styles>
 </Application>
