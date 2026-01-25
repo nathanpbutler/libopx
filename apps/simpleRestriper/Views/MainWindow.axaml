@@ -1,0 +1,130 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:simpleRestriper.ViewModels"
+        xmlns:models="using:simpleRestriper.Models"
+        xmlns:converters="using:simpleRestriper.Converters"
+        x:Class="simpleRestriper.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="simpleRestriper"
+        Width="600" Height="450"
+        MinWidth="500" MinHeight="350"
+        DragDrop.AllowDrop="True">
+
+    <Window.Resources>
+        <converters:StatusToSymbolConverter x:Key="StatusToSymbol"/>
+        <converters:StatusToColorConverter x:Key="StatusToColor"/>
+    </Window.Resources>
+
+    <DockPanel Margin="12">
+        <!-- Bottom controls -->
+        <StackPanel DockPanel.Dock="Bottom" Spacing="8">
+            <!-- Restripe button and status -->
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Right"
+                           Text="{Binding StatusText}"
+                           VerticalAlignment="Center"
+                           Margin="8,0,0,0"/>
+                <Button Content="{Binding Files.Count, StringFormat='Restripe {0} files'}"
+                        Command="{Binding RestripeCommand}"
+                        IsEnabled="{Binding CanRestripe}"
+                        HorizontalAlignment="Left"
+                        Padding="16,8"/>
+            </DockPanel>
+
+            <!-- Timecode input -->
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="New Timecode:"
+                           VerticalAlignment="Center"/>
+                <MaskedTextBox x:Name="TimecodeTextBox"
+                               Text="{Binding TimecodeInput, Mode=TwoWay}"
+                               IsEnabled="{Binding !IsZeroChecked}"
+                               Mask="00:00:00:00"
+                               Width="100"
+                               VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding ValidationHint}"
+                           FontSize="11"
+                           Foreground="Gray"
+                           VerticalAlignment="Center"/>
+                <CheckBox Content="Zero"
+                          IsChecked="{Binding IsZeroChecked}"
+                          IsEnabled="{Binding IsNotProcessing}"
+                          VerticalAlignment="Center"/>
+            </StackPanel>
+
+            <!-- Browse and Clear buttons -->
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Browse..."
+                        Click="OnBrowseClick"
+                        IsEnabled="{Binding IsNotProcessing}"
+                        Padding="16,8"/>
+                <Button Content="Clear List"
+                        Command="{Binding ClearCommand}"
+                        IsEnabled="{Binding IsNotProcessing}"
+                        Padding="16,8"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- File list -->
+        <Border BorderBrush="Gray"
+                BorderThickness="1"
+                Margin="0,0,0,12"
+                DragDrop.AllowDrop="True">
+            <Grid>
+                <!-- Empty state hint -->
+                <TextBlock Text="Drag MXF files here or click Browse"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Foreground="Gray"
+                           IsVisible="{Binding !Files.Count}"/>
+
+                <!-- File list -->
+                <ListBox ItemsSource="{Binding Files}"
+                         Background="Transparent"
+                         x:Name="FileListBox"
+                         IsVisible="{Binding Files.Count}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="models:MxfFileInfo">
+                            <DockPanel Margin="4">
+                                <!-- Status indicator -->
+                                <TextBlock DockPanel.Dock="Right"
+                                           VerticalAlignment="Center"
+                                           Margin="8,0,0,0"
+                                           FontSize="16"
+                                           FontWeight="Bold"
+                                           Text="{Binding Status, Converter={StaticResource StatusToSymbol}}"
+                                           Foreground="{Binding Status, Converter={StaticResource StatusToColor}}"/>
+
+                                <StackPanel>
+                                    <TextBlock Text="{Binding FileName}"
+                                               FontWeight="SemiBold"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="TC: "/>
+                                        <TextBlock Text="{Binding TimecodeComponentDisplay, TargetNullValue='--:--:--:--'}"/>
+                                        <TextBlock Text=" | SMPTE: "/>
+                                        <TextBlock Text="{Binding SmpteTimecodeDisplay, TargetNullValue='--:--:--:--'}"/>
+                                        <TextBlock Text=" @ "/>
+                                        <TextBlock Text="{Binding Timebase}"/>
+                                        <TextBlock Text="fps"/>
+                                        <TextBlock Text=" ⚠"
+                                                   Foreground="Orange"
+                                                   IsVisible="{Binding HasMismatch}"
+                                                   ToolTip.Tip="TimecodeComponent and SMPTE timecode do not match"/>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding ErrorMessage}"
+                                               Foreground="Red"
+                                               FontSize="11"
+                                               IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                    <ProgressBar Value="{Binding Progress}"
+                                                 Maximum="100"
+                                                 Height="4"
+                                                 Margin="0,4,0,0"
+                                                 IsVisible="{Binding Status, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static models:RestripeStatus.Processing}}"/>
+                                </StackPanel>
+                            </DockPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
+    </DockPanel>
+</Window>
