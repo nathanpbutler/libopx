@@ -243,33 +243,23 @@ public class T42 : FormatIOBase
 
     /// <summary>
     /// Decodes the page number from a header row (row 0) of T42 teletext data.
-    /// The page number is encoded in bytes 2 and 4 (after MRAG bytes 0-1).
+    /// The page number is encoded in bytes 2 (units) and 3 (tens) after MRAG bytes 0-1.
     /// </summary>
-    /// <param name="data">The teletext data bytes (must be at least 5 bytes for page number extraction)</param>
+    /// <param name="data">The teletext data bytes (must be at least 4 bytes for page number extraction)</param>
     /// <returns>Two-digit hex page number (e.g., "01", "ff"), or null if data is insufficient</returns>
     public static string? GetPageNumber(byte[] data)
     {
-        if (data == null || data.Length < 5)
+        if (data.Length < 4)
             return null;
 
-        // Page number is encoded in bytes 2 (units) and 4 (tens) after MRAG
-        // Note: Original data includes MRAG at bytes 0-1, page number at bytes 2-5
-        // Detect specific known patterns first
-        if (data[2] == 0xEA && data[4] == 0xFD)
-        {
-            return "ff";
-        }
-        else if (data[2] == 0x02 && data[4] == 0x15)
-        {
-            return "01";
-        }
-        else
-        {
-            // Fallback: decode from Hamming
-            int pageUnits = Hamming8Decode(data[2]);
-            int pageTens = Hamming8Decode(data[4]);
-            return $"{pageTens:x}{pageUnits:x}";
-        }
+        // Page number is encoded in bytes 2 (units) and 3 (tens) after MRAG
+        // Byte 0-1: MRAG (Magazine and Row Address Group)
+        // Byte 2: Page units (Hamming 8/4 encoded)
+        // Byte 3: Page tens (Hamming 8/4 encoded)
+        // Byte 4+: Subcode and control bits
+        int pageUnits = Hamming8Decode(data[2]);
+        int pageTens = Hamming8Decode(data[3]);
+        return $"{pageTens:x}{pageUnits:x}";
     }
 
     /// <summary>
@@ -280,7 +270,7 @@ public class T42 : FormatIOBase
     /// <returns>True if the row has meaningful content, false if only spaces/control codes</returns>
     public static bool HasMeaningfulContent(byte[] data)
     {
-        if (data == null || data.Length < Constants.T42_LINE_SIZE)
+        if (data.Length < Constants.T42_LINE_SIZE)
             return false;
 
         // Skip MRAG bytes (first 2 bytes), check the remaining 40 bytes
@@ -312,7 +302,7 @@ public class T42 : FormatIOBase
     /// <returns>ANSI formatted text string with 256-color codes</returns>
     public static string GetText(byte[] bytes, bool isHeaderRow = false, int? magazine = null, string? pageNumber = null)
     {
-        if (bytes == null || bytes.Length == 0)
+        if (bytes.Length == 0)
             return Constants.T42_BLANK_LINE;
 
         if (isHeaderRow)
