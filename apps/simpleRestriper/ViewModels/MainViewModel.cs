@@ -31,6 +31,7 @@ public partial class MainViewModel : INotifyPropertyChanged
             {
                 ValidateTimecode();
                 OnPropertyChanged(nameof(CanRestripe));
+                RaiseCommandsCanExecuteChanged();
             }
         }
     }
@@ -44,6 +45,7 @@ public partial class MainViewModel : INotifyPropertyChanged
             {
                 if (value) TimecodeInput = "00:00:00:00";
                 OnPropertyChanged(nameof(CanRestripe));
+                RaiseCommandsCanExecuteChanged();
             }
         }
     }
@@ -57,6 +59,7 @@ public partial class MainViewModel : INotifyPropertyChanged
             {
                 OnPropertyChanged(nameof(CanRestripe));
                 OnPropertyChanged(nameof(IsNotProcessing));
+                RaiseCommandsCanExecuteChanged();
             }
         }
     }
@@ -78,6 +81,12 @@ public partial class MainViewModel : INotifyPropertyChanged
     public bool CanRestripe => !IsProcessing &&
                                Files.Count > 0 &&
                                (IsZeroChecked || _isTimecodeValid);
+
+    private void RaiseCommandsCanExecuteChanged()
+    {
+        _restripeCommand?.RaiseCanExecuteChanged();
+        _clearCommand?.RaiseCanExecuteChanged();
+    }
 
     public int MinTimebase => Files.Count > 0
         ? Files.Where(f => f.Timebase > 0).Select(f => f.Timebase).DefaultIfEmpty(25).Min()
@@ -104,8 +113,10 @@ public partial class MainViewModel : INotifyPropertyChanged
         }
 
         UpdateValidationHint();
+        ValidateTimecode(); // Re-validate since MinTimebase may have changed
         OnPropertyChanged(nameof(CanRestripe));
         OnPropertyChanged(nameof(MinTimebase));
+        RaiseCommandsCanExecuteChanged();
         UpdateStatusText();
     }
 
@@ -113,8 +124,10 @@ public partial class MainViewModel : INotifyPropertyChanged
     {
         Files.Clear();
         UpdateValidationHint();
+        ValidateTimecode(); // Re-validate since MinTimebase may have changed
         OnPropertyChanged(nameof(CanRestripe));
         OnPropertyChanged(nameof(MinTimebase));
+        RaiseCommandsCanExecuteChanged();
         UpdateStatusText();
     }
 

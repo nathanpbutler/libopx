@@ -7,7 +7,8 @@
         x:DataType="vm:MainViewModel"
         Title="simpleRestriper"
         Width="600" Height="450"
-        MinWidth="500" MinHeight="350">
+        MinWidth="500" MinHeight="350"
+        DragDrop.AllowDrop="True">
 
     <Window.Resources>
         <converters:StatusToSymbolConverter x:Key="StatusToSymbol"/>
@@ -31,29 +32,26 @@
             </DockPanel>
 
             <!-- Timecode input -->
-            <DockPanel>
-                <CheckBox DockPanel.Dock="Right"
-                          Content="Zero"
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="New Timecode:"
+                           VerticalAlignment="Center"/>
+                <TextBox x:Name="TimecodeTextBox"
+                         Text="{Binding TimecodeInput, Mode=TwoWay}"
+                         IsEnabled="{Binding !IsZeroChecked}"
+                         Watermark="00:00:00:00"
+                         Width="100"
+                         MaxLength="11"
+                         VerticalAlignment="Center"
+                         TextChanged="OnTimecodeTextChanged"/>
+                <TextBlock Text="{Binding ValidationHint}"
+                           FontSize="11"
+                           Foreground="Gray"
+                           VerticalAlignment="Center"/>
+                <CheckBox Content="Zero"
                           IsChecked="{Binding IsZeroChecked}"
                           IsEnabled="{Binding IsNotProcessing}"
-                          VerticalAlignment="Center"
-                          Margin="8,0,0,0"/>
-                <StackPanel>
-                    <DockPanel>
-                        <TextBlock Text="New Timecode: "
-                                   VerticalAlignment="Center"
-                                   Width="100"/>
-                        <TextBox Text="{Binding TimecodeInput}"
-                                 IsEnabled="{Binding !IsZeroChecked}"
-                                 Watermark="HH:MM:SS:FF"
-                                 Width="120"/>
-                    </DockPanel>
-                    <TextBlock Text="{Binding ValidationHint}"
-                               FontSize="11"
-                               Foreground="Gray"
-                               Margin="100,2,0,0"/>
-                </StackPanel>
-            </DockPanel>
+                          VerticalAlignment="Center"/>
+            </StackPanel>
 
             <!-- Browse and Clear buttons -->
             <StackPanel Orientation="Horizontal" Spacing="8">

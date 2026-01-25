@@ -1,15 +1,17 @@
 using nathanbutlerDEV.libopx;
+using nathanbutlerDEV.libopx.Enums;
+using nathanbutlerDEV.libopx.Formats;
 using simpleRestriper.Models;
 
 namespace simpleRestriper.Services;
 
 public class RestripeService
 {
-    /// <summary>
-    /// Maximum bytes to search for TimecodeComponent in MXF header.
-    /// MXF metadata typically resides in the first 128KB of the file.
-    /// </summary>
-    private const int MaxTimecodeSearchBytes = 128000;
+    // Constants for reading SMPTE timecode from System packets
+    private const int KlvKeySize = 16;
+    private const int SystemMetadataPackOffset = 41;
+    private const int SystemMetadataSetOffset = 12;
+    private const int SmpteTimecodeSize = 4;
 
     /// <summary>
     /// Loads MXF file metadata including TimecodeComponent and first SMPTE timecode.
@@ -22,21 +24,15 @@ public class RestripeService
 
             try
             {
-                using var io = FormatIO.Open(filePath);
+                // Use MXF class to read TimecodeComponent from header (~128KB)
+                using var mxf = new MXF(new FileInfo(filePath));
 
-                // Get TimecodeComponent from MXF metadata via first packet's timecode
-                // FormatIO.Open automatically reads the TimecodeComponent for MXF files
-                var firstPacket = io.ParsePackets().FirstOrDefault();
+                fileInfo.TimecodeComponent = mxf.StartTimecode;
+                fileInfo.Timebase = mxf.StartTimecode.Timebase;
 
-                if (firstPacket?.Timecode != null)
-                {
-                    fileInfo.Timebase = firstPacket.Timecode.Timebase;
-                    fileInfo.SmpteTimecode = firstPacket.Timecode;
-
-                    // TimecodeComponent is read during FormatIO.Open for MXF files
-                    // and stored in ParseOptions.StartTimecode - we need to read it separately
-                    fileInfo.TimecodeComponent = ReadTimecodeComponent(filePath);
-                }
+                // Read first SMPTE timecode by scanning for first System key
+                var firstSmpte = ReadFirstSmpteTimecode(filePath, mxf.StartTimecode.Timebase, mxf.StartTimecode.DropFrame);
+                fileInfo.SmpteTimecode = firstSmpte ?? mxf.StartTimecode;
             }
             catch (Exception ex)
             {
@@ -49,36 +45,48 @@ public class RestripeService
     }
 
     /// <summary>
-    /// Reads the TimecodeComponent metadata from an MXF file.
+    /// Reads the first SMPTE timecode from an MXF file by scanning for the first System key.
+    /// Much faster than parsing all packets.
     /// </summary>
-    private static Timecode? ReadTimecodeComponent(string filePath)
+    private static Timecode? ReadFirstSmpteTimecode(string filePath, int timebase, bool dropFrame)
     {
         try
         {
             using var stream = File.OpenRead(filePath);
-            var keyBuffer = new byte[16]; // KLV key size
+            var keyBuffer = new byte[KlvKeySize];
+            var smpteBuffer = new byte[SmpteTimecodeSize];
 
-            // Search for TimecodeComponent in MXF header
-            while (stream.Position < MaxTimecodeSearchBytes)
+            while (stream.Position < stream.Length)
             {
-                var keyBytesRead = stream.Read(keyBuffer, 0, 16);
-                if (keyBytesRead != 16) break;
+                var keyBytesRead = stream.Read(keyBuffer, 0, KlvKeySize);
+                if (keyBytesRead != KlvKeySize) break;
 
-                var keyType = Keys.GetKeyType(keyBuffer.AsSpan(0, 16));
+                var keyType = Keys.GetKeyType(keyBuffer.AsSpan());
                 var length = ReadBerLength(stream);
                 if (length < 0) break;
 
-                if (keyType == KeyType.TimecodeComponent)
+                if (keyType == KeyType.System)
                 {
-                    var data = new byte[length];
-                    var dataBytesRead = stream.Read(data, 0, length);
-                    if (dataBytesRead != length) break;
+                    // Determine offset to SMPTE timecode within System packet
+                    int offset;
+                    if (length >= SystemMetadataPackOffset + SmpteTimecodeSize)
+                        offset = SystemMetadataPackOffset;
+                    else if (length >= SystemMetadataSetOffset + SmpteTimecodeSize)
+                        offset = SystemMetadataSetOffset;
+                    else
+                    {
+                        stream.Seek(length, SeekOrigin.Current);
+                        continue;
+                    }
 
-                    var tc = TimecodeComponent.Parse(data);
-                    return new Timecode(
-                        tc.StartTimecode,
-                        tc.RoundedTimecodeTimebase,
-                        tc.DropFrame);
+                    // Skip to SMPTE timecode position and read it
+                    stream.Seek(offset, SeekOrigin.Current);
+                    var smpteRead = stream.Read(smpteBuffer, 0, SmpteTimecodeSize);
+                    if (smpteRead == SmpteTimecodeSize)
+                    {
+                        return Timecode.FromBytes(smpteBuffer, timebase, dropFrame);
+                    }
+                    break;
                 }
                 else
                 {
@@ -88,7 +96,7 @@ public class RestripeService
         }
         catch
         {
-            // Ignore errors reading TimecodeComponent
+            // Fall back to TimecodeComponent if SMPTE read fails
         }
 
         return null;
