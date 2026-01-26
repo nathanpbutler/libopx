@@ -1154,6 +1154,8 @@ public class MXFHandler : IPacketFormatHandler
         int timebase = StartTimecode.Timebase;
         bool dropFrame = StartTimecode.DropFrame;
         var rate = input.ReadByte();
+        if (rate == -1)
+            throw new EndOfStreamException("Unexpected end of stream while reading rate byte.");
         int rateIndex = (rate & 0x1E) >> 1;
         int[] rates = [0, 24, 25, 30, 48, 50, 60, 72, 75, 90, 96, 100, 120, 0, 0, 0];
         if (rateIndex < 16)
