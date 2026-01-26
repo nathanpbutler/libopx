@@ -67,6 +67,11 @@ public class MXFHandler : IPacketFormatHandler
     /// </summary>
     private string? _currentPageNumber;
 
+    /// <summary>
+    /// Flag to track whether timebase validation has been performed.
+    /// </summary>
+    private bool _timebaseValidated;
+
     #endregion
 
     #region Configuration Properties
@@ -1135,6 +1140,74 @@ public class MXFHandler : IPacketFormatHandler
     #region Restriping
 
     /// <summary>
+    /// Validates that the first System packet's timebase matches the target timecode.
+    /// Called once at the start of restripe operation.
+    /// </summary>
+    private void ValidateTimebaseOnce(Stream input, int length, Timecode newTimecode)
+    {
+        if (_timebaseValidated) return;
+
+        var offset = GetSystemMetadataOffset(length);
+        if (offset < 0) return;
+
+        input.Seek(1, SeekOrigin.Current); // Skip first byte
+        int timebase = StartTimecode.Timebase;
+        bool dropFrame = StartTimecode.DropFrame;
+        var rate = input.ReadByte();
+        int rateIndex = (rate & 0x1E) >> 1;
+        int[] rates = [0, 24, 25, 30, 48, 50, 60, 72, 75, 90, 96, 100, 120, 0, 0, 0];
+        if (rateIndex < 16)
+            timebase = rates[rateIndex];
+        if ((rate & 0x01) == 0x01)
+            dropFrame = true;
+        input.Seek(-2, SeekOrigin.Current);
+
+        if (newTimecode.Timebase != timebase || newTimecode.DropFrame != dropFrame)
+        {
+            throw new InvalidOperationException(
+                $"New timecode {newTimecode} does not match file timebase {timebase} and drop frame {dropFrame}.");
+        }
+
+        _timebaseValidated = true;
+    }
+
+    /// <summary>
+    /// Asynchronously validates that the first System packet's timebase matches the target timecode.
+    /// Called once at the start of restripe operation.
+    /// </summary>
+    private async Task ValidateTimebaseOnceAsync(Stream input, int length, Timecode newTimecode, CancellationToken cancellationToken)
+    {
+        if (_timebaseValidated) return;
+
+        var offset = GetSystemMetadataOffset(length);
+        if (offset < 0) return;
+
+        input.Seek(1, SeekOrigin.Current); // Skip first byte
+        int timebase = StartTimecode.Timebase;
+        bool dropFrame = StartTimecode.DropFrame;
+        var rateBuffer = new byte[1];
+        var rateBytesRead = await input.ReadAsync(rateBuffer.AsMemory(), cancellationToken);
+        if (rateBytesRead != 1)
+            throw new EndOfStreamException("Unexpected end of stream while reading rate byte.");
+        var rate = rateBuffer[0];
+        int rateIndex = (rate & 0x1E) >> 1;
+        int[] rates = [0, 24, 25, 30, 48, 50, 60, 72, 75, 90, 96, 100, 120, 0, 0, 0];
+        if (rateIndex < 16)
+            timebase = rates[rateIndex];
+        if ((rate & 0x01) == 0x01)
+            dropFrame = true;
+        input.Seek(-2, SeekOrigin.Current);
+
+        if (newTimecode.Timebase != timebase || newTimecode.DropFrame != dropFrame)
+        {
+            throw new InvalidOperationException(
+                $"New timecode {newTimecode} does not match file timebase {timebase} and drop frame {dropFrame}.");
+        }
+
+        _timebaseValidated = true;
+    }
+
+    /// <summary>
     /// Restripes a TimecodeComponent packet with a new timecode.
     /// </summary>
     private void RestripeTimecodeComponent(Stream input, int length, Timecode newTimecode)
@@ -1202,25 +1275,11 @@ public class MXFHandler : IPacketFormatHandler
             return;
         }
 
-        #region Myriadbits MXFInspect code
-        input.Seek(1, SeekOrigin.Current); // Skip the first byte
-        int timebase = StartTimecode.Timebase;
-        bool dropFrame = StartTimecode.DropFrame;
-        var rate = input.ReadByte();
-        int rateIndex = (rate & 0x1E) >> 1;
-        int[] rates = [0, 24, 25, 30, 48, 50, 60, 72, 75, 90, 96, 100, 120, 0, 0, 0];
-        if (rateIndex < 16)
-            timebase = rates[rateIndex];
-        if ((rate & 0x01) == 0x01) // 1.001 divider active?
-            dropFrame = true;
-        input.Seek(-2, SeekOrigin.Current); // Go back to the start of the timecode
-
-        // If newTimecode.Timebase and newTimecode.DropFrame do not match what we have found, BREAK
-        if (newTimecode.Timebase != timebase || newTimecode.DropFrame != dropFrame)
+        // Validate timebase on first System packet only
+        if (!_timebaseValidated)
         {
-            throw new InvalidOperationException($"New timecode {newTimecode} does not match existing timebase {timebase} and drop frame {dropFrame}.");
+            ValidateTimebaseOnce(input, length, newTimecode);
         }
-        #endregion
 
         // Skip directly to SMPTE timecode position
         SkipPacket(input, offset);
@@ -1230,7 +1289,6 @@ public class MXFHandler : IPacketFormatHandler
             Console.WriteLine($"Restriping System timecode at offset {offset}: {newTimecode}");
         }
 
-        // Write new timecode directly (no read, no seek-back needed)
         var newTimecodeBytes = newTimecode.ToBytes();
         input.Write(newTimecodeBytes, 0, Constants.SMPTE_TIMECODE_SIZE);
 
@@ -1324,29 +1382,11 @@ public class MXFHandler : IPacketFormatHandler
             return;
         }
 
-        #region Myriadbits MXFInspect code
-        input.Seek(1, SeekOrigin.Current); // Skip the first byte
-        int timebase = StartTimecode.Timebase;
-        bool dropFrame = StartTimecode.DropFrame;
-        var rateBuffer = new byte[1];
-        var rateBytesRead = await input.ReadAsync(rateBuffer.AsMemory(), cancellationToken);
-        if (rateBytesRead != 1)
-            throw new EndOfStreamException("Unexpected end of stream while reading rate byte.");
-        var rate = rateBuffer[0];
-        int rateIndex = (rate & 0x1E) >> 1;
-        int[] rates = [0, 24, 25, 30, 48, 50, 60, 72, 75, 90, 96, 100, 120, 0, 0, 0];
-        if (rateIndex < 16)
-            timebase = rates[rateIndex];
-        if ((rate & 0x01) == 0x01) // 1.001 divider active?
-            dropFrame = true;
-        input.Seek(-2, SeekOrigin.Current); // Go back to the start of the timecode
-
-        // If newTimecode.Timebase and newTimecode.DropFrame do not match what we have found, BREAK
-        if (newTimecode.Timebase != timebase || newTimecode.DropFrame != dropFrame)
+        // Validate timebase on first System packet only
+        if (!_timebaseValidated)
         {
-            throw new InvalidOperationException($"New timecode {newTimecode} does not match existing timebase {timebase} and drop frame {dropFrame}.");
+            await ValidateTimebaseOnceAsync(input, length, newTimecode, cancellationToken);
         }
-        #endregion
 
         // Skip directly to SMPTE timecode position
         await SkipPacketAsync(input, offset, cancellationToken);
@@ -1356,7 +1396,6 @@ public class MXFHandler : IPacketFormatHandler
             Console.WriteLine($"Restriping System timecode at offset {offset}: {newTimecode}");
         }
 
-        // Write new timecode directly (no read, no seek-back needed)
         var newTimecodeBytes = newTimecode.ToBytes();
         await input.WriteAsync(newTimecodeBytes.AsMemory(0, Constants.SMPTE_TIMECODE_SIZE), cancellationToken);
 
