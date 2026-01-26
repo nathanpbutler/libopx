@@ -49,6 +49,46 @@ public class Keys
 
     #endregion
 
+    #region Partition Pack Keys
+
+    /// <summary>
+    /// Header Partition Pack Key (Open Incomplete)
+    /// </summary>
+    public static readonly byte[] HeaderPartitionPackOpenIncomplete =
+        [0x06, 0x0E, 0x2B, 0x34, 0x02, 0x05, 0x01, 0x01, 0x0D, 0x01, 0x02, 0x01, 0x01, 0x02, 0x01, 0x00];
+
+    /// <summary>
+    /// Header Partition Pack Key (Closed Incomplete)
+    /// </summary>
+    public static readonly byte[] HeaderPartitionPackClosedIncomplete =
+        [0x06, 0x0E, 0x2B, 0x34, 0x02, 0x05, 0x01, 0x01, 0x0D, 0x01, 0x02, 0x01, 0x01, 0x02, 0x02, 0x00];
+
+    /// <summary>
+    /// Header Partition Pack Key (Open Complete)
+    /// </summary>
+    public static readonly byte[] HeaderPartitionPackOpenComplete =
+        [0x06, 0x0E, 0x2B, 0x34, 0x02, 0x05, 0x01, 0x01, 0x0D, 0x01, 0x02, 0x01, 0x01, 0x02, 0x03, 0x00];
+
+    /// <summary>
+    /// Header Partition Pack Key (Closed Complete)
+    /// </summary>
+    public static readonly byte[] HeaderPartitionPackClosedComplete =
+        [0x06, 0x0E, 0x2B, 0x34, 0x02, 0x05, 0x01, 0x01, 0x0D, 0x01, 0x02, 0x01, 0x01, 0x02, 0x04, 0x00];
+
+    /// <summary>
+    /// Footer Partition Pack Key (Closed Complete)
+    /// </summary>
+    public static readonly byte[] FooterPartitionPackClosedComplete =
+        [0x06, 0x0E, 0x2B, 0x34, 0x02, 0x05, 0x01, 0x01, 0x0D, 0x01, 0x02, 0x01, 0x01, 0x04, 0x04, 0x00];
+
+    /// <summary>
+    /// Index Table Segment Key
+    /// </summary>
+    public static readonly byte[] IndexTableSegment =
+        [0x06, 0x0E, 0x2B, 0x34, 0x02, 0x53, 0x01, 0x01, 0x0D, 0x01, 0x02, 0x01, 0x01, 0x10, 0x01, 0x00];
+
+    #endregion
+
     private static readonly Dictionary<ReadOnlyMemory<byte>, KeyType> KeyPatterns = new()
     {
         { SystemMetadataPackGC.AsMemory(), KeyType.System },
@@ -149,6 +189,16 @@ public class Keys
         { Essence.GenericContainerApplication.AsMemory(), KeyType.System },
         { Essence.GenericContainerVersion.AsMemory(), KeyType.System },
         { Essence.OrganizationallyRegisteredforPublicUse.AsMemory(), KeyType.System },
+
+        // Partition Pack Keys
+        { HeaderPartitionPackOpenIncomplete.AsMemory(), KeyType.HeaderPartition },
+        { HeaderPartitionPackClosedIncomplete.AsMemory(), KeyType.HeaderPartition },
+        { HeaderPartitionPackOpenComplete.AsMemory(), KeyType.HeaderPartition },
+        { HeaderPartitionPackClosedComplete.AsMemory(), KeyType.HeaderPartition },
+        { FooterPartitionPackClosedComplete.AsMemory(), KeyType.FooterPartition },
+
+        // Index Table Keys
+        { IndexTableSegment.AsMemory(), KeyType.IndexTableSegment },
     };
 
     /// <summary>
@@ -203,6 +253,18 @@ public class Keys
     /// Audio essence elements including various audio formats and codecs.
     /// </summary>
     Audio,
+    /// <summary>
+    /// Header partition pack key.
+    /// </summary>
+    HeaderPartition,
+    /// <summary>
+    /// Footer partition pack key.
+    /// </summary>
+    FooterPartition,
+    /// <summary>
+    /// Index table segment key.
+    /// </summary>
+    IndexTableSegment,
     /// <summary>
     /// Unknown or unrecognized key type.
     /// </summary>
