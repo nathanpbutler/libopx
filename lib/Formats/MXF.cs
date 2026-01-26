@@ -19,6 +19,17 @@ public class MXF : FormatIOBase
     /// Gets or sets the start timecode extracted from the MXF file.
     /// </summary>
     public Timecode StartTimecode { get; set; } = new Timecode(0);
+
+    /// <summary>
+    /// The parsed index table, or null if not available.
+    /// </summary>
+    public MxfIndex? Index { get; private set; }
+
+    /// <summary>
+    /// Whether this MXF file has a usable index table.
+    /// </summary>
+    public bool HasIndex => Index != null;
+
     /// <summary>
     /// Handler instance for parsing operations.
     /// </summary>
@@ -108,6 +119,9 @@ public class MXF : FormatIOBase
             throw new InvalidOperationException("Failed to retrieve start timecode from the MXF file.");
         }
 
+        // Attempt to load index table (optional, fails gracefully)
+        Index = LoadIndexTable();
+
         // Reset stream position to the beginning
         Input.Seek(0, SeekOrigin.Begin);
     }
@@ -148,6 +162,9 @@ public class MXF : FormatIOBase
         {
             throw new InvalidOperationException("Failed to retrieve start timecode from the MXF file.");
         }
+
+        // Attempt to load index table (optional, fails gracefully)
+        Index = LoadIndexTable();
 
         // Reset stream position to the beginning
         Input.Seek(0, SeekOrigin.Begin);
@@ -334,6 +351,61 @@ public class MXF : FormatIOBase
             }
 
             return length;
+        }
+    }
+
+    /// <summary>
+    /// Attempts to load the index table from the footer partition.
+    /// </summary>
+    private MxfIndex? LoadIndexTable()
+    {
+        if (Input == null || !Input.CanSeek)
+            return null;
+
+        try
+        {
+            // Save current position
+            var originalPosition = Input.Position;
+
+            // Read header partition pack to get footer offset
+            Input.Seek(0, SeekOrigin.Begin);
+
+            var keyBuffer = new byte[Constants.KLV_KEY_SIZE];
+            if (Input.Read(keyBuffer, 0, Constants.KLV_KEY_SIZE) != Constants.KLV_KEY_SIZE)
+                return null;
+
+            // Verify it's a header partition pack
+            var keyType = Keys.GetKeyType(keyBuffer);
+            if (keyType != KeyType.HeaderPartition)
+                return null;
+
+            // Read BER length
+            var length = ReadBerLengthLocal(Input);
+            if (length < 64)
+                return null;
+
+            // Read partition pack data
+            var packData = new byte[length];
+            if (Input.Read(packData, 0, length) != length)
+                return null;
+
+            var headerPack = PartitionPack.Parse(packData);
+            if (headerPack.FooterPartition == 0)
+                return null; // No footer partition
+
+            // Seek to footer partition
+            Input.Seek(headerPack.FooterPartition, SeekOrigin.Begin);
+
+            // TODO: Parse footer partition and index table segments
+            // This is a placeholder for the full implementation
+
+            // Restore original position
+            Input.Seek(originalPosition, SeekOrigin.Begin);
+            return null; // Full implementation in next task
+        }
+        catch
+        {
+            return null; // Graceful fallback on any error
         }
     }
 
