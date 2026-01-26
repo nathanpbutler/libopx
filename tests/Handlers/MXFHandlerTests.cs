@@ -309,6 +309,51 @@ public class MXFHandlerTests : IAsyncLifetime, IDisposable
     }
 
     [Fact]
+    public void Parse_RestripeMode_ModifiesMultipleFrameTimecodes()
+    {
+        // Arrange - Create temp file copy for restriping
+        var tempFile = Path.GetTempFileName();
+        _tempFilesToDelete.Add(tempFile);
+        File.WriteAllBytes(tempFile, _sampleData!);
+
+        var newTimecode = new Timecode(1, 0, 0, 0); // 01:00:00:00
+        var handler = new MXFHandler(
+            newTimecode,
+            inputFilePath: tempFile,
+            function: Function.Restripe
+        );
+
+        // Act - Restripe the file
+        using (var stream = File.Open(tempFile, FileMode.Open, FileAccess.ReadWrite))
+        {
+            var options = new ParseOptions { OutputFormat = Format.T42 };
+            foreach (var _ in handler.Parse(stream, options)) { }
+        }
+
+        // Assert - Verify SMPTE timecodes are sequential from new start
+        using var mxf = new MXF(tempFile);
+        Assert.Equal(newTimecode.ToString(), mxf.StartTimecode.ToString());
+
+        // Parse to get SMPTE timecodes
+        var verifyHandler = new MXFHandler(mxf.StartTimecode, function: Function.Filter, requiredKeys: new List<KeyType> { KeyType.System });
+        using var verifyStream = File.OpenRead(tempFile);
+        foreach (var _ in verifyHandler.Parse(verifyStream, new ParseOptions { OutputFormat = Format.T42 })) { }
+
+        var timecodes = verifyHandler.SMPTETimecodes;
+        Assert.NotEmpty(timecodes);
+
+        // First SMPTE timecode should match new start
+        Assert.Equal(newTimecode.ToString(), timecodes[0].ToString());
+
+        // Timecodes should be sequential
+        for (int i = 1; i < timecodes.Count; i++)
+        {
+            var expected = timecodes[i - 1].GetNext();
+            Assert.Equal(expected.ToString(), timecodes[i].ToString());
+        }
+    }
+
+    [Fact]
     public void Parse_CheckSequential_ValidatesTimecodeOrder()
     {
         // Arrange
