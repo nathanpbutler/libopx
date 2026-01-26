@@ -1348,24 +1348,17 @@ public class MXFHandler : IPacketFormatHandler
         }
         #endregion
 
+        // Skip directly to SMPTE timecode position
         await SkipPacketAsync(input, offset, cancellationToken);
-        var timecodePosition = input.Position;
 
-        var smpteMemory = _smpteBuffer.AsMemory(0, Constants.SMPTE_TIMECODE_SIZE);
-        var smpteRead = await input.ReadAsync(smpteMemory, cancellationToken);
-        if (smpteRead == Constants.SMPTE_TIMECODE_SIZE)
+        if (_verbose)
         {
-            if (_verbose)
-            {
-                var currentTimecode = Timecode.FromBytes(_smpteBuffer, timebase, dropFrame);
-                Console.WriteLine($"Restriping System timecode at offset {offset}: {currentTimecode} -> {newTimecode}");
-            }
-
-            // Convert new timecode to bytes and write back to file
-            var newTimecodeBytes = newTimecode.ToBytes();
-            input.Seek(timecodePosition, SeekOrigin.Begin);
-            await input.WriteAsync(newTimecodeBytes.AsMemory(0, Constants.SMPTE_TIMECODE_SIZE), cancellationToken);
+            Console.WriteLine($"Restriping System timecode at offset {offset}: {newTimecode}");
         }
+
+        // Write new timecode directly (no read, no seek-back needed)
+        var newTimecodeBytes = newTimecode.ToBytes();
+        await input.WriteAsync(newTimecodeBytes.AsMemory(0, Constants.SMPTE_TIMECODE_SIZE), cancellationToken);
 
         var remainingBytes = length - offset - Constants.SMPTE_TIMECODE_SIZE;
         if (remainingBytes > 0)
