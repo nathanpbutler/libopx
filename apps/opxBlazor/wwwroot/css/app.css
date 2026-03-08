@@ -20,4 +20,14 @@
 .tt-text {
     font-family: 'Cascadia Mono', 'Consolas', 'Courier New', monospace;
     white-space: pre;
+    display: flex;
+    align-items: stretch;
+    margin: -4px 0;
+    padding: 0;
+}
+
+.tt-text > span {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 0;
 }
