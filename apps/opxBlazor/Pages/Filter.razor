@@ -69,7 +69,7 @@
                     <span class="tt-text">
                         @foreach (var span in context.Item.ColorSpans)
                         {
-                            <span class="tt-fg-@span.Foreground.ToString().ToLower() tt-bg-@span.Background.ToString().ToLower()">@span.Text</span>
+                            <span style="@SpanStyle(span)">@span.Text</span>
                         }
                     </span>
                 </CellTemplate>
@@ -87,6 +87,12 @@
     private bool _loading;
     private string? _error;
     private List<CaptionLineViewModel> _results = [];
+
+    private static readonly string[] ColorHex =
+        ["#000000", "#ff0000", "#00ff00", "#ffff00", "#0000ff", "#ff00ff", "#00ffff", "#ffffff"];
+
+    private static string SpanStyle(ColorSpan span) =>
+        $"color:{ColorHex[(int)span.Foreground]};background-color:{ColorHex[(int)span.Background]}";
 
     private async Task LoadFile()
     {
