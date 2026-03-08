@@ -4,6 +4,7 @@ using System.Collections;
 using System.Text;
 using nathanbutlerDEV.libopx.Enums;
 using nathanbutlerDEV.libopx.Formats;
+using nathanbutlerDEV.libopx.Models;
 
 namespace nathanbutlerDEV.libopx;
 
@@ -81,6 +82,11 @@ public class Line : IDisposable
     /// Gets or sets the decoded teletext content as formatted text with ANSI colors.
     /// </summary>
     public string Text { get; set; } = Constants.T42_BLANK_LINE;
+    /// <summary>
+    /// Gets or sets the structured color span data for UI rendering.
+    /// Populated alongside Text during ExtractMetadata.
+    /// </summary>
+    public List<ColorSpan> ColorSpans { get; set; } = [];
 
     // Cache the type calculation to avoid repeated computation
     private Format? _cachedType;
@@ -477,12 +483,14 @@ public class Line : IDisposable
                     // For header rows (row 0), extract and display page number
                     var pageNumber = Row == 0 ? T42.GetPageNumber(Data) : null;
                     Text = T42.GetText([.. Data.Skip(2)], Row == 0, Magazine, pageNumber);
+                    ColorSpans = T42.GetColorSpans([.. Data.Skip(2)], Row == 0, Magazine, pageNumber);
                 }
                 else
                 {
                     Magazine = -1;
                     Row = -1;
                     Text = Constants.T42_BLANK_LINE;
+                    ColorSpans = [];
                 }
                 break;
                 
