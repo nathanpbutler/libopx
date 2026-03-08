@@ -7,6 +7,8 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddMudServices();
 
+builder.Services.AddScoped<opxBlazor.Services.FilterService>();
+
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())
