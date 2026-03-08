@@ -1,0 +1,23 @@
+/* Teletext color mappings for ColorSpan rendering */
+.tt-fg-black   { color: #000000; }
+.tt-fg-red     { color: #ff0000; }
+.tt-fg-green   { color: #00ff00; }
+.tt-fg-yellow  { color: #ffff00; }
+.tt-fg-blue    { color: #0000ff; }
+.tt-fg-magenta { color: #ff00ff; }
+.tt-fg-cyan    { color: #00ffff; }
+.tt-fg-white   { color: #ffffff; }
+
+.tt-bg-black   { background-color: #000000; }
+.tt-bg-red     { background-color: #ff0000; }
+.tt-bg-green   { background-color: #00ff00; }
+.tt-bg-yellow  { background-color: #ffff00; }
+.tt-bg-blue    { background-color: #0000ff; }
+.tt-bg-magenta { background-color: #ff00ff; }
+.tt-bg-cyan    { background-color: #00ffff; }
+.tt-bg-white   { background-color: #ffffff; }
+
+.tt-text {
+    font-family: 'Cascadia Mono', 'Consolas', 'Courier New', monospace;
+    white-space: pre;
+}
