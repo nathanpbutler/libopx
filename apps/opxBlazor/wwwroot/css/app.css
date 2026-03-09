@@ -1,34 +1,19 @@
-/* Teletext color mappings for ColorSpan rendering */
-.tt-fg-black   { color: #000000; }
-.tt-fg-red     { color: #ff0000; }
-.tt-fg-green   { color: #00ff00; }
-.tt-fg-yellow  { color: #ffff00; }
-.tt-fg-blue    { color: #0000ff; }
-.tt-fg-magenta { color: #ff00ff; }
-.tt-fg-cyan    { color: #00ffff; }
-.tt-fg-white   { color: #ffffff; }
-
-.tt-bg-black   { background-color: #000000; }
-.tt-bg-red     { background-color: #ff0000; }
-.tt-bg-green   { background-color: #00ff00; }
-.tt-bg-yellow  { background-color: #ffff00; }
-.tt-bg-blue    { background-color: #0000ff; }
-.tt-bg-magenta { background-color: #ff00ff; }
-.tt-bg-cyan    { background-color: #00ffff; }
-.tt-bg-white   { background-color: #ffffff; }
-
+/* Teletext text rendering */
 .tt-text {
     font-family: 'Cascadia Mono', 'Consolas', 'Courier New', monospace;
     white-space: pre;
     line-height: 1;
 }
 
-.tt-text > span {
-    padding: 6px 0;
+/* Compact row spacing for the caption grid */
+.tt-grid .mud-table-cell {
+    padding: 2px 8px !important;
 }
 
-/* Remove vertical padding from the Text column cells so spans fill the row */
-.mud-table-cell:has(.tt-text) {
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
+.tt-grid .mud-table-cell:has(.tt-text) {
+    padding: 0 !important;
+}
+
+.tt-text > span {
+    padding: 3px 0;
 }

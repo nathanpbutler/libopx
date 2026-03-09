@@ -15,7 +15,7 @@
                           Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.FolderOpen" />
         </MudItem>
         <MudItem xs="6" md="1">
-            <MudSelect T="int?" @bind-Value="_magazine" Label="Magazine" Variant="Variant.Outlined"
+            <MudSelect T="int?" @bind-Value="_magazine" Label="Mag" Variant="Variant.Outlined"
                        Clearable="true">
                 @for (int i = 1; i <= 8; i++)
                 {
@@ -58,12 +58,15 @@
     <MudText Typo="Typo.body2" Class="mb-2">@_results.Count lines</MudText>
 
     <MudDataGrid T="CaptionLineViewModel" Items="_results" Virtualize="true" FixedHeader="true"
-                 Height="calc(100vh - 340px)" Dense="true" Hover="true">
+                 Height="calc(100vh - 340px)" Dense="true" Hover="true" Class="tt-grid">
         <Columns>
             <PropertyColumn Property="x => x.Timecode" Title="Timecode"
-                            CellStyle="font-family: monospace;" />
-            <PropertyColumn Property="x => x.Magazine" Title="Mag" />
-            <PropertyColumn Property="x => x.Row" Title="Row" />
+                            CellStyle="font-family: monospace; width: 120px;"
+                            HeaderStyle="width: 120px;" />
+            <PropertyColumn Property="x => x.Magazine" Title="Mag"
+                            CellStyle="width: 50px;" HeaderStyle="width: 50px;" />
+            <PropertyColumn Property="x => x.Row" Title="Row"
+                            CellStyle="width: 50px;" HeaderStyle="width: 50px;" />
             <TemplateColumn Title="Text">
                 <CellTemplate>
                     <span class="tt-text">
