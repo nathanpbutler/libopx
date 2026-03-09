@@ -58,7 +58,7 @@
     <MudText Typo="Typo.body2" Class="mb-2">@_results.Count lines</MudText>
 
     <MudDataGrid T="CaptionLineViewModel" Items="_results" Virtualize="true" FixedHeader="true"
-                 Height="calc(100vh - 340px)" Dense="true" Hover="true" Class="tt-grid">
+                 Height="calc(100vh - 260px)" Dense="true" Hover="true" Class="tt-grid">
         <Columns>
             <PropertyColumn Property="x => x.Timecode" Title="Timecode"
                             CellStyle="font-family: monospace; width: 120px;"
