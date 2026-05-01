@@ -110,6 +110,7 @@ await io4.ConvertTo(Format.STL)
 
 ## Documentation
 
+- **[Wiki](https://github.com/nathanpbutler/libopx/wiki)** - Architecture, installation guide, and full reference
 - **[Library Documentation](lib/README.md)** - Detailed API reference and usage examples
 - **[CLI Tool Documentation](apps/opx/README.md)** - Complete command reference and examples
 
