@@ -126,9 +126,17 @@
             _results = await FilterService.FilterAsync(
                 _filePath, _magazine, rows, _pageNumber, _useCaps);
         }
-        catch (Exception ex)
+        catch (FormatException ex)
         {
-            _error = $"Error: {ex.Message}";
+            _error = $"Invalid input format: {ex.Message}";
+        }
+        catch (IOException ex)
+        {
+            _error = $"I/O error: {ex.Message}";
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _error = $"Access denied: {ex.Message}";
         }
         finally
         {
