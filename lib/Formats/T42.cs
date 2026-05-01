@@ -7,6 +7,7 @@ using System.Text;
 using nathanbutlerDEV.libopx.Core;
 using nathanbutlerDEV.libopx.Enums;
 using nathanbutlerDEV.libopx.Handlers;
+using nathanbutlerDEV.libopx.Models;
 
 namespace nathanbutlerDEV.libopx.Formats;
 
@@ -313,6 +314,207 @@ public class T42 : FormatIOBase
         {
             return DecodeDataPacket(bytes);
         }
+    }
+
+    /// <summary>
+    /// Parses teletext data to a list of colored text spans for UI rendering.
+    /// Mirrors the logic of GetText but returns structured ColorSpan data
+    /// instead of ANSI escape sequences.
+    /// </summary>
+    public static List<ColorSpan> GetColorSpans(byte[] bytes, bool isHeaderRow, int? magazine = null, string? pageNumber = null)
+    {
+        if (bytes.Length == 0)
+            return [];
+
+        return isHeaderRow
+            ? DecodeHeaderRowSpans(bytes, magazine, pageNumber)
+            : DecodeDataPacketSpans(bytes);
+    }
+
+    /// <summary>
+    /// Decodes a header row (row 0) into colored text spans.
+    /// Mirrors DecodeHeaderRow but outputs List&lt;ColorSpan&gt; instead of ANSI strings.
+    /// </summary>
+    private static List<ColorSpan> DecodeHeaderRowSpans(byte[] bytes, int? magazine, string? pageNumber)
+    {
+        var spans = new List<ColorSpan>();
+        var sb = new StringBuilder(64);
+
+        // Build page number string (e.g., "P801" for magazine 8, page 01)
+        var pageString = magazine.HasValue && pageNumber != null
+            ? $"P{magazine}{pageNumber}"
+            : "P???";
+
+        // Output page number padded to 8 characters (replacing metadata bytes 0-7)
+        sb.Append(pageString.PadRight(8));
+
+        // Decode the header text content (bytes 8-39, or whatever is available)
+        int headerTextStart = 8;
+        int headerTextEnd = Math.Min(bytes.Length, Constants.T42_DISPLAY_WIDTH);
+
+        for (int j = headerTextStart; j < headerTextEnd; j++)
+        {
+            int c = bytes[j] & 0x7F; // Strip parity bit
+
+            // For header text, just map printable characters (simpler than data packets)
+            if (c >= 0x20 && c <= 0x7F)
+            {
+                sb.Append(MapG0Latin(c));
+            }
+            else
+            {
+                sb.Append(' ');
+            }
+        }
+
+        // Pad to full display width if needed
+        int currentLength = 8 + (headerTextEnd - headerTextStart);
+        if (currentLength < Constants.T42_DISPLAY_WIDTH)
+        {
+            sb.Append(new string(' ', Constants.T42_DISPLAY_WIDTH - currentLength));
+        }
+
+        // Entire header row is white on black
+        if (sb.Length > 0)
+        {
+            spans.Add(new ColorSpan(sb.ToString(), TeletextColor.White, TeletextColor.Black));
+        }
+
+        return spans;
+    }
+
+    /// <summary>
+    /// Decodes a data packet (rows 1-24) into colored text spans.
+    /// Mirrors DecodeDataPacket but outputs List&lt;ColorSpan&gt; instead of ANSI strings.
+    /// Implements Set-After color model where color changes apply to the NEXT character.
+    /// </summary>
+    private static List<ColorSpan> DecodeDataPacketSpans(byte[] bytes)
+    {
+        var spans = new List<ColorSpan>();
+        var currentText = new StringBuilder(64);
+
+        // Default row state: white foreground (7) on black background (0)
+        int foreground = 7;
+        int background = 0;
+        int pendingForeground = -1; // Foreground change waiting (Set-After)
+        int pendingBackground = -1; // Background change waiting (Set-After)
+        int currentFg = 7;
+        int currentBg = 0;
+        int boxDepth = 0;
+
+        // Process each character position (bytes 0-39 = 40 chars, or full array)
+        int endPos = Math.Min(bytes.Length, Constants.T42_DISPLAY_WIDTH);
+        for (int j = 0; j < endPos; j++)
+        {
+            int c = bytes[j] & 0x7F; // Strip parity bit
+
+            // Handle control codes (0x00-0x1F)
+            if (c <= 0x1F)
+            {
+                if (c <= 0x07)
+                {
+                    // Alpha foreground color (0x00-0x07) - Set-After
+                    pendingForeground = c;
+                }
+                else if (c >= Constants.T42_GRAPHICS_COLOR_START && c <= Constants.T42_GRAPHICS_COLOR_END)
+                {
+                    // Graphics foreground color (0x10-0x17) - Set-After
+                    pendingForeground = c & 0x07;
+                }
+                else if (c == Constants.T42_BLOCK_START_BYTE)
+                {
+                    // Start Box (0x0B) - increment depth
+                    boxDepth++;
+                }
+                else if (c == Constants.T42_NORMAL_HEIGHT)
+                {
+                    // End Box (0x0A) - decrement depth, reset colors when all boxes closed
+                    if (boxDepth > 0) boxDepth--;
+                    if (boxDepth == 0)
+                    {
+                        foreground = 7;
+                        background = 0;
+                        pendingForeground = -1;
+                        pendingBackground = -1;
+                    }
+                }
+                else if (c == Constants.T42_BLACK_BACKGROUND)
+                {
+                    // Black background (0x1C)
+                    background = 0;
+                    pendingBackground = -1;
+                }
+                else if (c == Constants.T42_BACKGROUND_CONTROL)
+                {
+                    // New background (0x1D) - first commit any pending foreground, then set pending bg
+                    if (pendingForeground >= 0)
+                    {
+                        foreground = pendingForeground;
+                        pendingForeground = -1;
+                    }
+                    pendingBackground = foreground;
+                }
+                else
+                {
+                    // Other control code - apply pending colors now
+                    if (pendingForeground >= 0)
+                    {
+                        foreground = pendingForeground;
+                        pendingForeground = -1;
+                    }
+                    if (pendingBackground >= 0)
+                    {
+                        background = pendingBackground;
+                        pendingBackground = -1;
+                    }
+                }
+
+                // Control codes occupy a character position (output a space)
+                EmitChar(spans, currentText, ' ', foreground, background, ref currentFg, ref currentBg);
+            }
+            else
+            {
+                // Printable character - apply pending colors first (Set-After behavior)
+                if (pendingForeground >= 0)
+                {
+                    foreground = pendingForeground;
+                    pendingForeground = -1;
+                }
+                if (pendingBackground >= 0)
+                {
+                    background = pendingBackground;
+                    pendingBackground = -1;
+                }
+                // Apply G0 Latin mapping and output
+                EmitChar(spans, currentText, MapG0Latin(c), foreground, background, ref currentFg, ref currentBg);
+            }
+        }
+
+        // Flush any remaining text
+        if (currentText.Length > 0)
+        {
+            spans.Add(new ColorSpan(currentText.ToString(), (TeletextColor)currentFg, (TeletextColor)currentBg));
+        }
+
+        return spans;
+    }
+
+    /// <summary>
+    /// Emits a character to the span list, flushing the current text buffer when colors change.
+    /// </summary>
+    private static void EmitChar(List<ColorSpan> spans, StringBuilder currentText, char c, int fg, int bg, ref int currentFg, ref int currentBg)
+    {
+        if (fg != currentFg || bg != currentBg)
+        {
+            if (currentText.Length > 0)
+            {
+                spans.Add(new ColorSpan(currentText.ToString(), (TeletextColor)currentFg, (TeletextColor)currentBg));
+                currentText.Clear();
+            }
+            currentFg = fg;
+            currentBg = bg;
+        }
+        currentText.Append(c);
     }
 
     /// <summary>

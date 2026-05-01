@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using nathanbutlerDEV.libopx.Core;
 using nathanbutlerDEV.libopx.Enums;
 using nathanbutlerDEV.libopx.Formats;
+using nathanbutlerDEV.libopx.Models;
 
 namespace nathanbutlerDEV.libopx.Handlers;
 
@@ -112,7 +113,8 @@ public class VBIHandler : ILineFormatHandler
                 LineTimecode = timecode,
                 Magazine = magazine,
                 Row = row,
-                Text = T42.GetText([.. t42Data.Skip(2)], row == 0, magazine, pageNumber)
+                Text = T42.GetText([.. t42Data.Skip(2)], row == 0, magazine, pageNumber),
+                ColorSpans = T42.GetColorSpans([.. t42Data.Skip(2)], row == 0, magazine, pageNumber)
             };
 
             // Apply filtering (works for all output formats since we have T42 metadata)
@@ -277,7 +279,8 @@ public class VBIHandler : ILineFormatHandler
                     LineTimecode = timecode,
                     Magazine = magazine,
                     Row = row,
-                    Text = T42.GetText([.. t42Data.Skip(2)], row == 0, magazine, pageNumber)
+                    Text = T42.GetText([.. t42Data.Skip(2)], row == 0, magazine, pageNumber),
+                ColorSpans = T42.GetColorSpans([.. t42Data.Skip(2)], row == 0, magazine, pageNumber)
                 };
 
                 // Apply filtering (works for all output formats since we have T42 metadata)

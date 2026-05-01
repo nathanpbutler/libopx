@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using nathanbutlerDEV.libopx.Core;
 using nathanbutlerDEV.libopx.Enums;
 using nathanbutlerDEV.libopx.Formats;
+using nathanbutlerDEV.libopx.Models;
 
 namespace nathanbutlerDEV.libopx.Handlers;
 
@@ -88,6 +89,7 @@ public class T42Handler : ILineFormatHandler
                 }
 
                 line.Text = T42.GetText([.. t42Buffer.Skip(2)], line.Row == 0, line.Magazine, pageNumber);
+                line.ColorSpans = T42.GetColorSpans([.. t42Buffer.Skip(2)], line.Row == 0, line.Magazine, pageNumber);
             }
             else
             {
@@ -233,6 +235,7 @@ public class T42Handler : ILineFormatHandler
                     }
 
                     line.Text = T42.GetText([.. line.Data.Skip(2)], line.Row == 0, line.Magazine, pageNumber);
+                    line.ColorSpans = T42.GetColorSpans([.. line.Data.Skip(2)], line.Row == 0, line.Magazine, pageNumber);
                 }
                 else
                 {

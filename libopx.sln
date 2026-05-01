@@ -1,5 +1,4 @@
-﻿
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
@@ -12,6 +11,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "opx", "apps\opx\opx.csproj", "{88A05FFC-393A-46A5-9DE3-44D1893F03E2}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "simpleRestriper", "apps\simpleRestriper\simpleRestriper.csproj", "{5952E593-4C71-4CA0-9DA5-17FAC680A2F0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "opxBlazor", "apps\opxBlazor\opxBlazor.csproj", "{FD87448E-2B68-47AE-9EAB-9BA21B5E4573}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -71,6 +72,18 @@ Global
 		{5952E593-4C71-4CA0-9DA5-17FAC680A2F0}.Release|x64.Build.0 = Release|Any CPU
 		{5952E593-4C71-4CA0-9DA5-17FAC680A2F0}.Release|x86.ActiveCfg = Release|Any CPU
 		{5952E593-4C71-4CA0-9DA5-17FAC680A2F0}.Release|x86.Build.0 = Release|Any CPU
+		{FD87448E-2B68-47AE-9EAB-9BA21B5E4573}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FD87448E-2B68-47AE-9EAB-9BA21B5E4573}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FD87448E-2B68-47AE-9EAB-9BA21B5E4573}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{FD87448E-2B68-47AE-9EAB-9BA21B5E4573}.Debug|x64.Build.0 = Debug|Any CPU
+		{FD87448E-2B68-47AE-9EAB-9BA21B5E4573}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{FD87448E-2B68-47AE-9EAB-9BA21B5E4573}.Debug|x86.Build.0 = Debug|Any CPU
+		{FD87448E-2B68-47AE-9EAB-9BA21B5E4573}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FD87448E-2B68-47AE-9EAB-9BA21B5E4573}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FD87448E-2B68-47AE-9EAB-9BA21B5E4573}.Release|x64.ActiveCfg = Release|Any CPU
+		{FD87448E-2B68-47AE-9EAB-9BA21B5E4573}.Release|x64.Build.0 = Release|Any CPU
+		{FD87448E-2B68-47AE-9EAB-9BA21B5E4573}.Release|x86.ActiveCfg = Release|Any CPU
+		{FD87448E-2B68-47AE-9EAB-9BA21B5E4573}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -78,5 +91,6 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{88A05FFC-393A-46A5-9DE3-44D1893F03E2} = {1787FE1D-075E-9E68-7218-25F1BD1BBEAB}
 		{5952E593-4C71-4CA0-9DA5-17FAC680A2F0} = {1787FE1D-075E-9E68-7218-25F1BD1BBEAB}
+		{FD87448E-2B68-47AE-9EAB-9BA21B5E4573} = {1787FE1D-075E-9E68-7218-25F1BD1BBEAB}
 	EndGlobalSection
 EndGlobal

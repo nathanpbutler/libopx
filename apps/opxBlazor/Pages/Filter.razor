@@ -1,0 +1,146 @@
+@page "/filter"
+@page "/"
+@using opxBlazor.Models
+@using opxBlazor.Services
+@using nathanbutlerDEV.libopx
+@inject FilterService FilterService
+
+<MudText Typo="Typo.h5" Class="mb-4">Filter</MudText>
+
+<MudPaper Class="pa-4 mb-4" Elevation="1">
+    <MudGrid>
+        <MudItem xs="12" md="6">
+            <MudTextField @bind-Value="_filePath" Label="File Path" Variant="Variant.Outlined"
+                          Placeholder="/path/to/file.t42"
+                          Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.FolderOpen" />
+        </MudItem>
+        <MudItem xs="6" md="1">
+            <MudSelect T="int?" @bind-Value="_magazine" Label="Mag" Variant="Variant.Outlined"
+                       Clearable="true">
+                @for (int i = 1; i <= 8; i++)
+                {
+                    <MudSelectItem T="int?" Value="@i">@i</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="6" md="2">
+            <MudTextField @bind-Value="_rowsString" Label="Rows" Variant="Variant.Outlined"
+                          Placeholder="1,2,5-8" />
+        </MudItem>
+        <MudItem xs="6" md="1">
+            <MudTextField @bind-Value="_pageNumber" Label="Page" Variant="Variant.Outlined"
+                          Placeholder="01" />
+        </MudItem>
+        <MudItem xs="3" md="1" Class="d-flex align-center">
+            <MudSwitch T="bool" @bind-Value="_useCaps" Label="Caps" Color="Color.Primary" />
+        </MudItem>
+        <MudItem xs="3" md="1" Class="d-flex align-center">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadFile"
+                       Disabled="_loading">
+                @if (_loading)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                }
+                Load
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4" ShowCloseIcon="true"
+              CloseIconClicked="() => _error = null">@_error</MudAlert>
+}
+
+@if (_results.Count > 0)
+{
+    <MudText Typo="Typo.body2" Class="mb-2">@_results.Count lines</MudText>
+
+    <MudDataGrid T="CaptionLineViewModel" Items="_results" Virtualize="true" FixedHeader="true"
+                 Height="calc(100vh - 260px)" Dense="true" Hover="true" Class="tt-grid">
+        <Columns>
+            <PropertyColumn Property="x => x.Timecode" Title="Timecode"
+                            CellStyle="font-family: monospace; width: 120px;"
+                            HeaderStyle="width: 120px;" />
+            <PropertyColumn Property="x => x.Magazine" Title="Mag"
+                            CellStyle="width: 50px;" HeaderStyle="width: 50px;" />
+            <PropertyColumn Property="x => x.Row" Title="Row"
+                            CellStyle="width: 50px;" HeaderStyle="width: 50px;" />
+            <TemplateColumn Title="Text">
+                <CellTemplate>
+                    <span class="tt-text">
+                        @foreach (var span in context.Item.ColorSpans)
+                        {
+                            <span style="@SpanStyle(span)">@span.Text</span>
+                        }
+                    </span>
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+    </MudDataGrid>
+}
+
+@code {
+    private string? _filePath;
+    private int? _magazine;
+    private string? _rowsString;
+    private string? _pageNumber;
+    private bool _useCaps;
+    private bool _loading;
+    private string? _error;
+    private List<CaptionLineViewModel> _results = [];
+
+    private static readonly string[] ColorHex =
+        ["#000000", "#ff0000", "#00ff00", "#ffff00", "#0000ff", "#ff00ff", "#00ffff", "#ffffff"];
+
+    private static string SpanStyle(ColorSpan span) =>
+        $"color:{ColorHex[(int)span.Foreground]};background-color:{ColorHex[(int)span.Background]}";
+
+    private async Task LoadFile()
+    {
+        if (string.IsNullOrWhiteSpace(_filePath))
+        {
+            _error = "Please enter a file path.";
+            return;
+        }
+
+        if (!File.Exists(_filePath))
+        {
+            _error = $"File not found: {_filePath}";
+            return;
+        }
+
+        _loading = true;
+        _error = null;
+        _results = [];
+
+        try
+        {
+            int[]? rows = null;
+            if (!string.IsNullOrWhiteSpace(_rowsString))
+            {
+                rows = FilterHelpers.ParseRowsString(_rowsString);
+            }
+
+            _results = await FilterService.FilterAsync(
+                _filePath, _magazine, rows, _pageNumber, _useCaps);
+        }
+        catch (FormatException ex)
+        {
+            _error = $"Invalid input format: {ex.Message}";
+        }
+        catch (IOException ex)
+        {
+            _error = $"I/O error: {ex.Message}";
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _error = $"Access denied: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}
